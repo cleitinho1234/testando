@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Boneco andando</title>
+<title>Boneco com poder de fogo</title>
 
 <style>
 
@@ -33,7 +33,6 @@ border:2px solid black;
 position:relative;
 }
 
-/* olhos */
 .eye{
 width:6px;
 height:6px;
@@ -43,15 +42,9 @@ position:absolute;
 top:12px;
 }
 
-.eye.left{
-left:8px;
-}
+.eye.left{ left:8px; }
+.eye.right{ right:8px; }
 
-.eye.right{
-right:8px;
-}
-
-/* boca */
 .mouth{
 width:14px;
 height:6px;
@@ -82,19 +75,13 @@ top:0;
 transform-origin:top;
 }
 
-.arm.left{
-left:-16px;
-}
-
-.arm.right{
-right:-16px;
-}
+.arm.left{ left:-16px; }
+.arm.right{ right:-16px; }
 
 /* pernas */
 .legs{
 display:flex;
 gap:10px;
-margin-top:2px;
 }
 
 .leg{
@@ -107,21 +94,10 @@ transform-origin:top;
 
 /* animação andar */
 
-.walk .leg.left{
-animation:leg1 0.4s infinite alternate;
-}
-
-.walk .leg.right{
-animation:leg2 0.4s infinite alternate;
-}
-
-.walk .arm.left{
-animation:arm1 0.4s infinite alternate;
-}
-
-.walk .arm.right{
-animation:arm2 0.4s infinite alternate;
-}
+.walk .leg.left{ animation:leg1 0.4s infinite alternate; }
+.walk .leg.right{ animation:leg2 0.4s infinite alternate; }
+.walk .arm.left{ animation:arm1 0.4s infinite alternate; }
+.walk .arm.right{ animation:arm2 0.4s infinite alternate; }
 
 @keyframes leg1{
 from{transform:rotate(25deg)}
@@ -143,7 +119,18 @@ from{transform:rotate(25deg)}
 to{transform:rotate(-25deg)}
 }
 
+/* fogo */
+.fire{
+position:absolute;
+width:15px;
+height:15px;
+background:orange;
+border-radius:50%;
+box-shadow:0 0 10px red;
+}
+
 /* chão */
+
 #ground{
 position:absolute;
 bottom:0;
@@ -190,13 +177,53 @@ let speed = 5
 
 let keys = {}
 
+let direction = "right"
+
 document.addEventListener("keydown",(e)=>{
 keys[e.key.toLowerCase()] = true
+
+if(e.key === "Shift"){
+shootFire()
+}
+
 })
 
 document.addEventListener("keyup",(e)=>{
 keys[e.key.toLowerCase()] = false
 })
+
+function shootFire(){
+
+let fire = document.createElement("div")
+fire.className = "fire"
+
+let fx = x + 20
+let fy = y + 40
+
+fire.style.left = fx + "px"
+fire.style.top = fy + "px"
+
+document.body.appendChild(fire)
+
+let speedFire = 8
+
+function moveFire(){
+
+if(direction === "right") fx += speedFire
+if(direction === "left") fx -= speedFire
+if(direction === "up") fy -= speedFire
+if(direction === "down") fy += speedFire
+
+fire.style.left = fx + "px"
+fire.style.top = fy + "px"
+
+requestAnimationFrame(moveFire)
+
+}
+
+moveFire()
+
+}
 
 function gameLoop(){
 
@@ -204,21 +231,25 @@ let moving = false
 
 if(keys["a"] || keys["arrowleft"]){
 x -= speed
+direction = "left"
 moving = true
 }
 
 if(keys["d"] || keys["arrowright"]){
 x += speed
+direction = "right"
 moving = true
 }
 
 if(keys["w"] || keys["arrowup"]){
 y -= speed
+direction = "up"
 moving = true
 }
 
 if(keys["s"] || keys["arrowdown"]){
 y += speed
+direction = "down"
 moving = true
 }
 
