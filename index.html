@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Boneco estilo Minecraft</title>
+<title>Boneco andando</title>
 
 <style>
 
@@ -14,16 +14,13 @@ overflow:hidden;
 background:#87CEEB;
 }
 
-#game{
-position:relative;
-width:100vw;
-height:100vh;
-}
-
 #player{
 position:absolute;
 left:300px;
 top:200px;
+display:flex;
+flex-direction:column;
+align-items:center;
 }
 
 /* cabeça */
@@ -32,7 +29,6 @@ width:40px;
 height:40px;
 background:#f1c27d;
 border:2px solid black;
-margin:auto;
 }
 
 /* corpo */
@@ -41,37 +37,79 @@ width:40px;
 height:50px;
 background:#3cb043;
 border:2px solid black;
-margin:auto;
+position:relative;
 }
 
 /* braços */
-.arms{
-display:flex;
-justify-content:space-between;
-width:80px;
-margin:auto;
-margin-top:-50px;
-}
-
 .arm{
-width:15px;
-height:50px;
+width:12px;
+height:45px;
 background:#f1c27d;
 border:2px solid black;
+position:absolute;
+top:0;
+transform-origin:top;
+}
+
+.arm.left{
+left:-16px;
+}
+
+.arm.right{
+right:-16px;
 }
 
 /* pernas */
 .legs{
 display:flex;
-justify-content:center;
 gap:10px;
+margin-top:2px;
 }
 
 .leg{
-width:15px;
+width:12px;
 height:40px;
 background:#1e3d59;
 border:2px solid black;
+transform-origin:top;
+}
+
+/* animação andando */
+
+.walk .leg.left{
+animation:leg1 0.4s infinite alternate;
+}
+
+.walk .leg.right{
+animation:leg2 0.4s infinite alternate;
+}
+
+.walk .arm.left{
+animation:arm1 0.4s infinite alternate;
+}
+
+.walk .arm.right{
+animation:arm2 0.4s infinite alternate;
+}
+
+@keyframes leg1{
+from{transform:rotate(25deg)}
+to{transform:rotate(-25deg)}
+}
+
+@keyframes leg2{
+from{transform:rotate(-25deg)}
+to{transform:rotate(25deg)}
+}
+
+@keyframes arm1{
+from{transform:rotate(-25deg)}
+to{transform:rotate(25deg)}
+}
+
+@keyframes arm2{
+from{transform:rotate(25deg)}
+to{transform:rotate(-25deg)}
 }
 
 #ground{
@@ -88,29 +126,23 @@ background:#5a3d1e;
 
 <body>
 
-<div id="game">
-
 <div id="player">
 
 <div class="head"></div>
 
-<div class="arms">
-<div class="arm"></div>
-<div class="arm"></div>
+<div class="body">
+<div class="arm left"></div>
+<div class="arm right"></div>
 </div>
 
-<div class="body"></div>
-
 <div class="legs">
-<div class="leg"></div>
-<div class="leg"></div>
+<div class="leg left"></div>
+<div class="leg right"></div>
 </div>
 
 </div>
 
 <div id="ground"></div>
-
-</div>
 
 <script>
 
@@ -132,24 +164,36 @@ keys[e.key.toLowerCase()] = false
 
 function gameLoop(){
 
-if(keys["w"] || keys["arrowup"]){
-y -= speed
-}
-
-if(keys["s"] || keys["arrowdown"]){
-y += speed
-}
+let moving = false
 
 if(keys["a"] || keys["arrowleft"]){
 x -= speed
+moving = true
 }
 
 if(keys["d"] || keys["arrowright"]){
 x += speed
+moving = true
+}
+
+if(keys["w"] || keys["arrowup"]){
+y -= speed
+moving = true
+}
+
+if(keys["s"] || keys["arrowdown"]){
+y += speed
+moving = true
 }
 
 player.style.left = x + "px"
 player.style.top = y + "px"
+
+if(moving){
+player.classList.add("walk")
+}else{
+player.classList.remove("walk")
+}
 
 requestAnimationFrame(gameLoop)
 
