@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Boneco com asas</title>
+<title>Personagem com asas de anjo</title>
 
 <style>
 
@@ -25,35 +25,47 @@ flex-direction:column;
 align-items:center;
 }
 
-/* asas */
+/* ASAS DE ANJO */
 
 .wings{
 position:absolute;
-top:20px;
+top:10px;
+width:120px;
 display:flex;
 justify-content:space-between;
-width:90px;
 pointer-events:none;
 }
 
 .wing{
-width:35px;
-height:50px;
+width:50px;
+height:70px;
 background:white;
 border:3px solid green;
-border-radius:50%;
-transform-origin:right center;
-animation:flap 0.5s infinite alternate;
+clip-path: polygon(
+50% 0%,
+70% 10%,
+85% 25%,
+90% 45%,
+80% 65%,
+60% 85%,
+40% 100%,
+20% 85%,
+10% 65%,
+5% 45%,
+15% 25%,
+30% 10%
+);
+transform-origin:center top;
+animation:flap 0.6s infinite alternate;
 }
 
 .wing.right{
-transform-origin:left center;
-animation-direction:alternate-reverse;
+transform:scaleX(-1);
 }
 
 @keyframes flap{
-from{transform:rotate(0deg)}
-to{transform:rotate(25deg)}
+from{transform:rotate(-10deg)}
+to{transform:rotate(20deg)}
 }
 
 /* cabeça */
@@ -249,14 +261,17 @@ document.body.appendChild(fire)
 let speedFire = 8
 let life = 0
 
+/* DIREÇÃO FIXA */
+let fireDirection = direction
+
 function moveFire(){
 
 life++
 
-if(direction === "right") fx += speedFire
-if(direction === "left") fx -= speedFire
-if(direction === "up") fy -= speedFire
-if(direction === "down") fy += speedFire
+if(fireDirection === "right") fx += speedFire
+if(fireDirection === "left") fx -= speedFire
+if(fireDirection === "up") fy -= speedFire
+if(fireDirection === "down") fy += speedFire
 
 fire.style.left = fx + "px"
 fire.style.top = fy + "px"
