@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Boneco Quadrado Controlável</title>
+<title>Boneco estilo Minecraft</title>
 
 <style>
 
@@ -12,7 +12,6 @@ body{
 margin:0;
 overflow:hidden;
 background:#87CEEB;
-font-family:Arial;
 }
 
 #game{
@@ -23,20 +22,64 @@ height:100vh;
 
 #player{
 position:absolute;
-width:40px;
-height:40px;
-background:#3cb043;
-border:4px solid #000;
-left:200px;
+left:300px;
 top:200px;
 }
 
-#chao{
+/* cabeça */
+.head{
+width:40px;
+height:40px;
+background:#f1c27d;
+border:2px solid black;
+margin:auto;
+}
+
+/* corpo */
+.body{
+width:40px;
+height:50px;
+background:#3cb043;
+border:2px solid black;
+margin:auto;
+}
+
+/* braços */
+.arms{
+display:flex;
+justify-content:space-between;
+width:80px;
+margin:auto;
+margin-top:-50px;
+}
+
+.arm{
+width:15px;
+height:50px;
+background:#f1c27d;
+border:2px solid black;
+}
+
+/* pernas */
+.legs{
+display:flex;
+justify-content:center;
+gap:10px;
+}
+
+.leg{
+width:15px;
+height:40px;
+background:#1e3d59;
+border:2px solid black;
+}
+
+#ground{
 position:absolute;
 bottom:0;
 width:100%;
 height:120px;
-background:#6b3e26;
+background:#5a3d1e;
 }
 
 </style>
@@ -47,8 +90,25 @@ background:#6b3e26;
 
 <div id="game">
 
-<div id="player"></div>
-<div id="chao"></div>
+<div id="player">
+
+<div class="head"></div>
+
+<div class="arms">
+<div class="arm"></div>
+<div class="arm"></div>
+</div>
+
+<div class="body"></div>
+
+<div class="legs">
+<div class="leg"></div>
+<div class="leg"></div>
+</div>
+
+</div>
+
+<div id="ground"></div>
 
 </div>
 
@@ -56,17 +116,17 @@ background:#6b3e26;
 
 const player = document.getElementById("player")
 
-let x = 200
+let x = 300
 let y = 200
 let speed = 5
 
 let keys = {}
 
-document.addEventListener("keydown", function(e){
+document.addEventListener("keydown",(e)=>{
 keys[e.key.toLowerCase()] = true
 })
 
-document.addEventListener("keyup", function(e){
+document.addEventListener("keyup",(e)=>{
 keys[e.key.toLowerCase()] = false
 })
 
