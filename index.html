@@ -14,6 +14,7 @@ overflow:hidden;
 background:#87CEEB;
 }
 
+/* jogador */
 #player{
 position:absolute;
 left:300px;
@@ -29,6 +30,36 @@ width:40px;
 height:40px;
 background:#f1c27d;
 border:2px solid black;
+position:relative;
+}
+
+/* olhos */
+.eye{
+width:6px;
+height:6px;
+background:black;
+border-radius:50%;
+position:absolute;
+top:12px;
+}
+
+.eye.left{
+left:8px;
+}
+
+.eye.right{
+right:8px;
+}
+
+/* boca */
+.mouth{
+width:14px;
+height:6px;
+border-bottom:3px solid black;
+position:absolute;
+bottom:8px;
+left:50%;
+transform:translateX(-50%);
 }
 
 /* corpo */
@@ -74,7 +105,7 @@ border:2px solid black;
 transform-origin:top;
 }
 
-/* animação andando */
+/* animação andar */
 
 .walk .leg.left{
 animation:leg1 0.4s infinite alternate;
@@ -112,6 +143,7 @@ from{transform:rotate(25deg)}
 to{transform:rotate(-25deg)}
 }
 
+/* chão */
 #ground{
 position:absolute;
 bottom:0;
@@ -128,7 +160,11 @@ background:#5a3d1e;
 
 <div id="player">
 
-<div class="head"></div>
+<div class="head">
+<div class="eye left"></div>
+<div class="eye right"></div>
+<div class="mouth"></div>
+</div>
 
 <div class="body">
 <div class="arm left"></div>
