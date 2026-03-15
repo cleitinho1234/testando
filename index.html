@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boneco Quadrado Controlável</title>
+
+<style>
+
+body{
+margin:0;
+overflow:hidden;
+background:#87CEEB;
+font-family:Arial;
+}
+
+#game{
+position:relative;
+width:100vw;
+height:100vh;
+}
+
+#player{
+position:absolute;
+width:40px;
+height:40px;
+background:#3cb043;
+border:4px solid #000;
+left:200px;
+top:200px;
+}
+
+#chao{
+position:absolute;
+bottom:0;
+width:100%;
+height:120px;
+background:#6b3e26;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="game">
+
+<div id="player"></div>
+<div id="chao"></div>
+
+</div>
+
+<script>
+
+const player = document.getElementById("player")
+
+let x = 200
+let y = 200
+let speed = 5
+
+let keys = {}
+
+document.addEventListener("keydown", function(e){
+keys[e.key.toLowerCase()] = true
+})
+
+document.addEventListener("keyup", function(e){
+keys[e.key.toLowerCase()] = false
+})
+
+function gameLoop(){
+
+if(keys["w"] || keys["arrowup"]){
+y -= speed
+}
+
+if(keys["s"] || keys["arrowdown"]){
+y += speed
+}
+
+if(keys["a"] || keys["arrowleft"]){
+x -= speed
+}
+
+if(keys["d"] || keys["arrowright"]){
+x += speed
+}
+
+player.style.left = x + "px"
+player.style.top = y + "px"
+
+requestAnimationFrame(gameLoop)
+
+}
+
+gameLoop()
+
+</script>
+
+</body>
+</html>
