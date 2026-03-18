@@ -3,259 +3,199 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Treino de Digitação PRO</title>
+<title>Modo Jogo PRO</title>
 
 <style>
 
 body{
 margin:0;
+overflow:hidden;
 font-family:Arial;
-display:flex;
-flex-direction:column;
-align-items:center;
-padding:20px;
-transition:0.3s;
+background:#111;
+color:white;
 }
 
-.dark{ background:#111; color:white; }
-.light{ background:#f5f5f5; color:black; }
-
-.container{
-max-width:800px;
-width:100%;
-}
-
-#text{
-padding:20px;
-border-radius:10px;
-line-height:1.8;
-font-size:20px;
-background:rgba(0,0,0,0.2);
-}
-
-.correct{ color:#00ff88; }
-.wrong{ color:#ff4d4d; }
-
-#input{
-width:100%;
-margin-top:20px;
-padding:15px;
-font-size:18px;
-border-radius:10px;
-border:none;
-outline:none;
-}
-
-.stats{
-display:flex;
-justify-content:space-between;
-margin-top:20px;
-}
-
-button, select{
-margin-top:10px;
+#hud{
+position:fixed;
+top:10px;
+left:10px;
+background:black;
 padding:10px;
-border:none;
 border-radius:8px;
-cursor:pointer;
+z-index:10;
 }
 
-/* botão jogo destaque */
-.game-btn{
-background:#ff9800;
-color:black;
+#game{
+position:relative;
+width:100vw;
+height:100vh;
+}
+
+/* palavra */
+.word{
+position:absolute;
+font-size:26px;
 font-weight:bold;
+white-space:nowrap;
 }
 
-#history{
-margin-top:20px;
-font-size:14px;
-max-height:150px;
-overflow:auto;
+/* letras */
+.letter{
+color:#00ff88;
+}
+
+.correct{
+color:yellow;
 }
 
 </style>
 
 </head>
 
-<body class="dark">
+<body>
 
-<h1>⌨️ Treino de Digitação PRO</h1>
-
-<div class="container">
-
-<button onclick="toggleTheme()">🌙 / ☀️ Tema</button>
-
-<br>
-
-<select id="level" onchange="startGame()">
-<option value="easy">Fácil</option>
-<option value="medium">Médio</option>
-<option value="hard">Difícil</option>
-</select>
-
-<!-- BOTÃO DO JOGO -->
-
-<button class="game-btn" onclick="irParaJogo()">🎮 Modo Jogo (Letras Caindo)</button>
-
-<div id="text"></div>
-
-<input id="input" placeholder="Comece a digitar..." autofocus>
-
-<div class="stats">
-<span>⏱️ <span id="time">0</span>s</span>
-<span>⚡ <span id="wpm">0</span> WPM</span>
-<span>🎯 <span id="accuracy">100</span>%</span>
+<div id="hud">
+❤️ Vida: <span id="life">10</span><br>
+⏱️ Tempo: <span id="time">0</span>s
 </div>
 
-<button onclick="startGame()">🔁 Reiniciar</button>
-
-<div id="history"></div>
-
-</div>
+<div id="game"></div>
 
 <script>
 
-function irParaJogo(){
-window.location.href = "game.html"
-}
+const game = document.getElementById("game")
+const lifeEl = document.getElementById("life")
+const timeEl = document.getElementById("time")
 
-const texts = {
-easy:[
-"o gato corre no telhado",
-"eu gosto de programar",
-"digitar rapido ajuda muito"
-],
-medium:[
-"praticar digitacao melhora sua produtividade",
-"o sucesso depende da disciplina diaria",
-"javascript permite criar coisas incriveis"
-],
-hard:[
-"a persistencia e o caminho do exito verdadeiro",
-"desenvolver habilidades exige foco e consistencia",
-"tecnologia avanca rapidamente no mundo moderno"
+let words = []
+let life = 10
+let time = 0
+
+let speed = 0.4
+let spawnRate = 2500
+
+let currentInput = ""
+
+/* palavras */
+const wordList = [
+"casa","gato","tempo","codigo","teclado","rapido",
+"energia","disciplina","javascript","computador",
+"desafio","velocidade","pratica","evolucao"
 ]
-}
 
-let currentText=""
-let startTime
-let timer
+/* evita sobreposição */
+let lastX = 0
 
-const textEl=document.getElementById("text")
-const input=document.getElementById("input")
-const timeEl=document.getElementById("time")
-const wpmEl=document.getElementById("wpm")
-const accEl=document.getElementById("accuracy")
-const historyEl=document.getElementById("history")
-const levelEl=document.getElementById("level")
+function spawnWord(){
 
-function toggleTheme(){
-document.body.classList.toggle("dark")
-document.body.classList.toggle("light")
-}
+let word = wordList[Math.floor(Math.random()*wordList.length)]
 
-function keySound(){
-let ctx=new AudioContext()
-let osc=ctx.createOscillator()
-osc.frequency.value=500
-osc.connect(ctx.destination)
-osc.start()
-setTimeout(()=>osc.stop(),50)
-}
+let w = document.createElement("div")
+w.className="word"
 
-function startGame(){
-
-let level=levelEl.value
-let arr=texts[level]
-
-currentText=arr[Math.floor(Math.random()*arr.length)]
-
-textEl.innerHTML=""
-
-currentText.split("").forEach(c=>{
-let span=document.createElement("span")
-span.innerText=c
-textEl.appendChild(span)
+/* cria letras separadas */
+word.split("").forEach(c=>{
+let span = document.createElement("span")
+span.innerText = c
+span.className = "letter"
+w.appendChild(span)
 })
 
-input.value=""
-input.focus()
+/* posição organizada */
+let x = Math.random() * (window.innerWidth - 200)
 
-startTime=new Date()
-
-clearInterval(timer)
-timer=setInterval(()=>{
-timeEl.innerText=Math.floor((new Date()-startTime)/1000)
-},1000)
-
+/* evita nascer muito perto da anterior */
+if(Math.abs(x - lastX) < 120){
+x += 150
 }
 
-input.addEventListener("input",()=>{
+lastX = x
 
-keySound()
+w.x = x
+w.y = 0
+w.text = word
+w.typed = 0
 
-let chars=textEl.querySelectorAll("span")
-let typed=input.value
+w.style.left = x + "px"
+w.style.top = "0px"
 
-let correct=0
+game.appendChild(w)
 
-chars.forEach((char,i)=>{
-let t=typed[i]
-
-if(t==null){
-char.classList.remove("correct","wrong")
+words.push(w)
 }
-else if(t===char.innerText){
-char.classList.add("correct")
-char.classList.remove("wrong")
-correct++
+
+/* loop */
+function update(){
+
+words.forEach((w,i)=>{
+
+w.y += speed
+w.style.top = w.y + "px"
+
+/* chegou no chão */
+if(w.y > window.innerHeight - 40){
+w.remove()
+words.splice(i,1)
+life--
+lifeEl.innerText = life
+}
+
+})
+
+if(life <= 0){
+alert("GAME OVER")
+location.reload()
+}
+
+requestAnimationFrame(update)
+}
+
+update()
+
+/* digitação REAL */
+document.addEventListener("keydown",(e)=>{
+
+let key = e.key.toLowerCase()
+
+words.forEach((w,i)=>{
+
+let letters = w.querySelectorAll("span")
+
+/* verifica próxima letra */
+if(key === w.text[w.typed]){
+
+letters[w.typed].classList.add("correct")
+w.typed++
+
+/* terminou palavra */
+if(w.typed === w.text.length){
+w.remove()
+words.splice(i,1)
+currentInput = ""
+}
+
 }else{
-char.classList.add("wrong")
-char.classList.remove("correct")
-}
-})
-
-let acc=Math.floor((correct/typed.length)*100)||100
-accEl.innerText=acc
-
-let time=(new Date()-startTime)/1000/60
-let words=typed.length/5
-let wpm=Math.floor(words/time)||0
-wpmEl.innerText=wpm
-
-if(typed === currentText){
-saveHistory(wpm,acc)
-startGame()
+/* errou = reseta progresso dessa palavra */
+w.typed = 0
+letters.forEach(l=>l.classList.remove("correct"))
 }
 
 })
 
-function saveHistory(wpm,acc){
-
-let data=JSON.parse(localStorage.getItem("history")||"[]")
-
-data.unshift(`WPM: ${wpm} | Precisão: ${acc}%`)
-
-localStorage.setItem("history",JSON.stringify(data.slice(0,10)))
-
-showHistory()
-}
-
-function showHistory(){
-
-let data=JSON.parse(localStorage.getItem("history")||"[]")
-
-historyEl.innerHTML="<h3>📊 Histórico</h3>"
-
-data.forEach(d=>{
-historyEl.innerHTML += "<div>"+d+"</div>"
 })
 
-}
+/* spawn */
+setInterval(spawnWord, spawnRate)
 
-showHistory()
-startGame()
+/* tempo */
+setInterval(()=>{
+time++
+timeEl.innerText = time
+
+/* dificuldade suave */
+speed += 0.003
+
+},1000)
 
 </script>
 
