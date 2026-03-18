@@ -3,7 +3,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Jogo Melhorado</title>
+<title>Jogo Bonito</title>
 
 <style>
 
@@ -13,7 +13,7 @@ overflow:hidden;
 background:linear-gradient(#6ec1e4,#87CEEB);
 }
 
-/* câmera zoom */
+/* câmera */
 #camera{
 position:fixed;
 width:100%;
@@ -23,67 +23,6 @@ overflow:hidden;
 
 #world{
 position:absolute;
-transform:scale(1.3);
-transform-origin:0 0;
-}
-
-/* jogador */
-#player{
-position:absolute;
-transform:scale(1.5);
-}
-
-/* inimigo melhorado */
-.enemy{
-position:absolute;
-width:40px;
-height:40px;
-background:#b30000;
-border:3px solid black;
-}
-
-.enemy::after{
-content:"";
-position:absolute;
-width:8px;
-height:8px;
-background:white;
-top:10px;
-left:10px;
-}
-
-/* tiro melhor */
-.fire{
-position:absolute;
-width:12px;
-height:12px;
-background:yellow;
-border-radius:50%;
-box-shadow:0 0 10px orange, 0 0 20px red;
-}
-
-/* rastro */
-.trail{
-position:absolute;
-width:8px;
-height:8px;
-background:orange;
-border-radius:50%;
-opacity:0.5;
-}
-
-/* explosão */
-.explosion{
-position:absolute;
-width:30px;
-height:30px;
-border-radius:50%;
-background:radial-gradient(circle,yellow,red);
-animation:boom 0.4s forwards;
-}
-
-@keyframes boom{
-to{transform:scale(3);opacity:0;}
 }
 
 /* HUD */
@@ -95,6 +34,146 @@ background:black;
 color:white;
 padding:10px;
 font-weight:bold;
+z-index:10;
+}
+
+/* jogador */
+#player{
+position:absolute;
+display:flex;
+flex-direction:column;
+align-items:center;
+transform:scale(1.5);
+z-index:2;
+}
+
+/* asas */
+.wings{
+position:absolute;
+top:40px;
+width:140px;
+display:flex;
+justify-content:space-between;
+z-index:0;
+}
+
+.wing{
+width:70px;
+opacity:0.95;
+}
+
+.wing.right{
+transform:scaleX(-1);
+}
+
+/* cabeça */
+.head{
+width:40px;
+height:40px;
+background:#f1c27d;
+border:2px solid black;
+position:relative;
+}
+
+.eye{
+width:6px;
+height:6px;
+background:black;
+border-radius:50%;
+position:absolute;
+top:12px;
+}
+
+.eye.left{ left:8px; }
+.eye.right{ right:8px; }
+
+.mouth{
+width:14px;
+height:6px;
+border-bottom:3px solid black;
+position:absolute;
+bottom:8px;
+left:50%;
+transform:translateX(-50%);
+}
+
+/* corpo */
+.body{
+width:40px;
+height:50px;
+background:#3cb043;
+border:2px solid black;
+position:relative;
+}
+
+/* braços */
+.arm{
+width:12px;
+height:45px;
+background:#f1c27d;
+border:2px solid black;
+position:absolute;
+top:0;
+}
+
+.arm.left{ left:-16px; }
+.arm.right{ right:-16px; }
+
+/* pernas */
+.legs{
+display:flex;
+gap:10px;
+}
+
+.leg{
+width:12px;
+height:40px;
+background:#1e3d59;
+border:2px solid black;
+}
+
+/* inimigo */
+.enemy{
+position:absolute;
+width:40px;
+height:40px;
+background:#8B0000;
+border:2px solid black;
+border-radius:6px;
+}
+
+.enemy::after{
+content:"";
+position:absolute;
+width:6px;
+height:6px;
+background:white;
+top:10px;
+left:10px;
+}
+
+/* tiro */
+.fire{
+position:absolute;
+width:12px;
+height:12px;
+background:yellow;
+border-radius:50%;
+box-shadow:0 0 10px orange,0 0 20px red;
+}
+
+/* explosão */
+.explosion{
+position:absolute;
+width:30px;
+height:30px;
+border-radius:50%;
+background:radial-gradient(circle,yellow,red);
+animation:boom 0.3s forwards;
+}
+
+@keyframes boom{
+to{ transform:scale(2); opacity:0; }
 }
 
 /* chão */
@@ -118,11 +197,27 @@ background:#4b2e05;
 <div id="world">
 
 <div id="player">
-<img src="asa.png" style="position:absolute; top:30px; width:80px;">
-<img src="asa.png" style="position:absolute; top:30px; width:80px; transform:scaleX(-1);">
 
-<div style="width:40px;height:40px;background:#f1c27d;border:2px solid black;"></div>
-<div style="width:40px;height:50px;background:#3cb043;border:2px solid black;"></div>
+<div class="wings">
+<img src="asa.png" class="wing">
+<img src="asa.png" class="wing right">
+</div>
+
+<div class="head">
+<div class="eye left"></div>
+<div class="eye right"></div>
+<div class="mouth"></div>
+</div>
+
+<div class="body">
+<div class="arm left"></div>
+<div class="arm right"></div>
+</div>
+
+<div class="legs">
+<div class="leg"></div>
+<div class="leg"></div>
+</div>
 
 </div>
 
@@ -133,10 +228,10 @@ background:#4b2e05;
 
 <script>
 
-let x=300,y=400
+let x=300,y=500
 let keys={}
-let life=100
 let direction="right"
+let life=100
 
 const player=document.getElementById("player")
 const world=document.getElementById("world")
@@ -153,52 +248,49 @@ keys[e.key.toLowerCase()]=false
 
 /* inimigos */
 let enemies=[]
+
 setInterval(()=>{
 let e=document.createElement("div")
 e.className="enemy"
-e.x=x+Math.random()*400-200
-e.y=400
+e.x = x + (Math.random()*400 - 200)
+e.y = 560
 world.appendChild(e)
 enemies.push(e)
-},1500)
+},2000)
 
-/* tiro melhor */
+/* tiro correto */
 function shoot(){
 
 let fire=document.createElement("div")
 fire.className="fire"
 
-let fx=x,fy=y
+/* AGORA SAI DA MÃO */
+let fx = x + 25
+let fy = y + 60
+
 world.appendChild(fire)
 
 let dir=direction
 
 function move(){
 
-/* rastro */
-let trail=document.createElement("div")
-trail.className="trail"
-trail.style.left=fx+"px"
-trail.style.top=fy+"px"
-world.appendChild(trail)
-setTimeout(()=>trail.remove(),200)
-
-if(dir==="right") fx+=12
-if(dir==="left") fx-=12
+if(dir==="right") fx+=10
+if(dir==="left") fx-=10
 
 fire.style.left=fx+"px"
 fire.style.top=fy+"px"
 
 /* colisão */
 enemies.forEach((e,i)=>{
-if(Math.abs(fx-e.x)<30){
+if(Math.abs(fx-e.x)<25){
+
 let boom=document.createElement("div")
 boom.className="explosion"
 boom.style.left=e.x+"px"
 boom.style.top=e.y+"px"
 world.appendChild(boom)
 
-setTimeout(()=>boom.remove(),400)
+setTimeout(()=>boom.remove(),300)
 
 e.remove()
 enemies.splice(i,1)
@@ -224,18 +316,25 @@ player.style.top=y+"px"
 /* câmera */
 world.style.left = -x + window.innerWidth/2 + "px"
 
+/* inimigos */
 enemies.forEach(e=>{
-if(e.x < x) e.x+=1
-if(e.x > x) e.x-=1
+if(e.x < x) e.x+=1.2
+if(e.x > x) e.x-=1.2
+
 e.style.left=e.x+"px"
 e.style.top=e.y+"px"
 
 if(Math.abs(e.x-x)<30){
-life-=0.3
+life-=0.2
 }
 })
 
 lifeUI.innerText="❤️ Vida: "+Math.floor(life)
+
+if(life <= 0){
+alert("GAME OVER")
+location.reload()
+}
 
 requestAnimationFrame(loop)
 }
