@@ -112,4 +112,258 @@ top:12px;
 
 .mouth{
 width:14px;
-h
+height:6px;
+border-bottom:3px solid black;
+position:absolute;
+bottom:8px;
+left:50%;
+transform:translateX(-50%);
+}
+
+/* corpo */
+
+.body{
+width:40px;
+height:50px;
+background:#3cb043;
+border:2px solid black;
+position:relative;
+}
+
+/* braços */
+
+.arm{
+width:12px;
+height:45px;
+background:#f1c27d;
+border:2px solid black;
+position:absolute;
+top:0;
+transform-origin:top;
+}
+
+.arm.left{ left:-16px; }
+.arm.right{ right:-16px; }
+
+/* pernas */
+
+.legs{
+display:flex;
+gap:10px;
+}
+
+.leg{
+width:12px;
+height:40px;
+background:#1e3d59;
+border:2px solid black;
+transform-origin:top;
+}
+
+/* animação andar */
+
+.walk .leg.left{ animation:leg1 0.4s infinite alternate; }
+.walk .leg.right{ animation:leg2 0.4s infinite alternate; }
+.walk .arm.left{ animation:arm1 0.4s infinite alternate; }
+.walk .arm.right{ animation:arm2 0.4s infinite alternate; }
+
+@keyframes leg1{
+from{transform:rotate(25deg)}
+to{transform:rotate(-25deg)}
+}
+
+@keyframes leg2{
+from{transform:rotate(-25deg)}
+to{transform:rotate(25deg)}
+}
+
+@keyframes arm1{
+from{transform:rotate(-25deg)}
+to{transform:rotate(25deg)}
+}
+
+@keyframes arm2{
+from{transform:rotate(25deg)}
+to{transform:rotate(-25deg)}
+}
+
+/* fogo */
+
+.fire{
+position:absolute;
+width:15px;
+height:15px;
+background:orange;
+border-radius:50%;
+box-shadow:0 0 15px red;
+}
+
+/* chão */
+
+#ground{
+position:absolute;
+bottom:0;
+width:100%;
+height:120px;
+background:#5a3d1e;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="player">
+
+<div class="wings">
+
+<div class="wing left">
+<div class="feather"></div>
+<div class="feather"></div>
+<div class="feather"></div>
+<div class="feather"></div>
+</div>
+
+<div class="wing right">
+<div class="feather"></div>
+<div class="feather"></div>
+<div class="feather"></div>
+<div class="feather"></div>
+</div>
+
+</div>
+
+<div class="head">
+<div class="eye left"></div>
+<div class="eye right"></div>
+<div class="mouth"></div>
+</div>
+
+<div class="body">
+<div class="arm left"></div>
+<div class="arm right"></div>
+</div>
+
+<div class="legs">
+<div class="leg left"></div>
+<div class="leg right"></div>
+</div>
+
+</div>
+
+<div id="ground"></div>
+
+<script>
+
+const player = document.getElementById("player")
+
+let x = 300
+let y = 200
+let speed = 5
+
+let keys = {}
+let direction = "right"
+
+document.addEventListener("keydown",(e)=>{
+keys[e.key.toLowerCase()] = true
+
+if(e.key === "Shift"){
+shootFire()
+}
+
+})
+
+document.addEventListener("keyup",(e)=>{
+keys[e.key.toLowerCase()] = false
+})
+
+function shootFire(){
+
+let fire = document.createElement("div")
+fire.className = "fire"
+
+let fx = x + 20
+let fy = y + 40
+
+fire.style.left = fx + "px"
+fire.style.top = fy + "px"
+
+document.body.appendChild(fire)
+
+let speedFire = 8
+let life = 0
+
+let fireDirection = direction
+
+function moveFire(){
+
+life++
+
+if(fireDirection === "right") fx += speedFire
+if(fireDirection === "left") fx -= speedFire
+if(fireDirection === "up") fy -= speedFire
+if(fireDirection === "down") fy += speedFire
+
+fire.style.left = fx + "px"
+fire.style.top = fy + "px"
+
+if(life < 120){
+requestAnimationFrame(moveFire)
+}else{
+fire.remove()
+}
+
+}
+
+moveFire()
+
+}
+
+function gameLoop(){
+
+let moving = false
+
+if(keys["a"] || keys["arrowleft"]){
+x -= speed
+direction = "left"
+moving = true
+}
+
+if(keys["d"] || keys["arrowright"]){
+x += speed
+direction = "right"
+moving = true
+}
+
+if(keys["w"] || keys["arrowup"]){
+y -= speed
+direction = "up"
+moving = true
+}
+
+if(keys["s"] || keys["arrowdown"]){
+y += speed
+direction = "down"
+moving = true
+}
+
+player.style.left = x + "px"
+player.style.top = y + "px"
+
+if(moving){
+player.classList.add("walk")
+}else{
+player.classList.remove("walk")
+}
+
+requestAnimationFrame(gameLoop)
+
+}
+
+gameLoop()
+
+</script>
+
+</body>
+</html>
