@@ -3,186 +3,72 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Jogo Bonito</title>
+<title>Treino de Digitação</title>
 
 <style>
 
 body{
 margin:0;
-overflow:hidden;
-background:linear-gradient(#6ec1e4,#87CEEB);
-}
-
-/* câmera */
-#camera{
-position:fixed;
-width:100%;
-height:100%;
-overflow:hidden;
-}
-
-#world{
-position:absolute;
-}
-
-/* HUD */
-#life{
-position:fixed;
-top:10px;
-left:10px;
-background:black;
+font-family:Arial;
+background:#111;
 color:white;
-padding:10px;
-font-weight:bold;
-z-index:10;
-}
-
-/* jogador */
-#player{
-position:absolute;
 display:flex;
 flex-direction:column;
 align-items:center;
-transform:scale(1.5);
-z-index:2;
+padding:20px;
 }
 
-/* asas */
-.wings{
-position:absolute;
-top:40px;
-width:140px;
+/* título */
+h1{
+margin-bottom:10px;
+}
+
+/* caixa principal */
+.container{
+max-width:800px;
+width:100%;
+}
+
+/* texto */
+#text{
+background:#222;
+padding:20px;
+border-radius:10px;
+line-height:1.8;
+font-size:20px;
+}
+
+/* letras */
+.correct{ color:#00ff88; }
+.wrong{ color:#ff4d4d; }
+
+/* input */
+#input{
+width:100%;
+margin-top:20px;
+padding:15px;
+font-size:18px;
+border:none;
+border-radius:10px;
+outline:none;
+}
+
+/* stats */
+.stats{
 display:flex;
 justify-content:space-between;
-z-index:0;
+margin-top:20px;
 }
 
-.wing{
-width:70px;
-opacity:0.95;
-}
-
-.wing.right{
-transform:scaleX(-1);
-}
-
-/* cabeça */
-.head{
-width:40px;
-height:40px;
-background:#f1c27d;
-border:2px solid black;
-position:relative;
-}
-
-.eye{
-width:6px;
-height:6px;
-background:black;
-border-radius:50%;
-position:absolute;
-top:12px;
-}
-
-.eye.left{ left:8px; }
-.eye.right{ right:8px; }
-
-.mouth{
-width:14px;
-height:6px;
-border-bottom:3px solid black;
-position:absolute;
-bottom:8px;
-left:50%;
-transform:translateX(-50%);
-}
-
-/* corpo */
-.body{
-width:40px;
-height:50px;
-background:#3cb043;
-border:2px solid black;
-position:relative;
-}
-
-/* braços */
-.arm{
-width:12px;
-height:45px;
-background:#f1c27d;
-border:2px solid black;
-position:absolute;
-top:0;
-}
-
-.arm.left{ left:-16px; }
-.arm.right{ right:-16px; }
-
-/* pernas */
-.legs{
-display:flex;
-gap:10px;
-}
-
-.leg{
-width:12px;
-height:40px;
-background:#1e3d59;
-border:2px solid black;
-}
-
-/* inimigo */
-.enemy{
-position:absolute;
-width:40px;
-height:40px;
-background:#8B0000;
-border:2px solid black;
-border-radius:6px;
-}
-
-.enemy::after{
-content:"";
-position:absolute;
-width:6px;
-height:6px;
-background:white;
-top:10px;
-left:10px;
-}
-
-/* tiro */
-.fire{
-position:absolute;
-width:12px;
-height:12px;
-background:yellow;
-border-radius:50%;
-box-shadow:0 0 10px orange,0 0 20px red;
-}
-
-/* explosão */
-.explosion{
-position:absolute;
-width:30px;
-height:30px;
-border-radius:50%;
-background:radial-gradient(circle,yellow,red);
-animation:boom 0.3s forwards;
-}
-
-@keyframes boom{
-to{ transform:scale(2); opacity:0; }
-}
-
-/* chão */
-.ground{
-position:absolute;
-top:600px;
-width:3000px;
-height:200px;
-background:#4b2e05;
+/* botão */
+button{
+margin-top:20px;
+padding:10px 20px;
+border:none;
+border-radius:8px;
+background:#00ff88;
+cursor:pointer;
+font-weight:bold;
 }
 
 </style>
@@ -191,155 +77,107 @@ background:#4b2e05;
 
 <body>
 
-<div id="life">❤️ Vida: 100</div>
+<h1>⌨️ Treino de Digitação</h1>
 
-<div id="camera">
-<div id="world">
+<div class="container">
 
-<div id="player">
+<div id="text"></div>
 
-<div class="wings">
-<img src="asa.png" class="wing">
-<img src="asa.png" class="wing right">
+<input id="input" placeholder="Comece a digitar..." autofocus>
+
+<div class="stats">
+<span>⏱️ Tempo: <span id="time">0</span>s</span>
+<span>⚡ WPM: <span id="wpm">0</span></span>
+<span>🎯 Precisão: <span id="accuracy">100</span>%</span>
 </div>
 
-<div class="head">
-<div class="eye left"></div>
-<div class="eye right"></div>
-<div class="mouth"></div>
-</div>
+<button onclick="startGame()">🔁 Reiniciar</button>
 
-<div class="body">
-<div class="arm left"></div>
-<div class="arm right"></div>
-</div>
-
-<div class="legs">
-<div class="leg"></div>
-<div class="leg"></div>
-</div>
-
-</div>
-
-<div class="ground"></div>
-
-</div>
 </div>
 
 <script>
 
-let x=300,y=500
-let keys={}
-let direction="right"
-let life=100
+const texts = [
+"o sucesso vem para quem pratica todos os dias",
+"digitar rapido e uma habilidade muito valiosa",
+"treine foco disciplina e velocidade sempre",
+"voce consegue melhorar com pratica constante"
+]
 
-const player=document.getElementById("player")
-const world=document.getElementById("world")
-const lifeUI=document.getElementById("life")
+let currentText = ""
+let startTime
+let timerInterval
 
-document.addEventListener("keydown",e=>{
-keys[e.key.toLowerCase()]=true
-if(e.key==="Shift") shoot()
+const textEl = document.getElementById("text")
+const input = document.getElementById("input")
+const timeEl = document.getElementById("time")
+const wpmEl = document.getElementById("wpm")
+const accEl = document.getElementById("accuracy")
+
+function startGame(){
+
+currentText = texts[Math.floor(Math.random()*texts.length)]
+textEl.innerHTML = ""
+
+currentText.split("").forEach(char=>{
+let span = document.createElement("span")
+span.innerText = char
+textEl.appendChild(span)
 })
 
-document.addEventListener("keyup",e=>{
-keys[e.key.toLowerCase()]=false
+input.value = ""
+input.focus()
+
+startTime = new Date()
+
+clearInterval(timerInterval)
+timerInterval = setInterval(updateTime,1000)
+
+}
+
+input.addEventListener("input",()=>{
+
+let chars = textEl.querySelectorAll("span")
+let inputText = input.value
+
+let correct = 0
+
+chars.forEach((char,index)=>{
+
+let typed = inputText[index]
+
+if(typed == null){
+char.classList.remove("correct","wrong")
+}
+else if(typed === char.innerText){
+char.classList.add("correct")
+char.classList.remove("wrong")
+correct++
+}else{
+char.classList.add("wrong")
+char.classList.remove("correct")
+}
+
 })
 
-/* inimigos */
-let enemies=[]
+/* precisão */
+let accuracy = Math.floor((correct/inputText.length)*100) || 100
+accEl.innerText = accuracy
 
-setInterval(()=>{
-let e=document.createElement("div")
-e.className="enemy"
-e.x = x + (Math.random()*400 - 200)
-e.y = 560
-world.appendChild(e)
-enemies.push(e)
-},2000)
+/* WPM */
+let time = (new Date() - startTime)/1000/60
+let words = inputText.length / 5
+let wpm = Math.floor(words / time) || 0
+wpmEl.innerText = wpm
 
-/* tiro correto */
-function shoot(){
-
-let fire=document.createElement("div")
-fire.className="fire"
-
-/* AGORA SAI DA MÃO */
-let fx = x + 25
-let fy = y + 60
-
-world.appendChild(fire)
-
-let dir=direction
-
-function move(){
-
-if(dir==="right") fx+=10
-if(dir==="left") fx-=10
-
-fire.style.left=fx+"px"
-fire.style.top=fy+"px"
-
-/* colisão */
-enemies.forEach((e,i)=>{
-if(Math.abs(fx-e.x)<25){
-
-let boom=document.createElement("div")
-boom.className="explosion"
-boom.style.left=e.x+"px"
-boom.style.top=e.y+"px"
-world.appendChild(boom)
-
-setTimeout(()=>boom.remove(),300)
-
-e.remove()
-enemies.splice(i,1)
-fire.remove()
-}
 })
 
-requestAnimationFrame(move)
+function updateTime(){
+let time = Math.floor((new Date() - startTime)/1000)
+timeEl.innerText = time
 }
 
-move()
-}
-
-/* loop */
-function loop(){
-
-if(keys["a"]){ x-=5; direction="left" }
-if(keys["d"]){ x+=5; direction="right" }
-
-player.style.left=x+"px"
-player.style.top=y+"px"
-
-/* câmera */
-world.style.left = -x + window.innerWidth/2 + "px"
-
-/* inimigos */
-enemies.forEach(e=>{
-if(e.x < x) e.x+=1.2
-if(e.x > x) e.x-=1.2
-
-e.style.left=e.x+"px"
-e.style.top=e.y+"px"
-
-if(Math.abs(e.x-x)<30){
-life-=0.2
-}
-})
-
-lifeUI.innerText="❤️ Vida: "+Math.floor(life)
-
-if(life <= 0){
-alert("GAME OVER")
-location.reload()
-}
-
-requestAnimationFrame(loop)
-}
-
-loop()
+startGame()
 
 </script>
 
