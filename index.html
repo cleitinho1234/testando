@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Personagem com asas de anjo</title>
+<title>Personagem nível jogo</title>
 
 <style>
 
@@ -15,7 +15,6 @@ background:#87CEEB;
 }
 
 /* jogador */
-
 #player{
 position:absolute;
 left:300px;
@@ -25,42 +24,50 @@ flex-direction:column;
 align-items:center;
 }
 
-/* ===== ASAS PNG (AJUSTADAS) ===== */
+/* ===== ASAS ===== */
 
 .wings{
 position:absolute;
-top:35px; /* AGORA NAS COSTAS */
+top:35px;
 width:160px;
 display:flex;
 justify-content:space-between;
 pointer-events:none;
 z-index:0;
+filter:drop-shadow(0 0 8px #00ff88);
 }
 
+/* asas */
 .wing{
 width:80px;
-animation:flapLeft 0.5s infinite alternate ease-in-out;
+transition:0.3s;
 }
 
-/* inverter direita */
+/* direita invertida */
 .wing.right{
 transform:scaleX(-1);
-animation:flapRight 0.5s infinite alternate ease-in-out;
 }
 
-/* animação mais realista */
-@keyframes flapLeft{
-from{ transform:translateY(0px) rotate(-5deg); }
-to{ transform:translateY(-12px) rotate(10deg); }
+/* asas abertas quando andando */
+.walk .wing.left{
+transform:rotate(-20deg);
 }
 
-@keyframes flapRight{
-from{ transform:scaleX(-1) translateY(0px) rotate(5deg); }
-to{ transform:scaleX(-1) translateY(-12px) rotate(-10deg); }
+.walk .wing.right{
+transform:scaleX(-1) rotate(20deg);
+}
+
+/* voando (bate mais rápido) */
+.flying .wing{
+animation:flap 0.25s infinite alternate;
+}
+
+@keyframes flap{
+from{ transform:translateY(0px); }
+to{ transform:translateY(-15px); }
 }
 
 /* cabeça */
-
 .head{
 width:40px;
 height:40px;
@@ -93,7 +100,6 @@ transform:translateX(-50%);
 }
 
 /* corpo */
-
 .body{
 width:40px;
 height:50px;
@@ -104,7 +110,6 @@ z-index:2;
 }
 
 /* braços */
-
 .arm{
 width:12px;
 height:45px;
@@ -119,11 +124,9 @@ transform-origin:top;
 .arm.right{ right:-16px; }
 
 /* pernas */
-
 .legs{
 display:flex;
 gap:10px;
-position:relative;
 z-index:2;
 }
 
@@ -136,7 +139,6 @@ transform-origin:top;
 }
 
 /* animação andar */
-
 .walk .leg.left{ animation:leg1 0.4s infinite alternate; }
 .walk .leg.right{ animation:leg2 0.4s infinite alternate; }
 .walk .arm.left{ animation:arm1 0.4s infinite alternate; }
@@ -162,19 +164,33 @@ from{transform:rotate(25deg)}
 to{transform:rotate(-25deg)}
 }
 
-/* fogo */
+/* ===== PODER ===== */
 
 .fire{
 position:absolute;
-width:15px;
-height:15px;
-background:orange;
+width:20px;
+height:20px;
+background:radial-gradient(circle, yellow, orange, red);
 border-radius:50%;
-box-shadow:0 0 15px red;
+box-shadow:0 0 20px orange, 0 0 40px red;
+}
+
+/* explosão */
+.explosion{
+position:absolute;
+width:40px;
+height:40px;
+border-radius:50%;
+background:radial-gradient(circle, yellow, red);
+animation:boom 0.3s forwards;
+}
+
+@keyframes boom{
+from{transform:scale(1); opacity:1;}
+to{transform:scale(2); opacity:0;}
 }
 
 /* chão */
-
 #ground{
 position:absolute;
 bottom:0;
@@ -226,6 +242,7 @@ let speed = 5
 
 let keys = {}
 let direction = "right"
+let flying = false
 
 document.addEventListener("keydown",(e)=>{
 keys[e.key.toLowerCase()] = true
@@ -233,10 +250,18 @@ keys[e.key.toLowerCase()] = true
 if(e.key === "Shift"){
 shootFire()
 }
+
+if(e.key === " "){
+flying = true
+}
 })
 
 document.addEventListener("keyup",(e)=>{
 keys[e.key.toLowerCase()] = false
+
+if(e.key === " "){
+flying = false
+}
 })
 
 function shootFire(){
@@ -252,9 +277,8 @@ fire.style.top = fy + "px"
 
 document.body.appendChild(fire)
 
-let speedFire = 8
+let speedFire = 10
 let life = 0
-
 let fireDirection = direction
 
 function moveFire(){
@@ -269,9 +293,18 @@ if(fireDirection === "down") fy += speedFire
 fire.style.left = fx + "px"
 fire.style.top = fy + "px"
 
-if(life < 120){
+if(life < 80){
 requestAnimationFrame(moveFire)
 }else{
+
+let boom = document.createElement("div")
+boom.className = "explosion"
+boom.style.left = fx + "px"
+boom.style.top = fy + "px"
+document.body.appendChild(boom)
+
+setTimeout(()=>boom.remove(),300)
+
 fire.remove()
 }
 
@@ -307,6 +340,14 @@ if(keys["s"] || keys["arrowdown"]){
 y += speed
 direction = "down"
 moving = true
+}
+
+/* voo */
+if(flying){
+y -= 3
+player.classList.add("flying")
+}else{
+player.classList.remove("flying")
 }
 
 player.style.left = x + "px"
