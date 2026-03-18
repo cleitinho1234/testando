@@ -17,7 +17,6 @@ padding:20px;
 transition:0.3s;
 }
 
-/* temas */
 .dark{ background:#111; color:white; }
 .light{ background:#f5f5f5; color:black; }
 
@@ -61,6 +60,13 @@ border-radius:8px;
 cursor:pointer;
 }
 
+/* botão jogo destaque */
+.game-btn{
+background:#ff9800;
+color:black;
+font-weight:bold;
+}
+
 #history{
 margin-top:20px;
 font-size:14px;
@@ -88,6 +94,10 @@ overflow:auto;
 <option value="hard">Difícil</option>
 </select>
 
+<!-- BOTÃO DO JOGO -->
+
+<button class="game-btn" onclick="irParaJogo()">🎮 Modo Jogo (Letras Caindo)</button>
+
 <div id="text"></div>
 
 <input id="input" placeholder="Comece a digitar..." autofocus>
@@ -105,6 +115,10 @@ overflow:auto;
 </div>
 
 <script>
+
+function irParaJogo(){
+window.location.href = "game.html"
+}
 
 const texts = {
 easy:[
@@ -136,13 +150,11 @@ const accEl=document.getElementById("accuracy")
 const historyEl=document.getElementById("history")
 const levelEl=document.getElementById("level")
 
-/* tema */
 function toggleTheme(){
 document.body.classList.toggle("dark")
 document.body.classList.toggle("light")
 }
 
-/* som */
 function keySound(){
 let ctx=new AudioContext()
 let osc=ctx.createOscillator()
@@ -152,7 +164,6 @@ osc.start()
 setTimeout(()=>osc.stop(),50)
 }
 
-/* iniciar */
 function startGame(){
 
 let level=levelEl.value
@@ -180,7 +191,6 @@ timeEl.innerText=Math.floor((new Date()-startTime)/1000)
 
 }
 
-/* digitação */
 input.addEventListener("input",()=>{
 
 keySound()
@@ -206,27 +216,21 @@ char.classList.remove("correct")
 }
 })
 
-/* precisão */
 let acc=Math.floor((correct/typed.length)*100)||100
 accEl.innerText=acc
 
-/* wpm */
 let time=(new Date()-startTime)/1000/60
 let words=typed.length/5
 let wpm=Math.floor(words/time)||0
 wpmEl.innerText=wpm
 
-/* terminou */
 if(typed === currentText){
-
 saveHistory(wpm,acc)
 startGame()
-
 }
 
 })
 
-/* histórico */
 function saveHistory(wpm,acc){
 
 let data=JSON.parse(localStorage.getItem("history")||"[]")
