@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Personagem nível jogo</title>
+<title>Jogo Completo</title>
 
 <style>
 
@@ -12,6 +12,13 @@ body{
 margin:0;
 overflow:hidden;
 background:#87CEEB;
+}
+
+/* câmera (mapa) */
+#world{
+position:absolute;
+width:3000px;
+height:2000px;
 }
 
 /* jogador */
@@ -24,178 +31,71 @@ flex-direction:column;
 align-items:center;
 }
 
-/* ===== ASAS ===== */
-
+/* asas */
 .wings{
 position:absolute;
 top:35px;
 width:160px;
 display:flex;
 justify-content:space-between;
-pointer-events:none;
 z-index:0;
 filter:drop-shadow(0 0 8px #00ff88);
 }
 
-/* asas */
-.wing{
-width:80px;
-transition:0.3s;
-}
+.wing{ width:80px; }
+.wing.right{ transform:scaleX(-1); }
 
-/* direita invertida */
-.wing.right{
-transform:scaleX(-1);
-}
+/* cabeça/corpo iguais */
+.head,.body,.legs{ z-index:2; position:relative; }
 
-/* asas abertas quando andando */
-.walk .wing.left{
-transform:rotate(-20deg);
-}
-
-.walk .wing.right{
-transform:scaleX(-1) rotate(20deg);
-}
-
-/* voando (bate mais rápido) */
-.flying .wing{
-animation:flap 0.25s infinite alternate;
-}
-
-@keyframes flap{
-from{ transform:translateY(0px); }
-to{ transform:translateY(-15px); }
-}
-
-/* cabeça */
 .head{
+width:40px;height:40px;background:#f1c27d;border:2px solid black;position:relative;
+}
+.eye{width:6px;height:6px;background:black;border-radius:50%;position:absolute;top:12px;}
+.eye.left{left:8px;} .eye.right{right:8px;}
+.mouth{width:14px;height:6px;border-bottom:3px solid black;position:absolute;bottom:8px;left:50%;transform:translateX(-50%);}
+
+.body{width:40px;height:50px;background:#3cb043;border:2px solid black;position:relative;}
+
+.arm{width:12px;height:45px;background:#f1c27d;border:2px solid black;position:absolute;top:0;}
+.arm.left{left:-16px;} .arm.right{right:-16px;}
+
+.legs{display:flex;gap:10px;}
+.leg{width:12px;height:40px;background:#1e3d59;border:2px solid black;}
+
+/* inimigo */
+.enemy{
+position:absolute;
 width:40px;
 height:40px;
-background:#f1c27d;
-border:2px solid black;
-position:relative;
-z-index:2;
+background:red;
 }
 
-.eye{
-width:6px;
-height:6px;
+/* vida */
+#life{
+position:fixed;
+top:10px;
+left:10px;
 background:black;
-border-radius:50%;
-position:absolute;
-top:12px;
+color:white;
+padding:10px;
+font-weight:bold;
 }
 
-.eye.left{ left:8px; }
-.eye.right{ right:8px; }
-
-.mouth{
-width:14px;
-height:6px;
-border-bottom:3px solid black;
-position:absolute;
-bottom:8px;
-left:50%;
-transform:translateX(-50%);
-}
-
-/* corpo */
-.body{
-width:40px;
-height:50px;
-background:#3cb043;
-border:2px solid black;
-position:relative;
-z-index:2;
-}
-
-/* braços */
-.arm{
-width:12px;
-height:45px;
-background:#f1c27d;
-border:2px solid black;
-position:absolute;
-top:0;
-transform-origin:top;
-}
-
-.arm.left{ left:-16px; }
-.arm.right{ right:-16px; }
-
-/* pernas */
-.legs{
-display:flex;
-gap:10px;
-z-index:2;
-}
-
-.leg{
-width:12px;
-height:40px;
-background:#1e3d59;
-border:2px solid black;
-transform-origin:top;
-}
-
-/* animação andar */
-.walk .leg.left{ animation:leg1 0.4s infinite alternate; }
-.walk .leg.right{ animation:leg2 0.4s infinite alternate; }
-.walk .arm.left{ animation:arm1 0.4s infinite alternate; }
-.walk .arm.right{ animation:arm2 0.4s infinite alternate; }
-
-@keyframes leg1{
-from{transform:rotate(25deg)}
-to{transform:rotate(-25deg)}
-}
-
-@keyframes leg2{
-from{transform:rotate(-25deg)}
-to{transform:rotate(25deg)}
-}
-
-@keyframes arm1{
-from{transform:rotate(-25deg)}
-to{transform:rotate(25deg)}
-}
-
-@keyframes arm2{
-from{transform:rotate(25deg)}
-to{transform:rotate(-25deg)}
-}
-
-/* ===== PODER ===== */
-
+/* fogo */
 .fire{
 position:absolute;
-width:20px;
-height:20px;
-background:radial-gradient(circle, yellow, orange, red);
+width:20px;height:20px;
+background:orange;
 border-radius:50%;
-box-shadow:0 0 20px orange, 0 0 40px red;
-}
-
-/* explosão */
-.explosion{
-position:absolute;
-width:40px;
-height:40px;
-border-radius:50%;
-background:radial-gradient(circle, yellow, red);
-animation:boom 0.3s forwards;
-}
-
-@keyframes boom{
-from{transform:scale(1); opacity:1;}
-to{transform:scale(2); opacity:0;}
 }
 
 /* chão */
-#ground{
+.ground{
 position:absolute;
 bottom:0;
 width:100%;
-height:120px;
+height:200px;
 background:#5a3d1e;
 }
 
@@ -205,10 +105,14 @@ background:#5a3d1e;
 
 <body>
 
+<div id="life">❤️ Vida: 100</div>
+
+<div id="world">
+
 <div id="player">
 
 <div class="wings">
-<img src="asa.png" class="wing left">
+<img src="asa.png" class="wing">
 <img src="asa.png" class="wing right">
 </div>
 
@@ -224,146 +128,132 @@ background:#5a3d1e;
 </div>
 
 <div class="legs">
-<div class="leg left"></div>
-<div class="leg right"></div>
+<div class="leg"></div>
+<div class="leg"></div>
 </div>
 
 </div>
 
-<div id="ground"></div>
+<div class="ground"></div>
+
+</div>
 
 <script>
 
 const player = document.getElementById("player")
+const world = document.getElementById("world")
+const lifeUI = document.getElementById("life")
 
-let x = 300
-let y = 200
-let speed = 5
+let x=300,y=200
+let speed=5
+let keys={}
+let direction="right"
+let life=100
 
-let keys = {}
-let direction = "right"
-let flying = false
-
-document.addEventListener("keydown",(e)=>{
-keys[e.key.toLowerCase()] = true
-
-if(e.key === "Shift"){
-shootFire()
+/* som simples */
+function beep(freq){
+let ctx=new AudioContext()
+let osc=ctx.createOscillator()
+osc.frequency.value=freq
+osc.connect(ctx.destination)
+osc.start()
+setTimeout(()=>osc.stop(),100)
 }
 
-if(e.key === " "){
-flying = true
-}
+document.addEventListener("keydown",e=>{
+keys[e.key.toLowerCase()]=true
+if(e.key==="Shift") shoot()
 })
 
-document.addEventListener("keyup",(e)=>{
-keys[e.key.toLowerCase()] = false
-
-if(e.key === " "){
-flying = false
-}
+document.addEventListener("keyup",e=>{
+keys[e.key.toLowerCase()]=false
 })
 
-function shootFire(){
+/* inimigos */
+let enemies=[]
 
-let fire = document.createElement("div")
-fire.className = "fire"
+function spawnEnemy(){
+let e=document.createElement("div")
+e.className="enemy"
+e.x=Math.random()*2500
+e.y=1500
+world.appendChild(e)
+enemies.push(e)
+}
+setInterval(spawnEnemy,2000)
 
-let fx = x + 20
-let fy = y + 40
+/* tiro */
+function shoot(){
+beep(600)
 
-fire.style.left = fx + "px"
-fire.style.top = fy + "px"
+let fire=document.createElement("div")
+fire.className="fire"
+let fx=x, fy=y
+world.appendChild(fire)
 
-document.body.appendChild(fire)
+let dir=direction
 
-let speedFire = 10
-let life = 0
-let fireDirection = direction
+function move(){
+if(dir==="right") fx+=10
+if(dir==="left") fx-=10
+if(dir==="up") fy-=10
+if(dir==="down") fy+=10
 
-function moveFire(){
+fire.style.left=fx+"px"
+fire.style.top=fy+"px"
 
-life++
-
-if(fireDirection === "right") fx += speedFire
-if(fireDirection === "left") fx -= speedFire
-if(fireDirection === "up") fy -= speedFire
-if(fireDirection === "down") fy += speedFire
-
-fire.style.left = fx + "px"
-fire.style.top = fy + "px"
-
-if(life < 80){
-requestAnimationFrame(moveFire)
-}else{
-
-let boom = document.createElement("div")
-boom.className = "explosion"
-boom.style.left = fx + "px"
-boom.style.top = fy + "px"
-document.body.appendChild(boom)
-
-setTimeout(()=>boom.remove(),300)
-
+/* colisão */
+enemies.forEach((e,i)=>{
+let ex=e.x, ey=e.y
+if(Math.abs(fx-ex)<30 && Math.abs(fy-ey)<30){
+e.remove()
+enemies.splice(i,1)
 fire.remove()
 }
+})
 
+requestAnimationFrame(move)
+}
+move()
 }
 
-moveFire()
+/* loop */
+function loop(){
 
+if(keys["a"]){ x-=speed; direction="left" }
+if(keys["d"]){ x+=speed; direction="right" }
+if(keys["w"]){ y-=speed; direction="up" }
+if(keys["s"]){ y+=speed; direction="down" }
+
+/* câmera segue */
+world.style.left = -x + window.innerWidth/2 + "px"
+world.style.top  = -y + window.innerHeight/2 + "px"
+
+player.style.left=x+"px"
+player.style.top=y+"px"
+
+/* inimigos seguem jogador */
+enemies.forEach(e=>{
+if(e.x < x) e.x+=1
+if(e.x > x) e.x-=1
+if(e.y < y) e.y+=1
+if(e.y > y) e.y-=1
+
+e.style.left=e.x+"px"
+e.style.top=e.y+"px"
+
+/* dano */
+if(Math.abs(e.x-x)<30 && Math.abs(e.y-y)<30){
+life-=0.1
+}
+})
+
+lifeUI.innerText="❤️ Vida: "+Math.floor(life)
+
+requestAnimationFrame(loop)
 }
 
-function gameLoop(){
-
-let moving = false
-
-if(keys["a"] || keys["arrowleft"]){
-x -= speed
-direction = "left"
-moving = true
-}
-
-if(keys["d"] || keys["arrowright"]){
-x += speed
-direction = "right"
-moving = true
-}
-
-if(keys["w"] || keys["arrowup"]){
-y -= speed
-direction = "up"
-moving = true
-}
-
-if(keys["s"] || keys["arrowdown"]){
-y += speed
-direction = "down"
-moving = true
-}
-
-/* voo */
-if(flying){
-y -= 3
-player.classList.add("flying")
-}else{
-player.classList.remove("flying")
-}
-
-player.style.left = x + "px"
-player.style.top = y + "px"
-
-if(moving){
-player.classList.add("walk")
-}else{
-player.classList.remove("walk")
-}
-
-requestAnimationFrame(gameLoop)
-
-}
-
-gameLoop()
+loop()
 
 </script>
 
