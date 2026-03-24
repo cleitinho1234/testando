@@ -42,6 +42,17 @@ button {
     display: none;
 }
 
+/* 🔥 esconder input file */
+input[type="file"] {
+    display: none;
+}
+
+/* botão bonito */
+.file-btn {
+    background: #334155;
+    color: white;
+}
+
 /* MODAL */
 #modal {
     position: fixed;
@@ -78,12 +89,25 @@ button {
 <div id="modal">
     <div class="box">
         <h3>Novo Alarme</h3>
-        <input type="text" id="hora" placeholder="HH:MM" maxlength="5"><br>
-        <p>Escolha seu som:</p>
-        <input type="file" id="audioFile" accept="audio/*"><br><br>
-        <button onclick="salvarNovo()">Salvar</button>
-        <button onclick="fecharModal()">Cancelar</button>
-    </div>
+
+```
+    <input type="text" id="hora" placeholder="HH:MM" maxlength="5"><br>
+
+    <p id="nomeAudio">Nenhum som selecionado</p>
+
+    <!-- 🔥 BOTÃO PERSONALIZADO -->
+    <button class="file-btn" onclick="document.getElementById('audioFile').click()">
+        Escolha seu som
+    </button>
+
+    <input type="file" id="audioFile" accept="audio/*">
+
+    <br><br>
+    <button onclick="salvarNovo()">Salvar</button>
+    <button onclick="fecharModal()">Cancelar</button>
+</div>
+```
+
 </div>
 
 <!-- MODAL EDITAR -->
@@ -115,6 +139,12 @@ function autoFormatar(input) {
 
 autoFormatar(document.getElementById("hora"));
 autoFormatar(document.getElementById("editarHora"));
+
+// 🔥 mostrar nome do áudio
+document.getElementById("audioFile").addEventListener("change", function(){
+    let file = this.files[0];
+    document.getElementById("nomeAudio").innerText = file ? file.name : "Nenhum som selecionado";
+});
 
 // MODAL
 function abrirModalAdicionar() {
