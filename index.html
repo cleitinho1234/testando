@@ -82,6 +82,8 @@ input[type="file"] {
 
 <div id="lista"></div>
 
+<!-- MODAL ADICIONAR -->
+
 <div id="modal" class="modal">
     <div class="box">
         <h3>Novo Alarme</h3>
@@ -105,81 +107,109 @@ input[type="file"] {
 
 </div>
 
+<!-- MODAL EDITAR -->
+
+<div id="modalEdit" class="modal">
+    <div class="box">
+        <h3>Editar Alarme</h3>
+        <input type="text" id="editarHora" maxlength="5"><br>
+        <button onclick="salvarEdicao()">Salvar</button>
+        <button onclick="fecharEdit()">Cancelar</button>
+    </div>
+</div>
+
 <script>
 let alarmes = JSON.parse(localStorage.getItem("alarmes")) || [];
 
 let tocando = null;
 let repetindo = false;
-let timeoutID = null; // 🔥 controla o loop
+let timeoutAtual = null;
+let indiceEditando = null;
 
 function salvar() {
     localStorage.setItem("alarmes", JSON.stringify(alarmes));
 }
 
-// FORMATAR HORA
-const inputHora = document.getElementById("hora");
+// FORMATO HORA
+function formatar(input){
+    input.addEventListener("input", ()=>{
+        let v = input.value.replace(/\D/g,"");
+        if(v.length>=3) v = v.slice(0,2)+":"+v.slice(2,4);
+        input.value = v;
+    });
+}
 
-inputHora.addEventListener("input", () => {
-    let v = inputHora.value.replace(/\D/g, "");
-    if (v.length >= 3) v = v.slice(0,2)+":"+v.slice(2,4);
-    inputHora.value = v;
-});
+formatar(document.getElementById("hora"));
+formatar(document.getElementById("editarHora"));
 
 // AUDIO
 const inputAudio = document.getElementById("inputAudio");
 
-inputAudio.addEventListener("change", () => {
+inputAudio.addEventListener("change", ()=>{
     let file = inputAudio.files[0];
     document.getElementById("nomeAudio").innerText =
         file ? file.name : "Nenhum som selecionado";
 });
 
-function abrirModal() {
-    document.getElementById("modal").style.display = "flex";
+// MODAIS
+function abrirModal(){
+    document.getElementById("modal").style.display="flex";
 }
 
-function fecharModal() {
-    document.getElementById("modal").style.display = "none";
+function fecharModal(){
+    document.getElementById("modal").style.display="none";
 }
 
-// SALVAR COM BASE64
-function salvarAlarme() {
-    const hora = inputHora.value;
+function abrirEditar(i){
+    indiceEditando = i;
+    document.getElementById("modalEdit").style.display="flex";
+    document.getElementById("editarHora").value = alarmes[i].hora;
+}
+
+function fecharEdit(){
+    document.getElementById("modalEdit").style.display="none";
+}
+
+// ADD
+function salvarAlarme(){
+    const hora = document.getElementById("hora").value;
     const file = inputAudio.files[0];
 
-    if (!hora || hora.length < 5) {
-        alert("Hora inválida!");
-        return;
-    }
+    if(!hora || hora.length<5) return alert("Hora inválida");
 
-    if (file) {
+    if(file){
         const reader = new FileReader();
-
-        reader.onload = function(e) {
-            alarmes.push({
-                hora: hora,
-                audio: e.target.result,
-                ativo: true
-            });
-
-            salvar();
-            render();
-            fecharModal();
+        reader.onload = (e)=>{
+            alarmes.push({hora, audio:e.target.result, ativo:true});
+            salvar(); render(); fecharModal();
         };
-
         reader.readAsDataURL(file);
-
     } else {
-        alarmes.push({
-            hora: hora,
-            audio: "",
-            ativo: true
-        });
-
-        salvar();
-        render();
-        fecharModal();
+        alarmes.push({hora, audio:"", ativo:true});
+        salvar(); render(); fecharModal();
     }
+}
+
+// EDITAR
+function salvarEdicao(){
+    let nova = document.getElementById("editarHora").value;
+    if(!nova || nova.length<5) return alert("Hora inválida");
+
+    alarmes[indiceEditando].hora = nova;
+    alarmes[indiceEditando].ativo = true;
+
+    salvar(); render(); fecharEdit();
+}
+
+// CONTROLES
+function toggle(i){
+    alarmes[i].ativo = !alarmes[i].ativo;
+    salvar(); render();
+}
+
+function remover(i){
+    alarmes.splice(i,1);
+    salvar(); render();
 }
 
 // RENDER
@@ -194,57 +224,53 @@ function render(){
             <p class="${a.ativo?'ativo':'desligado'}">${a.ativo?'Ativo':'Desligado'}</p>
 
             <button onclick="toggle(${i})">On/Off</button>
+            <button onclick="abrirEditar(${i})">Editar</button>
             <button onclick="remover(${i})">Remover</button>
         </div>`;
     });
 }
 
-function toggle(i){
-    alarmes[i].ativo = !alarmes[i].ativo;
-    salvar(); render();
-}
-
-function remover(i){
-    alarmes.splice(i,1);
-    salvar(); render();
-}
-
-// 🔥 PARAR FUNCIONANDO
+// 🔴 PARAR (AGORA 100%)
 function pararAlarme(){
     repetindo = false;
 
-    if (tocando) {
+    if(tocando){
         tocando.pause();
+        tocando.currentTime = 0;
         tocando = null;
     }
 
-    if (timeoutID) {
-        clearTimeout(timeoutID);
-        timeoutID = null;
+    if(timeoutAtual){
+        clearTimeout(timeoutAtual);
+        timeoutAtual = null;
     }
 
-    document.getElementById("parar").style.display = "none";
+    document.getElementById("parar").style.display="none";
 }
 
 // ALARME
 setInterval(()=>{
-    let d=new Date();
+    let d = new Date();
     let atual = d.getHours().toString().padStart(2,"0")+":"+d.getMinutes().toString().padStart(2,"0");
 
     alarmes.forEach(a=>{
-        if(a.hora===atual && a.ativo && !repetindo){
+        if(a.hora === atual && a.ativo && !repetindo){
 
-            repetindo=true;
+            repetindo = true;
             document.getElementById("parar").style.display="inline-block";
 
             function tocar(){
                 if(!repetindo) return;
 
-                tocando=new Audio(a.audio || "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3");
+                tocando = new Audio(a.audio || "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3");
                 tocando.play();
 
-                timeoutID = setTimeout(()=>{
-                    if(tocando){ tocando.pause(); tocando=null; }
+                timeoutAtual = setTimeout(()=>{
+                    if(tocando){
+                        tocando.pause();
+                        tocando.currentTime = 0;
+                        tocando = null;
+                    }
                     tocar();
                 },30000);
             }
