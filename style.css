@@ -1,9 +1,22 @@
 body {
-background: red;
+margin: 0;
+background: black;
+overflow: hidden;
 }
 
 #luffy {
-width: 100px;
-height: 100px;
-background: yellow;
+width: 48px;
+height: 48px;
+
+```
+position: absolute;
+top: 100px;
+left: 100px;
+
+background-image: url('luffy.png');
+background-repeat: no-repeat;
+
+image-rendering: pixelated;
+```
+
 }
