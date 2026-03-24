@@ -3,7 +3,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Alarme PRO+</title>
+<title>Alarme PRO++</title>
 
 <style>
 body {
@@ -14,20 +14,12 @@ body {
     padding: 20px;
 }
 
-h1 {
-    margin-bottom: 20px;
-}
-
 input, button {
     padding: 10px;
     margin: 5px;
     font-size: 16px;
     border-radius: 8px;
     border: none;
-}
-
-button {
-    cursor: pointer;
 }
 
 #lista {
@@ -39,7 +31,7 @@ button {
     padding: 15px;
     margin: 10px auto;
     border-radius: 12px;
-    width: 250px;
+    width: 260px;
 }
 
 .ativo {
@@ -54,7 +46,7 @@ button {
 </head>
 <body>
 
-<h1>⏰ Alarme PRO+</h1>
+<h1>⏰ Alarme PRO++</h1>
 
 <input type="time" id="hora">
 <br>
@@ -82,11 +74,7 @@ function adicionarAlarme() {
         return;
     }
 
-    let audioURL = "";
-
-    if (file) {
-        audioURL = URL.createObjectURL(file);
-    }
+    let audioURL = file ? URL.createObjectURL(file) : "";
 
     alarmes.push({
         hora: hora,
@@ -110,6 +98,17 @@ function toggle(index) {
     render();
 }
 
+function editar(index) {
+    let novaHora = prompt("Novo horário (HH:MM):", alarmes[index].hora);
+
+    if (novaHora) {
+        alarmes[index].hora = novaHora;
+        alarmes[index].ativo = true;
+        salvar();
+        render();
+    }
+}
+
 function render() {
     const lista = document.getElementById("lista");
     lista.innerHTML = "";
@@ -123,6 +122,7 @@ function render() {
             </p>
 
             <button onclick="toggle(${i})">Ligar/Desligar</button>
+            <button onclick="editar(${i})">Editar</button>
             <button onclick="remover(${i})">Remover</button>
         </div>
         `;
@@ -143,10 +143,9 @@ setInterval(() => {
             if (!tocando) {
 
                 tocando = new Audio(a.audio || "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3");
-                tocando.loop = true; // 🔥 toca contínuo
+                tocando.loop = true;
                 tocando.play();
 
-                // parar depois de 30 segundos
                 setTimeout(() => {
                     if (tocando) {
                         tocando.pause();
