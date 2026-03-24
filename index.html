@@ -3,7 +3,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Meu Alarme</title>
+<title>Alarme PRO</title>
 
 <style>
 body {
@@ -11,56 +11,117 @@ body {
     color: white;
     font-family: Arial;
     text-align: center;
-    margin-top: 100px;
+    padding: 20px;
 }
 
 input, button {
     padding: 10px;
-    font-size: 18px;
-    margin: 10px;
+    margin: 5px;
+    font-size: 16px;
 }
 
-#status {
-    margin-top: 20px;
-    font-size: 20px;
+.alarm {
+    background: #222;
+    padding: 10px;
+    margin: 10px;
+    border-radius: 10px;
 }
 </style>
 
 </head>
 <body>
 
-<h1>⏰ Meu Alarme</h1>
+<h1>⏰ Alarme PRO</h1>
 
 <input type="time" id="hora">
 <br>
 
-<button onclick="ativarAlarme()">Ativar Alarme</button>
+<input type="file" id="audioFile" accept="audio/*">
+<br>
 
-<div id="status"></div>
+<button onclick="adicionarAlarme()">Adicionar Alarme</button>
 
-<audio id="som" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"></audio>
+<div id="lista"></div>
 
 <script>
-let horaAlarme = "";
+let alarmes = JSON.parse(localStorage.getItem("alarmes")) || [];
 
-function ativarAlarme() {
-    horaAlarme = document.getElementById("hora").value;
-    document.getElementById("status").innerText = "Alarme definido para: " + horaAlarme;
+function salvar() {
+    localStorage.setItem("alarmes", JSON.stringify(alarmes));
+}
+
+function adicionarAlarme() {
+    const hora = document.getElementById("hora").value;
+    const file = document.getElementById("audioFile").files[0];
+
+    if (!hora) {
+        alert("Escolha um horário!");
+        return;
+    }
+
+    let audioURL = "";
+
+    if (file) {
+        audioURL = URL.createObjectURL(file);
+    }
+
+    alarmes.push({
+        hora: hora,
+        audio: audioURL,
+        ativo: true
+    });
+
+    salvar();
+    render();
+}
+
+function remover(index) {
+    alarmes.splice(index, 1);
+    salvar();
+    render();
+}
+
+function render() {
+    const lista = document.getElementById("lista");
+    lista.innerHTML = "";
+
+    alarmes.forEach((a, i) => {
+        lista.innerHTML += `
+        <div class="alarm">
+            ⏰ ${a.hora}
+            <br>
+            <button onclick="remover(${i})">Remover</button>
+        </div>
+        `;
+    });
 }
 
 setInterval(() => {
-    let agora = new Date();
-    let horas = agora.getHours().toString().padStart(2, "0");
-    let minutos = agora.getMinutes().toString().padStart(2, "0");
+    const agora = new Date();
+    const h = agora.getHours().toString().padStart(2, "0");
+    const m = agora.getMinutes().toString().padStart(2, "0");
+    const atual = h + ":" + m;
 
-    let horaAtual = horas + ":" + minutos;
+    alarmes.forEach(a => {
+        if (a.hora === atual && a.ativo) {
+            let audio;
 
-    if (horaAtual === horaAlarme) {
-        document.getElementById("som").play();
-        document.getElementById("status").innerText = "⏰ TOCANDO!!!";
-    }
+            if (a.audio) {
+                audio = new Audio(a.audio);
+            } else {
+                audio = new Audio("https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3");
+            }
+
+            audio.play();
+            a.ativo = false;
+        }
+    });
+
+    salvar();
 
 }, 1000);
+
+render();
 </script>
 
 </body>
