@@ -3,7 +3,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Alarme PRO++</title>
+<title>Alarme PRO MAX</title>
 
 <style>
 body {
@@ -20,6 +20,10 @@ input, button {
     font-size: 16px;
     border-radius: 8px;
     border: none;
+}
+
+button {
+    cursor: pointer;
 }
 
 #lista {
@@ -41,20 +45,28 @@ input, button {
 .desligado {
     color: #ef4444;
 }
+
+#parar {
+    background: red;
+    color: white;
+    display: none;
+}
 </style>
 
 </head>
 <body>
 
-<h1>⏰ Alarme PRO++</h1>
+<h1>⏰ Alarme PRO MAX</h1>
 
-<input type="time" id="hora">
+<input type="text" id="hora" maxlength="5" placeholder="HH:MM">
 <br>
 
 <input type="file" id="audioFile" accept="audio/*">
 <br>
 
 <button onclick="adicionarAlarme()">Adicionar</button>
+
+<br><br> <button id="parar" onclick="pararAlarme()">PARAR ALARME</button>
 
 <div id="lista"></div>
 
@@ -65,12 +77,25 @@ function salvar() {
     localStorage.setItem("alarmes", JSON.stringify(alarmes));
 }
 
+// AUTO :
+const inputHora = document.getElementById("hora");
+
+inputHora.addEventListener("input", function () {
+    let valor = inputHora.value.replace(/\D/g, "");
+
+    if (valor.length >= 3) {
+        valor = valor.slice(0, 2) + ":" + valor.slice(2, 4);
+    }
+
+    inputHora.value = valor;
+});
+
 function adicionarAlarme() {
-    const hora = document.getElementById("hora").value;
+    const hora = inputHora.value;
     const file = document.getElementById("audioFile").files[0];
 
-    if (!hora) {
-        alert("Escolha um horário!");
+    if (!hora || hora.length < 5) {
+        alert("Digite um horário válido!");
         return;
     }
 
@@ -130,6 +155,18 @@ function render() {
 }
 
 let tocando = null;
+let repetindo = false;
+
+function pararAlarme() {
+    repetindo = false;
+
+    if (tocando) {
+        tocando.pause();
+        tocando = null;
+    }
+
+    document.getElementById("parar").style.display = "none";
+}
 
 setInterval(() => {
     const agora = new Date();
@@ -138,14 +175,18 @@ setInterval(() => {
     const atual = h + ":" + m;
 
     alarmes.forEach(a => {
-        if (a.hora === atual && a.ativo) {
+        if (a.hora === atual && a.ativo && !repetindo) {
 
-            if (!tocando) {
+            repetindo = true;
+            document.getElementById("parar").style.display = "inline-block";
+
+            function tocarAlarme() {
+                if (!repetindo) return;
 
                 tocando = new Audio(a.audio || "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3");
-                tocando.loop = true;
                 tocando.play();
 
+                // toca 30s
                 setTimeout(() => {
                     if (tocando) {
                         tocando.pause();
@@ -153,10 +194,13 @@ setInterval(() => {
                     }
                 }, 30000);
 
-                a.ativo = false;
-                salvar();
-                render();
+                // repete depois
+                setTimeout(() => {
+                    tocarAlarme();
+                }, 60000);
             }
+
+            tocarAlarme();
         }
     });
 
