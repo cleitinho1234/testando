@@ -1,120 +1,41 @@
 <!DOCTYPE html>
-
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Mini Zap</title>
-
+<title>Mini-Zap</title>
 <style>
-body {
-  font-family: Arial;
-  background: #0f172a;
-  color: white;
-  text-align: center;
-}
-
-#chat {
-  height: 300px;
-  overflow-y: auto;
-  border: 1px solid #333;
-  margin: 20px;
-  padding: 10px;
-}
-
-input, button {
-  padding: 10px;
-  margin: 5px;
-}
+body { font-family: Arial; background: #f0f0f0; padding: 20px; }
+#profilePreview { width: 80px; height: 80px; border-radius: 50%; }
+#contacts img { width: 50px; height: 50px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+#messages { border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: scroll; background: #fff; margin-bottom: 10px; }
 </style>
-
 </head>
 <body>
 
-<h2>Seu ID: <span id="meuId"></span></h2>
+<h2>Seu Perfil</h2>
+<form id="profileForm">
+  <input type="text" id="username" placeholder="Seu nome" required>
+  <input type="file" id="profilePic" accept="image/*" required>
+  <button type="submit">Salvar Perfil</button>
+</form>
+<img id="profilePreview" src="">
 
-<input id="idDestino" placeholder="ID da pessoa">
-<button onclick="buscarUsuario()">Adicionar</button>
+<hr>
 
-<div id="chat"></div>
+<h2>Adicionar Contato</h2>
+<input type="text" id="addUserId" placeholder="ID do amigo">
+<button onclick="addFriend()">Adicionar</button>
 
-<input id="msg" placeholder="Mensagem">
-<button onclick="enviar()">Enviar</button>
+<div id="contacts"></div>
 
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<hr>
 
-<script>
-const SERVER = "https://mini-zap-2.onrender.com";
+<h2>Mensagens</h2>
+<div id="messages"></div>
+<input type="text" id="messageText" placeholder="Digite sua mensagem">
+<select id="friendSelect"></select>
+<button onclick="sendMessage()">Enviar</button>
 
-// 🔥 força websocket (evita bug no Render)
-let socket = io(SERVER, {
-  transports: ["websocket"]
-});
-
-let meuId = null;
-let destino = null;
-
-// criar usuário
-async function iniciar() {
-  const res = await fetch(SERVER + "/register", {
-    method: "POST"
-  });
-
-  const data = await res.json();
-
-  meuId = data.id;
-  document.getElementById("meuId").innerText = meuId;
-
-  socket.emit("join", meuId);
-}
-
-// buscar usuário
-async function buscarUsuario() {
-  const id = document.getElementById("idDestino").value;
-
-  const res = await fetch(SERVER + "/user/" + id);
-
-  if (res.ok) {
-    destino = id;
-    alert("Usuário encontrado!");
-  } else {
-    alert("ID inválido");
-  }
-}
-
-// enviar mensagem
-function enviar() {
-  const input = document.getElementById("msg");
-  const text = input.value;
-
-  if (!destino) {
-    alert("Adicione um usuário primeiro!");
-    return;
-  }
-
-  if (!text) return;
-
-  const div = document.createElement("div");
-  div.innerText = "Você: " + text;
-  document.getElementById("chat").appendChild(div);
-
-  socket.emit("sendMessage", {
-    from: meuId,
-    to: destino,
-    text
-  });
-
-  input.value = "";
-}
-
-// receber mensagem
-socket.on("receiveMessage", (msg) => {
-  const div = document.createElement("div");
-  div.innerText = msg.from + ": " + msg.text;
-  document.getElementById("chat").appendChild(div);
-});
-
-iniciar();
-</script>
-
+<script src="script.js"></script>
 </body>
 </html>
