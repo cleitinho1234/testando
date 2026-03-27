@@ -3,7 +3,10 @@ let currentChat = null;
 let lastMessageId = null;
 
 const contacts = JSON.parse(localStorage.getItem("contacts")) || [];
+
+// 🔥 NOVOS
 let newUsers = JSON.parse(localStorage.getItem("newUsers")) || [];
+let unreadUsers = JSON.parse(localStorage.getItem("unreadUsers")) || [];
 
 // =========================
 // INICIAR
@@ -85,7 +88,7 @@ async function salvarPerfil(username, photo){
 }
 
 // =========================
-// CONTATOS (COM NOVO USUÁRIO 🟢)
+// CONTATOS (COM 🟢 🔵)
 async function renderContacts(){
   const div = document.getElementById("contacts");
   div.innerHTML = "";
@@ -98,6 +101,7 @@ async function renderContacts(){
     if(!user.error) contacts[i] = user;
 
     const isNew = newUsers.includes(user.id);
+    const isUnread = unreadUsers.includes(user.id);
 
     const el = document.createElement("div");
     el.className = "contact";
@@ -106,7 +110,11 @@ async function renderContacts(){
       <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
            style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
       <span>${user.username}</span>
-      ${isNew ? `<span style="margin-left:auto;width:10px;height:10px;background:green;border-radius:50%;"></span>` : ""}
+
+      <div style="margin-left:auto;display:flex;gap:5px;">
+        ${isNew ? `<span style="width:10px;height:10px;background:green;border-radius:50%;"></span>` : ""}
+        ${isUnread ? `<span style="width:10px;height:10px;background:blue;border-radius:50%;"></span>` : ""}
+      </div>
     `;
 
     el.style.display = "flex";
@@ -143,9 +151,14 @@ async function abrirChat(user){
   document.getElementById("chatAvatar").src =
     user.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
-  // 🔥 REMOVE BOLINHA VERDE
+  // 🔥 remove bolinhas
+  unreadUsers = unreadUsers.filter(id => id != user.id);
   newUsers = newUsers.filter(id => id != user.id);
+
+  localStorage.setItem("unreadUsers", JSON.stringify(unreadUsers));
   localStorage.setItem("newUsers", JSON.stringify(newUsers));
+
+  renderContacts();
 
   lastMessageId = null;
   await loadMessages(true);
@@ -238,28 +251,35 @@ async function loadMessages(initial = false){
   const res = await fetch(`/getMessages/${currentUser.id}`);
   const msgs = await res.json();
 
-  // 🔥 DETECTA USUÁRIOS NOVOS
+  // 🔥 DETECTA NOVO + NÃO LIDO
   for (let m of msgs){
-    if(m.toId == currentUser.id){
-      if(!contacts.some(c => c.id == m.fromId)){
 
+    if(m.toId == currentUser.id){
+
+      if(!unreadUsers.includes(m.fromId)){
+        unreadUsers.push(m.fromId);
+      }
+
+      if(!contacts.some(c => c.id == m.fromId)){
         const resUser = await fetch(`/getUser/${m.fromId}`);
         const user = await resUser.json();
 
         if(!user.error){
           contacts.push(user);
-          localStorage.setItem("contacts", JSON.stringify(contacts));
 
           if(!newUsers.includes(user.id)){
             newUsers.push(user.id);
-            localStorage.setItem("newUsers", JSON.stringify(newUsers));
           }
-
-          renderContacts();
         }
       }
     }
   }
+
+  localStorage.setItem("contacts", JSON.stringify(contacts));
+  localStorage.setItem("newUsers", JSON.stringify(newUsers));
+  localStorage.setItem("unreadUsers", JSON.stringify(unreadUsers));
+
+  renderContacts();
 
   const filtered = msgs.filter(m =>
     (m.fromId == currentUser.id && m.toId == currentChat.id) ||
