@@ -3,6 +3,9 @@ let currentUser = null;
 // contatos salvos
 const contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
+// 🔥 controle pra não piscar
+let lastMessageCount = 0;
+
 // =========================
 // CARREGAR USUÁRIO
 window.addEventListener("load", async () => {
@@ -153,18 +156,21 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
 });
 
 // =========================
-// CHAT ESTILO WHATSAPP
+// CHAT SEM PISCAR
 async function loadMessages(){
   if(!currentUser) return;
 
   const res = await fetch(`/getMessages/${currentUser.id}`);
   const msgs = await res.json();
 
+  // 🔥 não faz nada se não mudou
+  if (msgs.length === lastMessageCount) return;
+
   const messagesDiv = document.getElementById("messages");
-  messagesDiv.innerHTML = "";
 
-  for (let m of msgs){
+  for (let i = lastMessageCount; i < msgs.length; i++) {
 
+    const m = msgs[i];
     const isMe = m.fromId === currentUser.id;
 
     const resUser = await fetch(`/getUser/${m.fromId}`);
@@ -175,8 +181,6 @@ async function loadMessages(){
 
     const img = document.createElement("img");
     img.className = "avatar";
-
-    // 🔥 nunca quebra imagem
     img.src = user.photo && user.photo !== ""
       ? user.photo
       : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
@@ -197,6 +201,8 @@ async function loadMessages(){
 
     messagesDiv.appendChild(msgDiv);
   }
+
+  lastMessageCount = msgs.length;
 
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
