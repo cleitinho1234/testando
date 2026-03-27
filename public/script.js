@@ -2,7 +2,7 @@ let currentUser = null;
 const contacts = [];
 
 // =========================
-// Carregar usuário
+// Carregar ou criar usuário
 window.addEventListener("load", async () => {
   let savedId = localStorage.getItem("userId");
 
@@ -31,7 +31,7 @@ window.addEventListener("load", async () => {
 });
 
 // =========================
-// SALVAR PERFIL
+// Salvar perfil
 document.getElementById("profileForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -46,7 +46,7 @@ document.getElementById("profileForm").addEventListener("submit", async (e) => {
     reader.onload = async () => {
       photo = reader.result;
 
-      // 🔥 MOSTRA NA HORA
+      // mostra na hora
       document.getElementById("profilePreview").src = photo;
 
       await saveProfile(username, photo);
@@ -84,7 +84,7 @@ document.getElementById("copyIdBtn").addEventListener("click", () => {
 });
 
 // =========================
-// Mensagens
+// Enviar mensagem
 document.getElementById("sendMessageBtn").addEventListener("click", async () => {
   const toId = document.getElementById("friendSelect").value;
   const text = document.getElementById("messageText").value.trim();
@@ -105,16 +105,55 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
   loadMessages();
 });
 
+// =========================
+// 🔥 CARREGAR MENSAGENS COM FOTO
 async function loadMessages() {
+  if (!currentUser) return;
+
   const res = await fetch(`/getMessages/${currentUser.id}`);
   const msgs = await res.json();
 
-  const div = document.getElementById("messages");
-  div.innerHTML = "";
+  const messagesDiv = document.getElementById("messages");
+  messagesDiv.innerHTML = "";
 
-  msgs.forEach(m => {
-    const el = document.createElement("div");
-    el.textContent = `${m.fromId === currentUser.id ? "Você" : m.fromId}: ${m.text}`;
-    div.appendChild(el);
-  });
-        }
+  for (let m of msgs) {
+
+    // 🔥 busca usuário da mensagem
+    const resUser = await fetch(`/getUser/${m.fromId}`);
+    const user = await resUser.json();
+
+    const div = document.createElement("div");
+
+    // estilo tipo chat
+    div.style.display = "flex";
+    div.style.alignItems = "center";
+    div.style.marginBottom = "8px";
+
+    // FOTO
+    const img = document.createElement("img");
+    img.src = user.photo || "";
+    img.style.width = "35px";
+    img.style.height = "35px";
+    img.style.borderRadius = "50%";
+    img.style.marginRight = "10px";
+
+    // TEXTO
+    const span = document.createElement("span");
+
+    const nome = m.fromId === currentUser.id
+      ? "Você"
+      : user.username || m.fromId;
+
+    span.textContent = `${nome}: ${m.text}`;
+
+    div.appendChild(img);
+    div.appendChild(span);
+
+    messagesDiv.appendChild(div);
+  }
+
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// Atualiza mensagens
+setInterval(loadMessages, 3000);
