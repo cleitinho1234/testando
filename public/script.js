@@ -3,8 +3,13 @@ let currentUser = null;
 // contatos salvos
 const contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
-// 🔥 controle pra não piscar
+// 🔥 controle mensagens
 let lastMessageCount = 0;
+
+// 🔔 pedir permissão de notificação
+if ("Notification" in window) {
+  Notification.requestPermission();
+}
 
 // =========================
 // CARREGAR USUÁRIO
@@ -156,14 +161,32 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
 });
 
 // =========================
-// CHAT SEM PISCAR
+// CHAT COM SOM 🔊
 async function loadMessages(){
   if(!currentUser) return;
 
   const res = await fetch(`/getMessages/${currentUser.id}`);
   const msgs = await res.json();
 
-  // 🔥 não faz nada se não mudou
+  const audio = document.getElementById("notificationSound");
+
+  // 🔔 detectar novas mensagens
+  if (msgs.length > lastMessageCount) {
+    const novas = msgs.slice(lastMessageCount);
+
+    const recebeuDeOutro = novas.some(m => m.fromId !== currentUser.id);
+
+    if (recebeuDeOutro && audio) {
+      audio.play();
+
+      if (Notification.permission === "granted") {
+        new Notification("Nova mensagem", {
+          body: "Você recebeu uma nova mensagem"
+        });
+      }
+    }
+  }
+
   if (msgs.length === lastMessageCount) return;
 
   const messagesDiv = document.getElementById("messages");
