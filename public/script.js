@@ -2,14 +2,29 @@ let currentUser = null;
 const contacts = [];
 
 // =========================
-// Cria usuário automaticamente ao carregar a página
+// Cria usuário ou pega do localStorage
 window.addEventListener("load", async () => {
+  let savedId = localStorage.getItem("myZapId");
+
+  if(savedId){
+    const res = await fetch(`/getUser/${savedId}`);
+    const user = await res.json();
+    if(!user.error){
+      currentUser = user;
+      document.getElementById("userIdDisplay").textContent = currentUser.id;
+      loadMessages();
+      return;
+    }
+  }
+
+  // Se não existe, cria novo usuário
   const res = await fetch("/user", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ username: "Novo Usuário", photo: "" })
   });
   currentUser = await res.json();
+  localStorage.setItem("myZapId", currentUser.id);
   document.getElementById("userIdDisplay").textContent = currentUser.id;
   loadMessages();
 });
