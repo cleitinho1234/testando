@@ -1,72 +1,82 @@
 let currentUser = null;
+const contacts = [];
 
 // =========================
-// Salvar perfil
+// Cria usuário automaticamente ao carregar a página
+window.addEventListener("load", async () => {
+  const res = await fetch("/user", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ username: "Novo Usuário", photo: "" })
+  });
+  currentUser = await res.json();
+  document.getElementById("userIdDisplay").textContent = currentUser.id;
+  loadMessages();
+});
+
+// =========================
+// Salvar perfil (nome e foto)
 document.getElementById("profileForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const username = document.getElementById("username").value;
   const file = document.getElementById("profilePic").files[0];
-  let photo = "";
+  let photo = currentUser.photo;
 
   if(file){
     const reader = new FileReader();
     reader.onload = async () => {
       photo = reader.result;
-
       await saveProfile(username, photo);
     }
     reader.readAsDataURL(file);
   } else {
-    await saveProfile(username, "");
+    await saveProfile(username, photo);
   }
 });
 
 async function saveProfile(username, photo){
-  // Cria usuário novo se ainda não existe
-  const res = await fetch("/user", {
+  await fetch("/saveProfile", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ username, photo })
+    body: JSON.stringify({ id: currentUser.id, username, photo })
   });
-  const user = await res.json();
-  currentUser = user;
-  document.getElementById("userIdDisplay").textContent = user.id;
-  document.getElementById("profilePreview").src = user.photo || "";
-  loadMessages();
+  currentUser.username = username;
+  currentUser.photo = photo;
+  document.getElementById("profilePreview").src = photo;
 }
 
 // =========================
 // Copiar ID
 document.getElementById("copyIdBtn").addEventListener("click", () => {
-  const id = document.getElementById("userIdDisplay").textContent;
-  navigator.clipboard.writeText(id);
+  navigator.clipboard.writeText(currentUser.id);
   alert("ID copiado!");
 });
 
 // =========================
 // Adicionar contato
 document.getElementById("addFriendBtn").addEventListener("click", async () => {
-  const friendId = document.getElementById("addUserId").value;
+  const friendId = document.getElementById("addUserId").value.trim();
   if(!friendId) return alert("Digite o ID do amigo");
+  if(friendId === currentUser.id) return alert("Você não pode adicionar seu próprio ID");
 
   const res = await fetch(`/getUser/${friendId}`);
   const user = await res.json();
-
   if(user.error) return alert("Usuário não encontrado");
 
-  // Adiciona no select e na lista de contatos
-  const select = document.getElementById("friendSelect");
-  const optionExists = Array.from(select.options).some(o=>o.value===user.id);
-  if(!optionExists){
+  if(!contacts.some(c=>c.id===user.id)){
+    contacts.push(user);
+
+    // adicionar ao select
+    const select = document.getElementById("friendSelect");
     const option = document.createElement("option");
     option.value = user.id;
     option.textContent = user.username;
     select.appendChild(option);
 
-    const contactsDiv = document.getElementById("contacts");
+    // adicionar à lista de contatos
     const div = document.createElement("div");
     div.textContent = user.username + " (ID: " + user.id + ")";
-    contactsDiv.appendChild(div);
+    document.getElementById("contacts").appendChild(div);
   }
 
   document.getElementById("addUserId").value = "";
@@ -76,8 +86,8 @@ document.getElementById("addFriendBtn").addEventListener("click", async () => {
 // Enviar mensagem
 document.getElementById("sendMessageBtn").addEventListener("click", async () => {
   const toId = document.getElementById("friendSelect").value;
-  const text = document.getElementById("messageText").value;
-  if(!currentUser || !toId || !text) return;
+  const text = document.getElementById("messageText").value.trim();
+  if(!toId || !text) return alert("Selecione um amigo e digite a mensagem");
 
   await fetch("/sendMessage", {
     method: "POST",
@@ -98,13 +108,12 @@ async function loadMessages(){
 
   const messagesDiv = document.getElementById("messages");
   messagesDiv.innerHTML = "";
-  msgs.forEach(m => {
+  msgs.forEach(m=>{
     const div = document.createElement("div");
     const from = m.fromId === currentUser.id ? "Você" : m.fromId;
     div.textContent = `${from}: ${m.text}`;
     messagesDiv.appendChild(div);
   });
-
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
