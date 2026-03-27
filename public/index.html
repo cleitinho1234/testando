@@ -6,7 +6,7 @@
 <style>
 body { font-family: Arial; background: #f0f0f0; padding: 20px; }
 #profilePreview { width: 80px; height: 80px; border-radius: 50%; margin-top: 10px; }
-#contacts img { width: 50px; height: 50px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+#contacts div { padding: 5px; background: #ddd; margin-bottom: 5px; border-radius: 5px; }
 #messages { border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: scroll; background: #fff; margin-bottom: 10px; }
 button { cursor: pointer; }
 </style>
@@ -15,7 +15,7 @@ button { cursor: pointer; }
 
 <h2>Seu Perfil</h2>
 <form id="profileForm">
-  <input type="text" id="username" placeholder="Seu nome" required>
+  <input type="text" id="username" placeholder="Seu nome">
   <input type="file" id="profilePic" accept="image/*">
   <button type="submit">Salvar Perfil</button>
 </form>
@@ -26,7 +26,7 @@ button { cursor: pointer; }
 
 <h2>Adicionar Contato</h2>
 <input type="text" id="addUserId" placeholder="ID do amigo">
-<button type="button" id="addFriendBtn">Adicionar</button>
+<button id="addFriendBtn">Adicionar</button>
 
 <div id="contacts"></div>
 
@@ -36,7 +36,7 @@ button { cursor: pointer; }
 <div id="messages"></div>
 <input type="text" id="messageText" placeholder="Digite sua mensagem">
 <select id="friendSelect"></select>
-<button type="button" id="sendMessageBtn">Enviar</button>
+<button id="sendMessageBtn">Enviar</button>
 
 <script src="script.js"></script>
 </body>
