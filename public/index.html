@@ -2,7 +2,6 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Mini-Zap</title>
@@ -14,49 +13,71 @@ body {
   margin: 0;
 }
 
-/* CONTAINER */
-.container {
-  max-width: 500px;
-  margin: auto;
+#home {
   padding: 10px;
 }
 
-/* PERFIL */
-#profilePreview {
-  width: 70px;
-  height: 70px;
+#chatScreen {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #efeae2;
+  flex-direction: column;
+}
+
+/* HEADER */
+#chatHeader {
+  background: #075e54;
+  color: white;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+}
+
+#chatHeader button {
+  margin-right: 10px;
+}
+
+#chatAvatar {
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-}
-
-/* CONTATOS */
-#contacts div {
-  padding: 10px;
-  background: #fff;
-  margin-bottom: 5px;
-  border-radius: 8px;
-  cursor: pointer;
-
-  /* 🔥 REMOVE SELEÇÃO AZUL */
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-
-#contacts div:active {
-  background: #ddd;
+  margin-right: 10px;
 }
 
 /* CHAT */
-#chatBox {
-  display: none;
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
 }
 
-#messages {
-  height: 300px;
-  overflow-y: auto;
-  background: #efeae2;
+/* INPUT */
+#chatInput {
+  display: flex;
   padding: 10px;
-  border-radius: 10px;
+  background: #ddd;
+}
+
+#chatInput input {
+  flex: 1;
+  padding: 10px;
+}
+
+#chatInput button {
+  padding: 10px;
+}
+
+/* CONTATOS */
+.contact {
+  background: white;
+  padding: 10px;
+  margin-top: 5px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 /* MENSAGEM */
@@ -66,24 +87,24 @@ body {
   margin: 5px 0;
 }
 
-.message.me {
+.me {
   justify-content: flex-end;
 }
 
-.message.other {
+.other {
   justify-content: flex-start;
 }
 
 .avatar {
-  width: 35px;
-  height: 35px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
 }
 
 .bubble {
-  max-width: 70%;
   padding: 10px;
   border-radius: 10px;
+  max-width: 70%;
   margin: 5px;
 }
 
@@ -94,32 +115,22 @@ body {
 .other .bubble {
   background: white;
 }
-
-/* INPUT */
-input, select, button {
-  width: 100%;
-  padding: 10px;
-  margin-top: 5px;
-}
 </style>
 </head>
 
 <body>
 
-<div class="container" id="home">
+<div id="home">
 
 <h2>Seu Perfil</h2>
 
 <form id="profileForm">
   <input type="text" id="username" placeholder="Seu nome">
-  <input type="file" id="profilePic" accept="image/*">
-  <button type="submit">Salvar Perfil</button>
+  <input type="file" id="profilePic">
+  <button>Salvar</button>
 </form>
 
-<img id="profilePreview">
-
 <p>ID: <span id="userIdDisplay"></span></p>
-<button id="copyIdBtn">Copiar ID</button>
 
 <hr>
 
@@ -133,16 +144,20 @@ input, select, button {
 </div>
 
 <!-- CHAT -->
-<div class="container" id="chatBox">
+<div id="chatScreen">
 
-<button onclick="voltar()">⬅ Voltar</button>
-
-<h3 id="chatName"></h3>
+<div id="chatHeader">
+  <button onclick="voltar()">⬅</button>
+  <img id="chatAvatar">
+  <span id="chatName"></span>
+</div>
 
 <div id="messages"></div>
 
-<input type="text" id="messageText" placeholder="Digite sua mensagem">
-<button id="sendMessageBtn">Enviar</button>
+<div id="chatInput">
+  <input type="text" id="messageText" placeholder="Mensagem">
+  <button id="sendMessageBtn">Enviar</button>
+</div>
 
 </div>
 
