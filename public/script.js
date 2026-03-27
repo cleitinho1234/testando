@@ -3,8 +3,11 @@ let currentUser = null;
 // contatos salvos
 const contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
-// usuário selecionado (chat atual)
+// usuário atual do chat
 let activeChatUserId = null;
+
+// controle pra não piscar
+let lastMessageCount = 0;
 
 // =========================
 // CARREGAR USUÁRIO
@@ -45,7 +48,7 @@ window.addEventListener("load", async () => {
 
   renderContacts();
 
-  // 🔥 define primeiro contato automaticamente
+  // 🔥 abre o primeiro contato automaticamente
   if (contacts.length > 0) {
     activeChatUserId = contacts[0].id;
     document.getElementById("friendSelect").value = activeChatUserId;
@@ -65,20 +68,22 @@ function renderContacts() {
 
   contacts.forEach(user => {
 
-    // select (dropdown)
     const option = document.createElement("option");
     option.value = user.id;
     option.textContent = user.username;
     select.appendChild(option);
 
-    // lista visual
     const div = document.createElement("div");
     div.textContent = user.username + " (ID: " + user.id + ")";
 
-    // 🔥 clicar troca o chat
+    // 🔥 clicar troca conversa
     div.addEventListener("click", () => {
       activeChatUserId = user.id;
       select.value = user.id;
+
+      // reset pra atualizar
+      lastMessageCount = 0;
+
       loadMessages();
     });
 
@@ -86,9 +91,10 @@ function renderContacts() {
   });
 }
 
-// 🔥 quando muda no select também troca chat
+// 🔥 trocar pelo select também
 document.getElementById("friendSelect").addEventListener("change", (e) => {
   activeChatUserId = e.target.value;
+  lastMessageCount = 0;
   loadMessages();
 });
 
@@ -154,6 +160,8 @@ document.getElementById("addFriendBtn").addEventListener("click", async () => {
     // 🔥 já abre o chat com ele
     activeChatUserId = user.id;
     document.getElementById("friendSelect").value = user.id;
+    lastMessageCount = 0;
+
     loadMessages();
   }
 
@@ -179,7 +187,7 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
 });
 
 // =========================
-// CHAT (SEM PISCAR + FILTRO POR USUÁRIO)
+// CHAT SEM PISCAR
 async function loadMessages(){
   if(!currentUser || !activeChatUserId) return;
 
@@ -188,11 +196,15 @@ async function loadMessages(){
 
   const messagesDiv = document.getElementById("messages");
 
-  // 🔥 FILTRA só conversa com usuário selecionado
   const filtered = msgs.filter(m =>
     (m.fromId === currentUser.id && m.toId === activeChatUserId) ||
     (m.fromId === activeChatUserId && m.toId === currentUser.id)
   );
+
+  // 🔥 NÃO ATUALIZA SE NÃO MUDOU
+  if (filtered.length === lastMessageCount) return;
+
+  lastMessageCount = filtered.length;
 
   messagesDiv.innerHTML = "";
 
