@@ -1,7 +1,5 @@
 let currentUser = null;
 let currentChatId = null;
-
-// 🔥 controla mensagens já exibidas
 let lastMessageIds = new Set();
 
 // contatos salvos
@@ -45,6 +43,7 @@ window.addEventListener("load", async () => {
   }
 
   renderContacts();
+  loadMessages();
 });
 
 // =========================
@@ -64,7 +63,10 @@ function renderContacts() {
     select.appendChild(option);
 
     const div = document.createElement("div");
-    div.textContent = user.username + " (ID: " + user.id + ")";
+
+    div.textContent =
+      user.username + " (ID: " + user.id + ")" +
+      (user.novo ? " 🟢" : "");
 
     div.addEventListener("click", () => {
       openChat(user);
@@ -84,11 +86,16 @@ function openChat(user){
 
   document.getElementById("friendSelect").value = user.id;
 
-  // 🔥 limpa tela SEM bug
+  // 🔥 remove bolinha verde
+  user.novo = false;
+  localStorage.setItem("contacts", JSON.stringify(contacts));
+  renderContacts();
+
+  // limpa chat
   lastMessageIds.clear();
   document.getElementById("messages").innerHTML = "";
 
-  loadMessages();
+  loadChatMessages();
 }
 
 // =========================
@@ -155,7 +162,7 @@ document.getElementById("addFriendBtn").addEventListener("click", async () => {
 });
 
 // =========================
-// ENVIAR MENSAGEM (SEM PISCAR)
+// ENVIAR MENSAGEM
 document.getElementById("sendMessageBtn").addEventListener("click", async () => {
   const text = document.getElementById("messageText").value.trim();
 
@@ -174,7 +181,6 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
 
   document.getElementById("messageText").value = "";
 
-  // 🔥 adiciona direto na tela
   addMessageToScreen({
     fromId: currentUser.id,
     text
@@ -206,8 +212,44 @@ function addMessageToScreen(m){
 }
 
 // =========================
-// CARREGAR MENSAGENS (SEM PISCAR REAL)
+// DETECTAR NOVOS CONTATOS
 async function loadMessages(){
+  if(!currentUser) return;
+
+  const res = await fetch(`/getMessages/${currentUser.id}`);
+  const msgs = await res.json();
+
+  let mudou = false;
+
+  for (let m of msgs){
+
+    if(m.toId === currentUser.id){
+
+      const existe = contacts.some(c => c.id === m.fromId);
+
+      if(!existe){
+        const resUser = await fetch(`/getUser/${m.fromId}`);
+        const user = await resUser.json();
+
+        user.novo = true;
+
+        contacts.push(user);
+        mudou = true;
+      }
+    }
+  }
+
+  if(mudou){
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+    renderContacts();
+  }
+
+  loadChatMessages();
+}
+
+// =========================
+// CHAT SEM PISCAR
+async function loadChatMessages(){
   if(!currentUser || !currentChatId) return;
 
   const res = await fetch(`/getMessages/${currentUser.id}`);
@@ -258,5 +300,5 @@ async function loadMessages(){
 }
 
 // =========================
-// ATUALIZA SEM BUG
+// ATUALIZA AUTOMÁTICO
 setInterval(loadMessages, 3000);
