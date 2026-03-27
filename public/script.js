@@ -1,26 +1,9 @@
 let currentUser = null;
+let currentChatId = null; // 🔥 conversa atual
 
-// contatos salvos
 const contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
-// controle mensagens
 let lastMessageCount = 0;
-
-// 🔥 DESBLOQUEAR ÁUDIO (ESSENCIAL)
-document.addEventListener("click", () => {
-  const audio = document.getElementById("notificationSound");
-  if (audio) {
-    audio.play().then(() => {
-      audio.pause();
-      audio.currentTime = 0;
-    }).catch(() => {});
-  }
-}, { once: true });
-
-// 🔔 pedir permissão de notificação
-if ("Notification" in window) {
-  Notification.requestPermission();
-}
 
 // =========================
 // CARREGAR USUÁRIO
@@ -31,11 +14,8 @@ window.addEventListener("load", async () => {
     const res = await fetch(`/getUser/${savedId}`);
     const user = await res.json();
 
-    if (!user.error) {
-      currentUser = user;
-    } else {
-      localStorage.removeItem("userId");
-    }
+    if (!user.error) currentUser = user;
+    else localStorage.removeItem("userId");
   }
 
   if (!currentUser) {
@@ -60,30 +40,26 @@ window.addEventListener("load", async () => {
   }
 
   renderContacts();
-  loadMessages();
 });
 
 // =========================
 // MOSTRAR CONTATOS
 function renderContacts() {
   const contactsDiv = document.getElementById("contacts");
-  const select = document.getElementById("friendSelect");
 
   contactsDiv.innerHTML = "";
-  select.innerHTML = "";
 
   contacts.forEach(user => {
-
-    const option = document.createElement("option");
-    option.value = user.id;
-    option.textContent = user.username;
-    select.appendChild(option);
 
     const div = document.createElement("div");
     div.textContent = user.username + " (ID: " + user.id + ")";
 
+    // 🔥 clicar abre conversa
     div.addEventListener("click", () => {
-      select.value = user.id;
+      currentChatId = user.id;
+      document.getElementById("messages").innerHTML = "";
+      lastMessageCount = 0;
+      loadMessages();
     });
 
     contactsDiv.appendChild(div);
@@ -125,24 +101,17 @@ async function saveProfile(username, photo){
 }
 
 // =========================
-// COPIAR ID
-document.getElementById("copyIdBtn").addEventListener("click", () => {
-  navigator.clipboard.writeText(currentUser.id);
-  alert("ID copiado!");
-});
-
-// =========================
 // ADICIONAR CONTATO
 document.getElementById("addFriendBtn").addEventListener("click", async () => {
   const friendId = document.getElementById("addUserId").value.trim();
 
-  if(!friendId) return alert("Digite o ID do amigo");
-  if(friendId === currentUser.id) return alert("Você não pode adicionar seu próprio ID");
+  if(!friendId) return alert("Digite o ID");
+  if(friendId === currentUser.id) return alert("ID inválido");
 
   const res = await fetch(`/getUser/${friendId}`);
   const user = await res.json();
 
-  if(user.error) return alert("Usuário não encontrado");
+  if(user.error) return alert("Não encontrado");
 
   if(!contacts.some(c => c.id === user.id)){
     contacts.push(user);
@@ -156,15 +125,19 @@ document.getElementById("addFriendBtn").addEventListener("click", async () => {
 // =========================
 // ENVIAR MENSAGEM
 document.getElementById("sendMessageBtn").addEventListener("click", async () => {
-  const toId = document.getElementById("friendSelect").value;
   const text = document.getElementById("messageText").value.trim();
 
-  if(!toId || !text) return alert("Digite a mensagem");
+  if(!currentChatId) return alert("Selecione um contato");
+  if(!text) return;
 
   await fetch("/sendMessage", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ fromId: currentUser.id, toId, text })
+    body: JSON.stringify({
+      fromId: currentUser.id,
+      toId: currentChatId,
+      text
+    })
   });
 
   document.getElementById("messageText").value = "";
@@ -172,40 +145,24 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
 });
 
 // =========================
-// CHAT COM SOM 🔊
+// CARREGAR MENSAGENS (POR CONVERSA)
 async function loadMessages(){
-  if(!currentUser) return;
+  if(!currentUser || !currentChatId) return;
 
   const res = await fetch(`/getMessages/${currentUser.id}`);
   const msgs = await res.json();
 
-  const audio = document.getElementById("notificationSound");
-
-  // 🔔 detectar novas mensagens
-  if (msgs.length > lastMessageCount) {
-    const novas = msgs.slice(lastMessageCount);
-
-    const recebeuDeOutro = novas.some(m => m.fromId !== currentUser.id);
-
-    if (recebeuDeOutro && audio) {
-      audio.currentTime = 0;
-      audio.play().catch(() => {});
-
-      if (Notification.permission === "granted") {
-        new Notification("Nova mensagem", {
-          body: "Você recebeu uma nova mensagem"
-        });
-      }
-    }
-  }
-
-  if (msgs.length === lastMessageCount) return;
-
   const messagesDiv = document.getElementById("messages");
+  messagesDiv.innerHTML = "";
 
-  for (let i = lastMessageCount; i < msgs.length; i++) {
+  // 🔥 filtra só mensagens da conversa atual
+  const conversa = msgs.filter(m =>
+    (m.fromId === currentUser.id && m.toId === currentChatId) ||
+    (m.fromId === currentChatId && m.toId === currentUser.id)
+  );
 
-    const m = msgs[i];
+  for (let m of conversa){
+
     const isMe = m.fromId === currentUser.id;
 
     const resUser = await fetch(`/getUser/${m.fromId}`);
@@ -216,14 +173,12 @@ async function loadMessages(){
 
     const img = document.createElement("img");
     img.className = "avatar";
-    img.src = user.photo && user.photo !== ""
-      ? user.photo
-      : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+    img.src = user.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
     const bubble = document.createElement("div");
     bubble.className = "bubble";
 
-    const nome = isMe ? "Você" : (user.username || m.fromId);
+    const nome = isMe ? "Você" : user.username;
     bubble.textContent = `${nome}: ${m.text}`;
 
     if (isMe) {
@@ -236,8 +191,6 @@ async function loadMessages(){
 
     messagesDiv.appendChild(msgDiv);
   }
-
-  lastMessageCount = msgs.length;
 
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
