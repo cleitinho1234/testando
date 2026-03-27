@@ -13,12 +13,10 @@ body {
   margin: 0;
 }
 
-/* HOME */
 #home {
   padding: 10px;
 }
 
-/* CHAT */
 #chatScreen {
   display: none;
   position: fixed;
@@ -50,7 +48,7 @@ body {
   margin-right: 10px;
 }
 
-/* MESSAGES */
+/* CHAT */
 #messages {
   flex: 1;
   overflow-y: auto;
@@ -85,6 +83,7 @@ body {
 /* MENSAGEM */
 .message {
   display: flex;
+  align-items: flex-end;
   margin: 5px 0;
 }
 
@@ -96,10 +95,17 @@ body {
   justify-content: flex-start;
 }
 
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
 .bubble {
   padding: 10px;
   border-radius: 10px;
   max-width: 70%;
+  margin: 5px;
 }
 
 .me .bubble {
@@ -137,6 +143,7 @@ body {
 
 </div>
 
+<!-- CHAT -->
 <div id="chatScreen">
 
 <div id="chatHeader">
