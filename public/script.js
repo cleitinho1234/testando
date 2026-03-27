@@ -1,43 +1,121 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-<meta charset="UTF-8">
-<title>Mini-Zap-4</title>
-<style>
-body { font-family: Arial; background: #f0f0f0; padding: 20px; }
-#profilePreview { width: 80px; height: 80px; border-radius: 50%; margin-top: 10px; }
-#contacts div { padding: 5px; background: #ddd; margin-bottom: 5px; border-radius: 5px; }
-#messages { border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: scroll; background: #fff; margin-bottom: 10px; }
-button { cursor: pointer; }
-</style>
-</head>
-<body>
+let currentUser = null;
+const contacts = [];
 
-<h2>Seu Perfil</h2>
-<form id="profileForm">
-  <input type="text" id="username" placeholder="Seu nome">
-  <input type="file" id="profilePic" accept="image/*">
-  <button type="submit">Salvar Perfil</button>
-</form>
-<img id="profilePreview" src="">
-<p>Seu ID: <span id="userIdDisplay"></span> <button id="copyIdBtn">Copiar ID</button></p>
+// =========================
+// Cria usuário automaticamente ao carregar a página
+window.addEventListener("load", async () => {
+  const res = await fetch("/user", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ username: "Novo Usuário", photo: "" })
+  });
+  currentUser = await res.json();
+  document.getElementById("userIdDisplay").textContent = currentUser.id;
+  loadMessages();
+});
 
-<hr>
+// =========================
+// Salvar perfil (nome e foto)
+document.getElementById("profileForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const username = document.getElementById("username").value;
+  const file = document.getElementById("profilePic").files[0];
+  let photo = currentUser.photo;
 
-<h2>Adicionar Contato</h2>
-<input type="text" id="addUserId" placeholder="ID do amigo">
-<button id="addFriendBtn">Adicionar</button>
+  if(file){
+    const reader = new FileReader();
+    reader.onload = async () => {
+      photo = reader.result;
+      await saveProfile(username, photo);
+    }
+    reader.readAsDataURL(file);
+  } else {
+    await saveProfile(username, photo);
+  }
+});
 
-<div id="contacts"></div>
+async function saveProfile(username, photo){
+  await fetch("/saveProfile", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ id: currentUser.id, username, photo })
+  });
+  currentUser.username = username;
+  currentUser.photo = photo;
+  document.getElementById("profilePreview").src = photo;
+}
 
-<hr>
+// =========================
+// Copiar ID
+document.getElementById("copyIdBtn").addEventListener("click", () => {
+  navigator.clipboard.writeText(currentUser.id);
+  alert("ID copiado!");
+});
 
-<h2>Mensagens</h2>
-<div id="messages"></div>
-<input type="text" id="messageText" placeholder="Digite sua mensagem">
-<select id="friendSelect"></select>
-<button id="sendMessageBtn">Enviar</button>
+// =========================
+// Adicionar contato
+document.getElementById("addFriendBtn").addEventListener("click", async () => {
+  const friendId = document.getElementById("addUserId").value.trim();
+  if(!friendId) return alert("Digite o ID do amigo");
+  if(friendId === currentUser.id) return alert("Você não pode adicionar seu próprio ID");
 
-<script src="script.js"></script>
-</body>
-</html>
+  const res = await fetch(`/getUser/${friendId}`);
+  const user = await res.json();
+  if(user.error) return alert("Usuário não encontrado");
+
+  if(!contacts.some(c=>c.id===user.id)){
+    contacts.push(user);
+
+    // adicionar ao select
+    const select = document.getElementById("friendSelect");
+    const option = document.createElement("option");
+    option.value = user.id;
+    option.textContent = user.username;
+    select.appendChild(option);
+
+    // adicionar à lista de contatos
+    const div = document.createElement("div");
+    div.textContent = user.username + " (ID: " + user.id + ")";
+    document.getElementById("contacts").appendChild(div);
+  }
+
+  document.getElementById("addUserId").value = "";
+});
+
+// =========================
+// Enviar mensagem
+document.getElementById("sendMessageBtn").addEventListener("click", async () => {
+  const toId = document.getElementById("friendSelect").value;
+  const text = document.getElementById("messageText").value.trim();
+  if(!toId || !text) return alert("Selecione um amigo e digite a mensagem");
+
+  await fetch("/sendMessage", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ fromId: currentUser.id, toId, text })
+  });
+
+  document.getElementById("messageText").value = "";
+  loadMessages();
+});
+
+// =========================
+// Carregar mensagens
+async function loadMessages(){
+  if(!currentUser) return;
+  const res = await fetch(`/getMessages/${currentUser.id}`);
+  const msgs = await res.json();
+
+  const messagesDiv = document.getElementById("messages");
+  messagesDiv.innerHTML = "";
+  msgs.forEach(m=>{
+    const div = document.createElement("div");
+    const from = m.fromId === currentUser.id ? "Você" : m.fromId;
+    div.textContent = `${from}: ${m.text}`;
+    messagesDiv.appendChild(div);
+  });
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// Atualiza mensagens a cada 3s
+setInterval(loadMessages, 3000);
