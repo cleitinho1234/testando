@@ -40,9 +40,7 @@ window.addEventListener("load", async () => {
     document.getElementById("profilePreview").src = currentUser.photo;
   }
 
-  // 🔥 renderiza contatos salvos
   renderContacts();
-
   loadMessages();
 });
 
@@ -57,17 +55,14 @@ function renderContacts() {
 
   contacts.forEach(user => {
 
-    // select
     const option = document.createElement("option");
     option.value = user.id;
     option.textContent = user.username;
     select.appendChild(option);
 
-    // lista visual
     const div = document.createElement("div");
     div.textContent = user.username + " (ID: " + user.id + ")";
 
-    // 🔥 clicar seleciona o contato
     div.addEventListener("click", () => {
       select.value = user.id;
     });
@@ -80,6 +75,7 @@ function renderContacts() {
 // Salvar perfil
 document.getElementById("profileForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+
   const username = document.getElementById("username").value;
   const file = document.getElementById("profilePic").files[0];
   let photo = currentUser.photo;
@@ -117,7 +113,7 @@ document.getElementById("copyIdBtn").addEventListener("click", () => {
 });
 
 // =========================
-// ADICIONAR CONTATO (ATUALIZADO)
+// ADICIONAR CONTATO
 document.getElementById("addFriendBtn").addEventListener("click", async () => {
   const friendId = document.getElementById("addUserId").value.trim();
 
@@ -130,14 +126,8 @@ document.getElementById("addFriendBtn").addEventListener("click", async () => {
   if(user.error) return alert("Usuário não encontrado");
 
   if(!contacts.some(c => c.id === user.id)){
-
-    // 🔥 adiciona no array
     contacts.push(user);
-
-    // 🔥 salva no localStorage
     localStorage.setItem("contacts", JSON.stringify(contacts));
-
-    // 🔥 atualiza tela
     renderContacts();
   }
 
@@ -163,7 +153,7 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
 });
 
 // =========================
-// Carregar mensagens
+// 🔥 CHAT ESTILO WHATSAPP
 async function loadMessages(){
   if(!currentUser) return;
 
@@ -173,15 +163,42 @@ async function loadMessages(){
   const messagesDiv = document.getElementById("messages");
   messagesDiv.innerHTML = "";
 
-  msgs.forEach(m=>{
-    const div = document.createElement("div");
-    const from = m.fromId === currentUser.id ? "Você" : m.fromId;
-    div.textContent = `${from}: ${m.text}`;
-    messagesDiv.appendChild(div);
-  });
+  for (let m of msgs){
+
+    const isMe = m.fromId === currentUser.id;
+
+    // 🔥 pega dados do usuário
+    const resUser = await fetch(`/getUser/${m.fromId}`);
+    const user = await resUser.json();
+
+    const msgDiv = document.createElement("div");
+    msgDiv.className = `message ${isMe ? "me" : "other"}`;
+
+    // FOTO
+    const img = document.createElement("img");
+    img.className = "avatar";
+    img.src = user.photo || "";
+
+    // TEXTO
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+
+    const nome = isMe ? "Você" : (user.username || m.fromId);
+    bubble.textContent = `${nome}: ${m.text}`;
+
+    if (isMe) {
+      msgDiv.appendChild(bubble);
+      msgDiv.appendChild(img);
+    } else {
+      msgDiv.appendChild(img);
+      msgDiv.appendChild(bubble);
+    }
+
+    messagesDiv.appendChild(msgDiv);
+  }
 
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
-// Atualiza mensagens
+// =========================
 setInterval(loadMessages, 3000);
