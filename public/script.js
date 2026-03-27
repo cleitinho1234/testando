@@ -14,9 +14,7 @@ window.addEventListener("load", async () => {
     const res = await fetch(`/getUser/${savedId}`);
     const user = await res.json();
 
-    if (!user.error) {
-      currentUser = user;
-    }
+    if (!user.error) currentUser = user;
   }
 
   if (!currentUser) {
@@ -32,11 +30,8 @@ window.addEventListener("load", async () => {
 
   document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-  // 🔥 GARANTE NOME
   const savedName = localStorage.getItem("username");
-  if(savedName){
-    currentUser.username = savedName;
-  }
+  if(savedName) currentUser.username = savedName;
 
   if(currentUser.username){
     document.getElementById("username").value = currentUser.username;
@@ -68,15 +63,10 @@ document.getElementById("profileForm").addEventListener("submit", async (e) => {
 });
 
 async function salvarPerfil(username, photo){
-
   await fetch("/saveProfile", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({
-      id: currentUser.id,
-      username,
-      photo
-    })
+    body: JSON.stringify({ id: currentUser.id, username, photo })
   });
 
   localStorage.setItem("username", username);
@@ -88,7 +78,6 @@ async function salvarPerfil(username, photo){
 // =========================
 // CONTATOS
 async function renderContacts(){
-
   const div = document.getElementById("contacts");
   div.innerHTML = "";
 
@@ -97,13 +86,11 @@ async function renderContacts(){
     const res = await fetch(`/getUser/${contacts[i].id}`);
     const user = await res.json();
 
-    if(!user.error){
-      contacts[i] = user;
-    }
+    if(!user.error) contacts[i] = user;
 
     const el = document.createElement("div");
     el.className = "contact";
-    el.textContent = contacts[i].username + " (ID: " + contacts[i].id + ")";
+    el.textContent = contacts[i].username;
 
     el.onclick = () => abrirChat(contacts[i]);
 
@@ -114,15 +101,13 @@ async function renderContacts(){
 }
 
 // =========================
-// ABRIR CHAT
+// ABRIR CHAT (🔥 CARREGA TUDO DE UMA VEZ)
 async function abrirChat(user){
 
   const res = await fetch(`/getUser/${user.id}`);
   const updatedUser = await res.json();
 
-  if(!updatedUser.error){
-    user = updatedUser;
-  }
+  if(!updatedUser.error) user = updatedUser;
 
   currentChat = user;
 
@@ -134,10 +119,9 @@ async function abrirChat(user){
   document.getElementById("chatAvatar").src =
     user.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
+  // 🔥 LIMPA E CARREGA TUDO DE UMA VEZ
   lastMessageId = null;
-  document.getElementById("messages").innerHTML = "";
-
-  loadMessages(true);
+  await loadMessages(true);
 }
 
 // =========================
@@ -186,11 +170,14 @@ document.getElementById("sendMessageBtn").onclick = async () => {
 
   document.getElementById("messageText").value = "";
 
-  addMessage({ fromId: currentUser.id, text }, currentUser);
+  addMessage({
+    fromId: currentUser.id,
+    text
+  }, currentUser);
 };
 
 // =========================
-// ADD MENSAGEM
+// ADICIONAR MENSAGEM
 function addMessage(m, user){
 
   const div = document.createElement("div");
@@ -213,13 +200,10 @@ function addMessage(m, user){
   }
 
   document.getElementById("messages").appendChild(div);
-
-  document.getElementById("messages").scrollTop =
-    document.getElementById("messages").scrollHeight;
 }
 
 // =========================
-// LOAD MSG
+// LOAD MESSAGES (🔥 SEM LOOP VISUAL)
 async function loadMessages(initial = false){
 
   if(!currentChat) return;
@@ -232,20 +216,45 @@ async function loadMessages(initial = false){
     (m.fromId == currentChat.id && m.toId == currentUser.id)
   );
 
-  if(initial){
-    document.getElementById("messages").innerHTML = "";
-  }
+  // 🔥 PEGA TODOS USUÁRIOS DE UMA VEZ
+  const usersCache = {};
 
   for (let m of filtered){
+    if(!usersCache[m.fromId]){
+      const resUser = await fetch(`/getUser/${m.fromId}`);
+      usersCache[m.fromId] = await resUser.json();
+    }
+  }
 
-    if(!initial && m.id <= lastMessageId) continue;
+  if(initial){
+    const container = document.getElementById("messages");
+    container.innerHTML = "";
 
-    const resUser = await fetch(`/getUser/${m.fromId}`);
-    const user = await resUser.json();
+    // 🔥 MONTA TUDO NA MEMÓRIA PRIMEIRO
+    let html = "";
 
-    addMessage(m, user);
+    for (let m of filtered){
+      const user = usersCache[m.fromId];
 
-    lastMessageId = m.id;
+      const isMe = m.fromId == currentUser.id;
+
+      html += `
+        <div class="message ${isMe ? "me" : "other"}">
+          ${!isMe ? `<img class="avatar" src="${user?.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}">` : ""}
+          <div class="bubble">${m.text}</div>
+          ${isMe ? `<img class="avatar" src="${user?.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}">` : ""}
+        </div>
+      `;
+    }
+
+    // 🔥 JOGA TUDO DE UMA VEZ (SEM PISCAR)
+    container.innerHTML = html;
+
+    if(filtered.length){
+      lastMessageId = filtered[filtered.length - 1].id;
+    }
+
+    container.scrollTop = container.scrollHeight;
   }
 }
 
