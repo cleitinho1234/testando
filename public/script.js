@@ -46,7 +46,7 @@ window.addEventListener("load", async () => {
 });
 
 // =========================
-// MOSTRAR CONTATOS (LISTA + SELECT)
+// MOSTRAR CONTATOS
 function renderContacts() {
   const contactsDiv = document.getElementById("contacts");
   const select = document.getElementById("friendSelect");
@@ -56,13 +56,13 @@ function renderContacts() {
 
   contacts.forEach(user => {
 
-    // SELECT (dropdown)
+    // SELECT
     const option = document.createElement("option");
     option.value = user.id;
     option.textContent = user.username;
     select.appendChild(option);
 
-    // LISTA VISUAL
+    // LISTA
     const div = document.createElement("div");
     div.textContent = user.username + " (ID: " + user.id + ")";
 
@@ -178,7 +178,7 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
 });
 
 // =========================
-// CARREGAR MENSAGENS (SEM PISCAR)
+// CARREGAR MENSAGENS (ULTRA RÁPIDO)
 async function loadMessages(force = false){
   if(!currentUser || !currentChatId) return;
 
@@ -197,12 +197,22 @@ async function loadMessages(force = false){
   const messagesDiv = document.getElementById("messages");
   messagesDiv.innerHTML = "";
 
-  for (let m of filtradas){
+  // 🔥 pega usuários de uma vez
+  const ids = [...new Set(filtradas.map(m => m.fromId))];
+
+  const usersData = await Promise.all(
+    ids.map(id => fetch(`/getUser/${id}`).then(r => r.json()))
+  );
+
+  const usersMap = {};
+  usersData.forEach(u => {
+    usersMap[u.id] = u;
+  });
+
+  filtradas.forEach(m => {
 
     const isMe = m.fromId === currentUser.id;
-
-    const resUser = await fetch(`/getUser/${m.fromId}`);
-    const user = await resUser.json();
+    const user = usersMap[m.fromId];
 
     const msgDiv = document.createElement("div");
     msgDiv.className = `message ${isMe ? "me" : "other"}`;
@@ -210,14 +220,14 @@ async function loadMessages(force = false){
     const img = document.createElement("img");
     img.className = "avatar";
 
-    img.src = user.photo && user.photo !== ""
+    img.src = user && user.photo
       ? user.photo
       : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
     const bubble = document.createElement("div");
     bubble.className = "bubble";
 
-    const nome = isMe ? "Você" : (user.username || m.fromId);
+    const nome = isMe ? "Você" : (user?.username || m.fromId);
     bubble.textContent = `${nome}: ${m.text}`;
 
     if (isMe) {
@@ -229,11 +239,11 @@ async function loadMessages(force = false){
     }
 
     messagesDiv.appendChild(msgDiv);
-  }
+  });
 
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
 // =========================
-// ATUALIZA AUTOMÁTICO SEM PISCAR
+// ATUALIZA SEM PISCAR
 setInterval(() => loadMessages(false), 3000);
