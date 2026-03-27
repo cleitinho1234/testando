@@ -31,7 +31,7 @@ body {
   flex-direction: column;
 }
 
-/* TOPO CHAT */
+/* HEADER */
 #chatHeader {
   background: #075e54;
   color: white;
@@ -44,6 +44,13 @@ body {
   margin-right: 10px;
 }
 
+#chatAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
 /* MENSAGENS */
 #messages {
   flex: 1;
@@ -51,7 +58,7 @@ body {
   padding: 10px;
 }
 
-/* INPUT CHAT */
+/* INPUT */
 #chatInput {
   display: flex;
   padding: 10px;
@@ -108,7 +115,7 @@ body {
 
 <body>
 
-<!-- TELA INICIAL -->
+<!-- HOME -->
 <div id="home">
 
 <h2>Seu Perfil</h2>
@@ -137,6 +144,7 @@ body {
 
 <div id="chatHeader">
   <button onclick="voltar()">⬅</button>
+  <img id="chatAvatar">
   <span id="chatName"></span>
 </div>
 
