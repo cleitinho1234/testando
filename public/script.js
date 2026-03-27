@@ -1,10 +1,10 @@
 let currentUser = null;
 
-// 🔥 carregar contatos do localStorage
+// contatos salvos
 const contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
 // =========================
-// Carregar ou criar usuário (FIXO)
+// CARREGAR USUÁRIO
 window.addEventListener("load", async () => {
   let savedId = localStorage.getItem("userId");
 
@@ -45,7 +45,7 @@ window.addEventListener("load", async () => {
 });
 
 // =========================
-// FUNÇÃO PRA MOSTRAR CONTATOS
+// MOSTRAR CONTATOS
 function renderContacts() {
   const contactsDiv = document.getElementById("contacts");
   const select = document.getElementById("friendSelect");
@@ -72,7 +72,7 @@ function renderContacts() {
 }
 
 // =========================
-// Salvar perfil
+// SALVAR PERFIL
 document.getElementById("profileForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -106,7 +106,7 @@ async function saveProfile(username, photo){
 }
 
 // =========================
-// Copiar ID
+// COPIAR ID
 document.getElementById("copyIdBtn").addEventListener("click", () => {
   navigator.clipboard.writeText(currentUser.id);
   alert("ID copiado!");
@@ -135,12 +135,12 @@ document.getElementById("addFriendBtn").addEventListener("click", async () => {
 });
 
 // =========================
-// Enviar mensagem
+// ENVIAR MENSAGEM
 document.getElementById("sendMessageBtn").addEventListener("click", async () => {
   const toId = document.getElementById("friendSelect").value;
   const text = document.getElementById("messageText").value.trim();
 
-  if(!toId || !text) return alert("Selecione um amigo e digite a mensagem");
+  if(!toId || !text) return alert("Digite a mensagem");
 
   await fetch("/sendMessage", {
     method: "POST",
@@ -153,7 +153,7 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
 });
 
 // =========================
-// 🔥 CHAT ESTILO WHATSAPP
+// CHAT ESTILO WHATSAPP
 async function loadMessages(){
   if(!currentUser) return;
 
@@ -167,19 +167,20 @@ async function loadMessages(){
 
     const isMe = m.fromId === currentUser.id;
 
-    // 🔥 pega dados do usuário
     const resUser = await fetch(`/getUser/${m.fromId}`);
     const user = await resUser.json();
 
     const msgDiv = document.createElement("div");
     msgDiv.className = `message ${isMe ? "me" : "other"}`;
 
-    // FOTO
     const img = document.createElement("img");
     img.className = "avatar";
-    img.src = user.photo || "";
 
-    // TEXTO
+    // 🔥 nunca quebra imagem
+    img.src = user.photo && user.photo !== ""
+      ? user.photo
+      : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+
     const bubble = document.createElement("div");
     bubble.className = "bubble";
 
