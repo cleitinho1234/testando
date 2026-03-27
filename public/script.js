@@ -32,8 +32,61 @@ window.addEventListener("load", async () => {
 
   document.getElementById("userIdDisplay").textContent = currentUser.id;
 
+  // 🔥 RECUPERAR NOME DO LOCALSTORAGE (GARANTE QUE NÃO SOME)
+  const savedName = localStorage.getItem("username");
+  if(savedName){
+    currentUser.username = savedName;
+  }
+
+  // 🔥 MOSTRAR NOME
+  if(currentUser.username){
+    document.getElementById("username").value = currentUser.username;
+  }
+
   renderContacts();
 });
+
+// =========================
+// SALVAR PERFIL
+document.getElementById("profileForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const username = document.getElementById("username").value;
+  const file = document.getElementById("profilePic").files[0];
+
+  let photo = currentUser.photo;
+
+  if(file){
+    const reader = new FileReader();
+    reader.onload = async () => {
+      photo = reader.result;
+      await salvarPerfil(username, photo);
+    }
+    reader.readAsDataURL(file);
+  } else {
+    await salvarPerfil(username, photo);
+  }
+});
+
+async function salvarPerfil(username, photo){
+
+  // 🔥 SALVA NO BACKEND
+  await fetch("/saveProfile", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      id: currentUser.id,
+      username,
+      photo
+    })
+  });
+
+  // 🔥 SALVA LOCAL (GARANTIA)
+  localStorage.setItem("username", username);
+
+  currentUser.username = username;
+  currentUser.photo = photo;
+}
 
 // =========================
 // CONTATOS
@@ -62,7 +115,6 @@ function abrirChat(user){
 
   document.getElementById("chatName").textContent = user.username;
 
-  // 🔥 FOTO NO TOPO
   const avatar = document.getElementById("chatAvatar");
   avatar.src = user.photo && user.photo !== ""
     ? user.photo
@@ -83,7 +135,7 @@ function voltar(){
 }
 
 // =========================
-// ADICIONAR CONTATO
+// ADD CONTATO
 document.getElementById("addFriendBtn").onclick = async () => {
 
   const id = document.getElementById("addUserId").value;
@@ -127,7 +179,7 @@ document.getElementById("sendMessageBtn").onclick = async () => {
 };
 
 // =========================
-// ADICIONAR MENSAGEM
+// ADD MSG
 function addMessage(m){
 
   const div = document.createElement("div");
@@ -146,7 +198,7 @@ function addMessage(m){
 }
 
 // =========================
-// CARREGAR
+// LOAD MSG
 async function loadMessages(initial = false){
 
   if(!currentChat) return;
@@ -178,7 +230,6 @@ async function loadMessages(initial = false){
 }
 
 // =========================
-// ATUALIZA SEM PISCAR
 setInterval(() => {
   loadMessages(false);
 }, 2000);
