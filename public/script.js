@@ -1,13 +1,13 @@
 let currentUser = null;
-let currentChatUser = null;
-let lastMessages = [];
+let currentChat = null;
+let lastMessageId = null;
 
-// contatos
 const contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
 // =========================
-// CARREGAR
+// INICIAR
 window.addEventListener("load", async () => {
+
   let savedId = localStorage.getItem("userId");
 
   if (savedId) {
@@ -29,8 +29,20 @@ window.addEventListener("load", async () => {
   }
 
   document.getElementById("userIdDisplay").textContent = currentUser.id;
-  document.getElementById("username").value = currentUser.username || "";
 
+  // 🔥 mantém nome salvo
+  const savedName = localStorage.getItem("username");
+  if(savedName) currentUser.username = savedName;
+
+  // 🔥 mantém foto salva
+  const savedPhoto = localStorage.getItem("photo");
+  if(savedPhoto) currentUser.photo = savedPhoto;
+
+  if(currentUser.username){
+    document.getElementById("username").value = currentUser.username;
+  }
+
+  // 🔥 mostra preview da foto
   if(currentUser.photo){
     document.getElementById("profilePreview").src = currentUser.photo;
   }
@@ -39,201 +51,235 @@ window.addEventListener("load", async () => {
 });
 
 // =========================
-// CONTATOS
-function renderContacts() {
-  const contactsDiv = document.getElementById("contacts");
-  contactsDiv.innerHTML = "";
-
-  contacts.forEach(user => {
-
-    const div = document.createElement("div");
-    div.textContent = user.username;
-
-    div.addEventListener("click", (e) => {
-      e.preventDefault();
-      window.getSelection().removeAllRanges();
-
-      abrirChat(user);
-    });
-
-    contactsDiv.appendChild(div);
-  });
-}
-
-// =========================
-// ABRIR CHAT
-function abrirChat(user){
-  currentChatUser = user;
-
-  document.getElementById("home").style.display = "none";
-  document.getElementById("chatBox").style.display = "block";
-
-  document.getElementById("chatName").textContent = user.username;
-
-  loadMessages(true);
-}
-
-// VOLTAR
-function voltar(){
-  document.getElementById("chatBox").style.display = "none";
-  document.getElementById("home").style.display = "block";
-}
-
-// =========================
 // SALVAR PERFIL
 document.getElementById("profileForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const username = document.getElementById("username").value;
   const file = document.getElementById("profilePic").files[0];
+
   let photo = currentUser.photo;
 
   if(file){
     const reader = new FileReader();
     reader.onload = async () => {
       photo = reader.result;
-      await saveProfile(username, photo);
+      await salvarPerfil(username, photo);
     }
     reader.readAsDataURL(file);
   } else {
-    await saveProfile(username, photo);
+    await salvarPerfil(username, photo);
   }
 });
 
-async function saveProfile(username, photo){
+async function salvarPerfil(username, photo){
   await fetch("/saveProfile", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ id: currentUser.id, username, photo })
   });
 
+  localStorage.setItem("username", username);
+  localStorage.setItem("photo", photo); // 🔥 salva foto
+
   currentUser.username = username;
   currentUser.photo = photo;
 
-  localStorage.setItem("currentUser", JSON.stringify(currentUser));
-
+  // 🔥 atualiza preview na hora
   document.getElementById("profilePreview").src = photo;
 }
 
 // =========================
+// CONTATOS
+async function renderContacts(){
+  const div = document.getElementById("contacts");
+  div.innerHTML = "";
+
+  for (let i = 0; i < contacts.length; i++) {
+
+    const res = await fetch(`/getUser/${contacts[i].id}`);
+    const user = await res.json();
+
+    if(!user.error) contacts[i] = user;
+
+    const el = document.createElement("div");
+    el.className = "contact";
+    el.textContent = contacts[i].username;
+
+    // 🔥 REMOVE SELEÇÃO AZUL
+    el.style.userSelect = "none";
+    el.style.webkitUserSelect = "none";
+    el.style.webkitTouchCallout = "none";
+
+    el.onclick = (e) => {
+      e.preventDefault();
+      window.getSelection().removeAllRanges(); // 🔥 tira seleção azul
+      abrirChat(contacts[i]);
+    };
+
+    div.appendChild(el);
+  }
+
+  localStorage.setItem("contacts", JSON.stringify(contacts));
+}
+
+// =========================
+// ABRIR CHAT
+async function abrirChat(user){
+
+  const res = await fetch(`/getUser/${user.id}`);
+  const updatedUser = await res.json();
+
+  if(!updatedUser.error) user = updatedUser;
+
+  currentChat = user;
+
+  document.getElementById("home").style.display = "none";
+  document.getElementById("chatScreen").style.display = "flex";
+
+  document.getElementById("chatName").textContent = user.username;
+
+  // 🔥 FOTO DO USUÁRIO NO TOPO
+  document.getElementById("chatAvatar").src =
+    user.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+
+  lastMessageId = null;
+  await loadMessages(true);
+}
+
+// =========================
+// VOLTAR
+function voltar(){
+  document.getElementById("chatScreen").style.display = "none";
+  document.getElementById("home").style.display = "block";
+  currentChat = null;
+}
+
+// =========================
 // ADICIONAR CONTATO
-document.getElementById("addFriendBtn").addEventListener("click", async () => {
-  const friendId = document.getElementById("addUserId").value.trim();
+document.getElementById("addFriendBtn").onclick = async () => {
 
-  if(!friendId) return alert("Digite o ID");
+  const id = document.getElementById("addUserId").value;
 
-  const res = await fetch(`/getUser/${friendId}`);
+  const res = await fetch(`/getUser/${id}`);
   const user = await res.json();
 
-  if(user.error) return alert("Usuário não encontrado");
+  if(user.error) return alert("Não encontrado");
 
-  if(!contacts.some(c => c.id === user.id)){
+  if(!contacts.some(c => c.id == user.id)){
     contacts.push(user);
     localStorage.setItem("contacts", JSON.stringify(contacts));
     renderContacts();
   }
-
-  document.getElementById("addUserId").value = "";
-});
+};
 
 // =========================
 // ENVIAR
-document.getElementById("sendMessageBtn").addEventListener("click", async () => {
-  const text = document.getElementById("messageText").value.trim();
+document.getElementById("sendMessageBtn").onclick = async () => {
 
-  if(!text || !currentChatUser) return;
+  const text = document.getElementById("messageText").value;
 
-  const newMsg = {
-    fromId: currentUser.id,
-    toId: currentChatUser.id,
-    text
-  };
+  if(!text || !currentChat) return;
 
   await fetch("/sendMessage", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(newMsg)
+    body: JSON.stringify({
+      fromId: currentUser.id,
+      toId: currentChat.id,
+      text
+    })
   });
 
-  addMessageToScreen(newMsg, currentUser);
-
   document.getElementById("messageText").value = "";
-});
+
+  addMessage({
+    fromId: currentUser.id,
+    text
+  }, currentUser);
+};
 
 // =========================
-// CARREGAR MENSAGENS (SEM PISCAR)
-async function loadMessages(firstLoad = false){
-  if(!currentUser || !currentChatUser) return;
+// ADICIONAR MENSAGEM
+function addMessage(m, user){
 
-  const res = await fetch(`/getMessages/${currentUser.id}`);
-  const msgs = await res.json();
-
-  const filtered = msgs.filter(m =>
-    (m.fromId === currentUser.id && m.toId === currentChatUser.id) ||
-    (m.fromId === currentChatUser.id && m.toId === currentUser.id)
-  );
-
-  if(firstLoad){
-    document.getElementById("messages").innerHTML = "";
-
-    for(let m of filtered){
-      const user = await getUser(m.fromId);
-      addMessageToScreen(m, user);
-    }
-
-    lastMessages = filtered;
-    return;
-  }
-
-  if(filtered.length === lastMessages.length) return;
-
-  const newOnes = filtered.slice(lastMessages.length);
-
-  for(let m of newOnes){
-    const user = await getUser(m.fromId);
-    addMessageToScreen(m, user);
-  }
-
-  lastMessages = filtered;
-}
-
-// =========================
-// ADICIONAR NA TELA
-function addMessageToScreen(m, user){
-  const messagesDiv = document.getElementById("messages");
-
-  const isMe = m.fromId === currentUser.id;
-
-  const msgDiv = document.createElement("div");
-  msgDiv.className = `message ${isMe ? "me" : "other"}`;
+  const div = document.createElement("div");
+  div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
 
   const img = document.createElement("img");
   img.className = "avatar";
 
-  img.src = user.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+  // 🔥 FOTO FUNCIONANDO
+  img.src = user?.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   bubble.textContent = m.text;
 
-  if (isMe) {
-    msgDiv.appendChild(bubble);
-    msgDiv.appendChild(img);
+  if(m.fromId == currentUser.id){
+    div.appendChild(bubble);
+    div.appendChild(img);
   } else {
-    msgDiv.appendChild(img);
-    msgDiv.appendChild(bubble);
+    div.appendChild(img);
+    div.appendChild(bubble);
   }
 
-  messagesDiv.appendChild(msgDiv);
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  document.getElementById("messages").appendChild(div);
 }
 
 // =========================
-// PEGAR USUÁRIO
-async function getUser(id){
-  const res = await fetch(`/getUser/${id}`);
-  return await res.json();
+// LOAD MESSAGES
+async function loadMessages(initial = false){
+
+  if(!currentChat) return;
+
+  const res = await fetch(`/getMessages/${currentUser.id}`);
+  const msgs = await res.json();
+
+  const filtered = msgs.filter(m =>
+    (m.fromId == currentUser.id && m.toId == currentChat.id) ||
+    (m.fromId == currentChat.id && m.toId == currentUser.id)
+  );
+
+  const usersCache = {};
+
+  for (let m of filtered){
+    if(!usersCache[m.fromId]){
+      const resUser = await fetch(`/getUser/${m.fromId}`);
+      usersCache[m.fromId] = await resUser.json();
+    }
+  }
+
+  if(initial){
+    const container = document.getElementById("messages");
+    container.innerHTML = "";
+
+    let html = "";
+
+    for (let m of filtered){
+      const user = usersCache[m.fromId];
+      const isMe = m.fromId == currentUser.id;
+
+      html += `
+        <div class="message ${isMe ? "me" : "other"}">
+          ${!isMe ? `<img class="avatar" src="${user?.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}">` : ""}
+          <div class="bubble">${m.text}</div>
+          ${isMe ? `<img class="avatar" src="${user?.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}">` : ""}
+        </div>
+      `;
+    }
+
+    container.innerHTML = html;
+
+    if(filtered.length){
+      lastMessageId = filtered[filtered.length - 1].id;
+    }
+
+    container.scrollTop = container.scrollHeight;
+  }
 }
 
 // =========================
-setInterval(loadMessages, 2000);
+setInterval(() => {
+  loadMessages(false);
+}, 2000);
