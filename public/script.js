@@ -2,20 +2,35 @@ let currentUser = null;
 const contacts = [];
 
 // =========================
-// Cria usuário automaticamente ao carregar a página
+// Cria usuário ou pega do localStorage
 window.addEventListener("load", async () => {
+  let savedId = localStorage.getItem("myZapId");
+
+  if(savedId){
+    const res = await fetch(`/getUser/${savedId}`);
+    const user = await res.json();
+    if(!user.error){
+      currentUser = user;
+      document.getElementById("userIdDisplay").textContent = currentUser.id;
+      loadMessages();
+      return;
+    }
+  }
+
+  // Se não existe, cria novo usuário
   const res = await fetch("/user", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ username: "Novo Usuário", photo: "" })
   });
   currentUser = await res.json();
+  localStorage.setItem("myZapId", currentUser.id);
   document.getElementById("userIdDisplay").textContent = currentUser.id;
   loadMessages();
 });
 
 // =========================
-// Salvar perfil (nome e foto)
+// Salvar perfil
 document.getElementById("profileForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const username = document.getElementById("username").value;
@@ -66,14 +81,12 @@ document.getElementById("addFriendBtn").addEventListener("click", async () => {
   if(!contacts.some(c=>c.id===user.id)){
     contacts.push(user);
 
-    // adicionar ao select
     const select = document.getElementById("friendSelect");
     const option = document.createElement("option");
     option.value = user.id;
     option.textContent = user.username;
     select.appendChild(option);
 
-    // adicionar à lista de contatos
     const div = document.createElement("div");
     div.textContent = user.username + " (ID: " + user.id + ")";
     document.getElementById("contacts").appendChild(div);
