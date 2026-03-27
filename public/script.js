@@ -56,13 +56,13 @@ function renderContacts() {
 
   contacts.forEach(user => {
 
-    // SELECT
+    // select
     const option = document.createElement("option");
     option.value = user.id;
     option.textContent = user.username;
     select.appendChild(option);
 
-    // LISTA
+    // lista
     const div = document.createElement("div");
     div.textContent = user.username + " (ID: " + user.id + ")";
 
@@ -82,7 +82,7 @@ function renderContacts() {
 }
 
 // =========================
-// SELECT MUDA CHAT
+// SELECT troca chat
 document.getElementById("friendSelect").addEventListener("change", (e) => {
   const selectedId = e.target.value;
 
@@ -155,7 +155,7 @@ document.getElementById("addFriendBtn").addEventListener("click", async () => {
 });
 
 // =========================
-// ENVIAR MENSAGEM
+// ENVIAR MENSAGEM (SEM RECARREGAR TUDO)
 document.getElementById("sendMessageBtn").addEventListener("click", async () => {
   const text = document.getElementById("messageText").value.trim();
 
@@ -174,11 +174,39 @@ document.getElementById("sendMessageBtn").addEventListener("click", async () => 
 
   document.getElementById("messageText").value = "";
 
-  loadMessages(true);
+  // 🔥 adiciona direto sem reload
+  addMessageToScreen({
+    fromId: currentUser.id,
+    text
+  });
 });
 
 // =========================
-// CARREGAR MENSAGENS (ULTRA RÁPIDO)
+// ADICIONAR MENSAGEM NA TELA
+function addMessageToScreen(m){
+  const messagesDiv = document.getElementById("messages");
+
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "message me";
+
+  const img = document.createElement("img");
+  img.className = "avatar";
+  img.src = currentUser.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = `Você: ${m.text}`;
+
+  msgDiv.appendChild(bubble);
+  msgDiv.appendChild(img);
+
+  messagesDiv.appendChild(msgDiv);
+
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// =========================
+// CARREGAR MENSAGENS (SEM PISCAR)
 async function loadMessages(force = false){
   if(!currentUser || !currentChatId) return;
 
@@ -197,7 +225,6 @@ async function loadMessages(force = false){
   const messagesDiv = document.getElementById("messages");
   messagesDiv.innerHTML = "";
 
-  // 🔥 pega usuários de uma vez
   const ids = [...new Set(filtradas.map(m => m.fromId))];
 
   const usersData = await Promise.all(
@@ -219,7 +246,6 @@ async function loadMessages(force = false){
 
     const img = document.createElement("img");
     img.className = "avatar";
-
     img.src = user && user.photo
       ? user.photo
       : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
