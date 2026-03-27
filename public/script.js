@@ -32,7 +32,7 @@ window.addEventListener("load", async () => {
 
   document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-  // 🔥 GARANTE NOME LOCAL
+  // 🔥 GARANTE NOME
   const savedName = localStorage.getItem("username");
   if(savedName){
     currentUser.username = savedName;
@@ -42,7 +42,7 @@ window.addEventListener("load", async () => {
     document.getElementById("username").value = currentUser.username;
   }
 
-  await renderContacts();
+  renderContacts();
 });
 
 // =========================
@@ -79,7 +79,6 @@ async function salvarPerfil(username, photo){
     })
   });
 
-  // 🔥 SALVA LOCAL
   localStorage.setItem("username", username);
 
   currentUser.username = username;
@@ -87,7 +86,7 @@ async function salvarPerfil(username, photo){
 }
 
 // =========================
-// CONTATOS (ATUALIZA AUTOMÁTICO)
+// CONTATOS
 async function renderContacts(){
 
   const div = document.getElementById("contacts");
@@ -95,14 +94,11 @@ async function renderContacts(){
 
   for (let i = 0; i < contacts.length; i++) {
 
-    const contactId = contacts[i].id;
+    const res = await fetch(`/getUser/${contacts[i].id}`);
+    const user = await res.json();
 
-    // 🔥 BUSCA NOME ATUALIZADO
-    const res = await fetch(`/getUser/${contactId}`);
-    const updatedUser = await res.json();
-
-    if(!updatedUser.error){
-      contacts[i] = updatedUser;
+    if(!user.error){
+      contacts[i] = user;
     }
 
     const el = document.createElement("div");
@@ -119,7 +115,15 @@ async function renderContacts(){
 
 // =========================
 // ABRIR CHAT
-function abrirChat(user){
+async function abrirChat(user){
+
+  const res = await fetch(`/getUser/${user.id}`);
+  const updatedUser = await res.json();
+
+  if(!updatedUser.error){
+    user = updatedUser;
+  }
+
   currentChat = user;
 
   document.getElementById("home").style.display = "none";
@@ -127,10 +131,8 @@ function abrirChat(user){
 
   document.getElementById("chatName").textContent = user.username;
 
-  const avatar = document.getElementById("chatAvatar");
-  avatar.src = user.photo && user.photo !== ""
-    ? user.photo
-    : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+  document.getElementById("chatAvatar").src =
+    user.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
   lastMessageId = null;
   document.getElementById("messages").innerHTML = "";
@@ -165,7 +167,7 @@ document.getElementById("addFriendBtn").onclick = async () => {
 };
 
 // =========================
-// ENVIAR MENSAGEM
+// ENVIAR
 document.getElementById("sendMessageBtn").onclick = async () => {
 
   const text = document.getElementById("messageText").value;
@@ -184,24 +186,31 @@ document.getElementById("sendMessageBtn").onclick = async () => {
 
   document.getElementById("messageText").value = "";
 
-  addMessage({
-    fromId: currentUser.id,
-    text
-  });
+  addMessage({ fromId: currentUser.id, text }, currentUser);
 };
 
 // =========================
-// ADICIONAR MENSAGEM
-function addMessage(m){
+// ADD MENSAGEM
+function addMessage(m, user){
 
   const div = document.createElement("div");
   div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+
+  const img = document.createElement("img");
+  img.className = "avatar";
+  img.src = user?.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   bubble.textContent = m.text;
 
-  div.appendChild(bubble);
+  if(m.fromId == currentUser.id){
+    div.appendChild(bubble);
+    div.appendChild(img);
+  } else {
+    div.appendChild(img);
+    div.appendChild(bubble);
+  }
 
   document.getElementById("messages").appendChild(div);
 
@@ -210,7 +219,7 @@ function addMessage(m){
 }
 
 // =========================
-// CARREGAR MENSAGENS
+// LOAD MSG
 async function loadMessages(initial = false){
 
   if(!currentChat) return;
@@ -223,40 +232,24 @@ async function loadMessages(initial = false){
     (m.fromId == currentChat.id && m.toId == currentUser.id)
   );
 
-  // 🔥 ATUALIZA NOME DO CONTATO NO CHAT
-  const resUser = await fetch(`/getUser/${currentChat.id}`);
-  const updatedUser = await resUser.json();
-
-  if(!updatedUser.error){
-    currentChat = updatedUser;
-    document.getElementById("chatName").textContent = updatedUser.username;
-
-    const avatar = document.getElementById("chatAvatar");
-    avatar.src = updatedUser.photo && updatedUser.photo !== ""
-      ? updatedUser.photo
-      : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
-  }
-
   if(initial){
     document.getElementById("messages").innerHTML = "";
-    filtered.forEach(addMessage);
+  }
 
-    if(filtered.length){
-      lastMessageId = filtered[filtered.length - 1].id;
-    }
-  } else {
-    const novas = filtered.filter(m => m.id > lastMessageId);
+  for (let m of filtered){
 
-    novas.forEach(addMessage);
+    if(!initial && m.id <= lastMessageId) continue;
 
-    if(novas.length){
-      lastMessageId = novas[novas.length - 1].id;
-    }
+    const resUser = await fetch(`/getUser/${m.fromId}`);
+    const user = await resUser.json();
+
+    addMessage(m, user);
+
+    lastMessageId = m.id;
   }
 }
 
 // =========================
-// ATUALIZA AUTOMÁTICO
 setInterval(() => {
   loadMessages(false);
 }, 2000);
