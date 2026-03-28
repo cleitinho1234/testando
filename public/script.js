@@ -8,7 +8,6 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let processedMessages = JSON.parse(localStorage.getItem("processedMessages")) || {};
 
 // =========================
-
 // INICIAR
 
 window.addEventListener("load", async () => {
@@ -35,63 +34,56 @@ document.getElementById("userIdDisplay").textContent = currentUser.id;
 
 renderContacts();
 
-// 🔄 TEMPO REAL
-setInterval(() => {
-loadMessages(false);
-}, 1500);
+// 🔄 tempo real
+setInterval(loadMessages, 1500);
 
 });
 
 // =========================
+// CONTATOS (INSTANTÂNEO)
 
-// CONTATOS
-
-async function renderContacts(){
+function renderContacts(){
 
 const div = document.getElementById("contacts");
-div.innerHTML = "";
 
-for (let i = 0; i < contacts.length; i++) {
+let html = "";
 
-const res = await fetch(`/getUser/${contacts[i].id}`);
-const user = await res.json();
-
-if(!user.error) contacts[i] = user;
+for (let user of contacts){
 
 const count = unreadCounts[user.id] || 0;
 
-const el = document.createElement("div");
-el.className = "contact";
-
-el.innerHTML = `
-  <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
-       style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
-  <span style="flex:1;">${user.username}</span>
-  ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
+html += `
+  <div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
+    <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
+         style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
+    <span style="flex:1;">${user.username}</span>
+    ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
+  </div>
 `;
-
-el.style.display = "flex";
-el.style.alignItems = "center";
-
-el.onclick = () => abrirChat(user);
-
-div.appendChild(el);
-
 }
+
+div.innerHTML = html;
+
+// clique rápido
+document.querySelectorAll(".contact").forEach(el => {
+  el.onclick = () => {
+    const user = contacts.find(c => c.id == el.dataset.id);
+    abrirChat(user);
+  };
+});
 
 localStorage.setItem("contacts", JSON.stringify(contacts));
 
 }
 
 // =========================
-
 // ABRIR CHAT
 
 async function abrirChat(user){
 
 currentChat = user;
 
-// 🔴 ZERAR CONTADOR
+// 🔴 zerar contador
 unreadCounts[user.id] = 0;
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
@@ -107,7 +99,6 @@ await loadMessages(true);
 }
 
 // =========================
-
 // VOLTAR
 
 function voltar(){
@@ -117,15 +108,13 @@ currentChat = null;
 }
 
 // =========================
-
-// ENVIAR (🔥 CORRIGIDO)
+// ENVIAR
 
 document.getElementById("sendMessageBtn").onclick = async () => {
 
 const text = document.getElementById("messageText").value;
 if(!text || !currentChat) return;
 
-// 🔥 cria mensagem local
 const message = {
   id: Date.now(),
   fromId: currentUser.id,
@@ -134,10 +123,10 @@ const message = {
   timestamp: Date.now()
 };
 
-// 🔥 mostra na hora
-addMessage(message, currentUser);
+// mostra na hora
+addMessage(message);
 
-// 🔥 envia pro servidor
+// envia pro servidor
 await fetch("/sendMessage", {
 method: "POST",
 headers: {"Content-Type":"application/json"},
@@ -149,8 +138,7 @@ document.getElementById("messageText").value = "";
 };
 
 // =========================
-
-// 🔥 LOAD MESSAGES FINAL
+// LOAD MESSAGES
 
 async function loadMessages(initial = false){
 
@@ -160,9 +148,10 @@ const msgs = await res.json();
 let updatedContacts = false;
 let updatedUnread = false;
 
+// 🔥 PROCESSAR MENSAGENS
 for (let m of msgs){
 
-// 📩 AUTO CONTATO
+// auto contato
 if(m.toId == currentUser.id && m.fromId != currentUser.id){
 
   if(!contacts.some(c => c.id == m.fromId)){
@@ -177,7 +166,7 @@ if(m.toId == currentUser.id && m.fromId != currentUser.id){
 
 }
 
-// 🔴 CONTADOR
+// contador
 if(m.toId == currentUser.id){
 
   if(!processedMessages[m.id]){
@@ -201,13 +190,15 @@ if(m.toId == currentUser.id){
 
 }
 
+// salvar mudanças
 if(updatedContacts){
 localStorage.setItem("contacts", JSON.stringify(contacts));
+renderContacts();
 }
 
 if(updatedUnread){
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-renderContacts(); // 🔥 atualiza na hora
+renderContacts();
 }
 
 localStorage.setItem("processedMessages", JSON.stringify(processedMessages));
@@ -224,34 +215,36 @@ const filtered = msgs.filter(m =>
 
 const container = document.getElementById("messages");
 
-// 🔥 CARREGA INSTANTÂNEO
+// 🔥 carregamento instantâneo
 if(initial){
 
-container.innerHTML = "";
+let html = "";
 
 for (let m of filtered){
 
-  const resUser = await fetch(`/getUser/${m.fromId}`);
-  const user = await resUser.json();
+  const isMe = m.fromId == currentUser.id;
 
-  addMessage(m, user);
+  html += `
+    <div class="message ${isMe ? "me" : "other"}">
+      <div class="bubble">${m.text}</div>
+    </div>
+  `;
 }
 
+container.innerHTML = html;
 container.scrollTop = container.scrollHeight;
+
 return;
 }
 
-// 🔥 NOVAS MENSAGENS
+// 🔥 novas mensagens
 for (let m of filtered){
 
 if(processedMessages["chat_" + m.id]) continue;
 
 processedMessages["chat_" + m.id] = true;
 
-const resUser = await fetch(`/getUser/${m.fromId}`);
-const user = await resUser.json();
-
-addMessage(m, user);
+addMessage(m);
 
 }
 
@@ -260,13 +253,13 @@ container.scrollTop = container.scrollHeight;
 }
 
 // =========================
+// ADICIONAR MENSAGEM
 
-// MENSAGEM
+function addMessage(m){
 
-function addMessage(m, user){
+const container = document.getElementById("messages");
 
 const div = document.createElement("div");
-
 div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
 
 const bubble = document.createElement("div");
@@ -274,7 +267,6 @@ bubble.className = "bubble";
 bubble.textContent = m.text;
 
 div.appendChild(bubble);
+container.appendChild(div);
 
-document.getElementById("messages").appendChild(div);
-
-  }
+      }
