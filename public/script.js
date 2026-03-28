@@ -9,7 +9,9 @@ const contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let newUsers = JSON.parse(localStorage.getItem("newUsers")) || [];
 
 // =========================
+
 // INICIAR
+
 window.addEventListener("load", async () => {
 
 let savedId = localStorage.getItem("userId");
@@ -20,6 +22,8 @@ const res = await fetch(`/getUser/${savedId}`);
 
 const user = await res.json();
 
+
+
 if (!user.error) currentUser = user;
 
 }
@@ -28,13 +32,15 @@ if (!currentUser) {
 
 const res = await fetch("/user", {
 
-method: "POST",
+  method: "POST",
 
-headers: {"Content-Type":"application/json"},
+  headers: {"Content-Type":"application/json"},
 
-body: JSON.stringify({ username: "Novo Usuário", photo: "" })
+  body: JSON.stringify({ username: "Novo Usuário", photo: "" })
 
 });
+
+
 
 currentUser = await res.json();
 
@@ -65,7 +71,9 @@ renderContacts();
 });
 
 // =========================
+
 // SALVAR PERFIL
+
 document.getElementById("profileForm").addEventListener("submit", async (e) => {
 
 e.preventDefault();
@@ -82,9 +90,9 @@ const reader = new FileReader();
 
 reader.onload = async () => {
 
-photo = reader.result;
+  photo = reader.result;
 
-await salvarPerfil(username, photo);
+  await salvarPerfil(username, photo);
 
 }
 
@@ -123,7 +131,9 @@ renderContacts();
 }
 
 // =========================
+
 // CONTATOS (COM NOVO USUÁRIO 🟢)
+
 async function renderContacts(){
 
 const div = document.getElementById("contacts");
@@ -136,24 +146,41 @@ const res = await fetch(`/getUser/${contacts[i].id}`);
 
 const user = await res.json();
 
+
+
 if(!user.error) contacts[i] = user;
 
+
+
 const isNew = newUsers.includes(user.id);
+
+
 
 const el = document.createElement("div");
 
 el.className = "contact";
 
+
+
 el.innerHTML = `
-<img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
-style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
-<span>${user.username}</span>
-${isNew ? `<span style="margin-left:auto;width:10px;height:10px;background:green;border-radius:50%;"></span>` : ""}
+
+  <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
+
+       style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
+
+  <span>${user.username}</span>
+
+  ${isNew ? `<span style="margin-left:auto;width:10px;height:10px;background:green;border-radius:50%;"></span>` : ""}
+
 `;
+
+
 
 el.style.display = "flex";
 
 el.style.alignItems = "center";
+
+
 
 el.style.userSelect = "none";
 
@@ -161,7 +188,11 @@ el.style.webkitUserSelect = "none";
 
 el.style.webkitTapHighlightColor = "transparent";
 
+
+
 el.onclick = () => abrirChat(user);
+
+
 
 div.appendChild(el);
 
@@ -172,10 +203,12 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 }
 
 // =========================
+
 // ABRIR CHAT
+
 async function abrirChat(user){
 
-const res = await fetch(`/getUser/${user.id}`);
+const res = await fetch(/getUser/${user.id});
 
 const updatedUser = await res.json();
 
@@ -190,9 +223,11 @@ document.getElementById("chatScreen").style.display = "flex";
 document.getElementById("chatName").textContent = user.username;
 
 document.getElementById("chatAvatar").src =
+
 user.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
 // 🔥 REMOVE BOLINHA VERDE
+
 newUsers = newUsers.filter(id => id != user.id);
 
 localStorage.setItem("newUsers", JSON.stringify(newUsers));
@@ -204,7 +239,9 @@ await loadMessages(true);
 }
 
 // =========================
+
 // VOLTAR
+
 function voltar(){
 
 document.getElementById("chatScreen").style.display = "none";
@@ -216,12 +253,14 @@ currentChat = null;
 }
 
 // =========================
+
 // ADICIONAR CONTATO
+
 document.getElementById("addFriendBtn").onclick = async () => {
 
 const id = document.getElementById("addUserId").value;
 
-const res = await fetch(`/getUser/${id}`);
+const res = await fetch(/getUser/${id});
 
 const user = await res.json();
 
@@ -240,7 +279,9 @@ renderContacts();
 };
 
 // =========================
+
 // ENVIAR
+
 document.getElementById("sendMessageBtn").onclick = async () => {
 
 const text = document.getElementById("messageText").value;
@@ -255,11 +296,11 @@ headers: {"Content-Type":"application/json"},
 
 body: JSON.stringify({
 
-fromId: currentUser.id,
+  fromId: currentUser.id,
 
-toId: currentChat.id,
+  toId: currentChat.id,
 
-text
+  text
 
 })
 
@@ -278,7 +319,9 @@ text
 };
 
 // =========================
+
 // ADICIONAR MENSAGEM
+
 function addMessage(m, user){
 
 const div = document.createElement("div");
@@ -316,45 +359,48 @@ document.getElementById("messages").appendChild(div);
 }
 
 // =========================
+
 // LOAD MESSAGES
+
 async function loadMessages(initial = false){
 
 if(!currentChat) return;
 
-const res = await fetch(`/getMessages/${currentUser.id}`);
+const res = await fetch(/getMessages/${currentUser.id});
 
 const msgs = await res.json();
 
 // 🔥 DETECTA USUÁRIOS NOVOS
+
 for (let m of msgs){
 
 if(m.toId == currentUser.id){
 
-if(!contacts.some(c => c.id == m.fromId)){
+  if(!contacts.some(c => c.id == m.fromId)){
 
-const resUser = await fetch(`/getUser/${m.fromId}`);
+    const resUser = await fetch(`/getUser/${m.fromId}`);
 
-const user = await resUser.json();
+    const user = await resUser.json();
 
-if(!user.error){
+    if(!user.error){
 
-contacts.push(user);
+      contacts.push(user);
 
-localStorage.setItem("contacts", JSON.stringify(contacts));
+      localStorage.setItem("contacts", JSON.stringify(contacts));
 
-if(!newUsers.includes(user.id)){
+      if(!newUsers.includes(user.id)){
 
-newUsers.push(user.id);
+        newUsers.push(user.id);
 
-localStorage.setItem("newUsers", JSON.stringify(newUsers));
+        localStorage.setItem("newUsers", JSON.stringify(newUsers));
 
-}
+      }
 
-renderContacts();
+      renderContacts();
 
-}
+    }
 
-}
+  }
 
 }
 
@@ -374,9 +420,9 @@ for (let m of filtered){
 
 if(!usersCache[m.fromId]){
 
-const resUser = await fetch(`/getUser/${m.fromId}`);
+  const resUser = await fetch(`/getUser/${m.fromId}`);
 
-usersCache[m.fromId] = await resUser.json();
+  usersCache[m.fromId] = await resUser.json();
 
 }
 
@@ -392,25 +438,24 @@ let html = "";
 
 for (let m of filtered){
 
-const user = usersCache[m.fromId];
+  const user = usersCache[m.fromId];
 
-const isMe = m.fromId == currentUser.id;
+  const isMe = m.fromId == currentUser.id;
 
-html += `
-<div class="message ${isMe ? "me" : "other"}">
-  ${!isMe ? `<img class="avatar" src="${user?.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}">` : ""}
-  <div class="bubble">${m.text}</div>
-  ${isMe ? `<img class="avatar" src="${user?.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}">` : ""}
-</div>
-`;
-
+  html += `
+    <div class="message ${isMe ? "me" : "other"}">
+      ${!isMe ? `<img class="avatar" src="${user?.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}">` : ""}
+      <div class="bubble">${m.text}</div>
+      ${isMe ? `<img class="avatar" src="${user?.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}">` : ""}
+    </div>
+  `;
 }
 
 container.innerHTML = html;
 
 if(filtered.length){
 
-lastMessageId = filtered[filtered.length - 1].id;
+  lastMessageId = filtered[filtered.length - 1].id;
 
 }
 
@@ -421,6 +466,7 @@ container.scrollTop = container.scrollHeight;
 }
 
 // =========================
+
 setInterval(() => {
 
 loadMessages(false);
