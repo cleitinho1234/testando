@@ -344,12 +344,13 @@ const res = await fetch(`/getMessages/${currentUser.id}`);
 
 const msgs = await res.json();
 
-// 🔥 DETECTA USUÁRIOS NOVOS
+// 🔥 DETECTA USUÁRIOS NOVOS + MARCA NÃO LIDO
 
 for (let m of msgs){
 
 if(m.toId == currentUser.id){
 
+  // 🔥 adiciona automaticamente contato
   if(!contacts.some(c => c.id == m.fromId)){
 
     const resUser = await fetch(`/getUser/${m.fromId}`);
@@ -362,19 +363,24 @@ if(m.toId == currentUser.id){
 
       localStorage.setItem("contacts", JSON.stringify(contacts));
 
-      if(!newUsers.includes(user.id)){
+    }
 
-        newUsers.push(user.id);
+  }
 
-        localStorage.setItem("newUsers", JSON.stringify(newUsers));
+  // 🔥 marca bolinha se não estiver no chat
+  if(!currentChat || currentChat.id !== m.fromId){
 
-      }
+    if(!newUsers.includes(m.fromId)){
 
-      renderContacts();
+      newUsers.push(m.fromId);
+
+      localStorage.setItem("newUsers", JSON.stringify(newUsers));
 
     }
 
   }
+
+  renderContacts();
 
 }
 
