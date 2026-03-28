@@ -200,7 +200,7 @@ document.getElementById("chatName").textContent = user.username;
 document.getElementById("chatAvatar").src =
 user.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
-// 🔥 REMOVE BOLINHA VERDE
+// 🔥 REMOVE BOLINHA
 
 newUsers = newUsers.filter(id => id != user.id);
 
@@ -338,53 +338,62 @@ document.getElementById("messages").appendChild(div);
 
 async function loadMessages(initial = false){
 
-if(!currentChat) return;
+if(!currentChat && !initial) return;
 
 const res = await fetch(`/getMessages/${currentUser.id}`);
 
 const msgs = await res.json();
 
-// 🔥 DETECTA USUÁRIOS NOVOS + MARCA NÃO LIDO
-
 for (let m of msgs){
 
 if(m.toId == currentUser.id){
 
-  // 🔥 adiciona automaticamente contato
-  if(!contacts.some(c => c.id == m.fromId)){
+  // 🔥 DETECTA MENSAGEM NOVA
+  if(lastMessageId !== m.id){
 
-    const resUser = await fetch(`/getUser/${m.fromId}`);
+    // adiciona contato se não existir
+    if(!contacts.some(c => c.id == m.fromId)){
 
-    const user = await resUser.json();
+      const resUser = await fetch(`/getUser/${m.fromId}`);
 
-    if(!user.error){
+      const user = await resUser.json();
 
-      contacts.push(user);
+      if(!user.error){
 
-      localStorage.setItem("contacts", JSON.stringify(contacts));
+        contacts.push(user);
 
-    }
+        localStorage.setItem("contacts", JSON.stringify(contacts));
 
-  }
-
-  // 🔥 marca bolinha se não estiver no chat
-  if(!currentChat || currentChat.id !== m.fromId){
-
-    if(!newUsers.includes(m.fromId)){
-
-      newUsers.push(m.fromId);
-
-      localStorage.setItem("newUsers", JSON.stringify(newUsers));
+      }
 
     }
 
-  }
+    // marca bolinha se não estiver no chat
+    if(!currentChat || currentChat.id !== m.fromId){
 
-  renderContacts();
+      if(!newUsers.includes(m.fromId)){
+
+        newUsers.push(m.fromId);
+
+        localStorage.setItem("newUsers", JSON.stringify(newUsers));
+
+      }
+
+    }
+
+    renderContacts();
+  }
 
 }
 
 }
+
+// 🔥 ATUALIZA ÚLTIMA MENSAGEM GLOBAL
+if(msgs.length){
+  lastMessageId = msgs[msgs.length - 1].id;
+}
+
+if(!currentChat) return;
 
 const filtered = msgs.filter(m =>
 
@@ -432,12 +441,6 @@ for (let m of filtered){
 }
 
 container.innerHTML = html;
-
-if(filtered.length){
-
-  lastMessageId = filtered[filtered.length - 1].id;
-
-}
 
 container.scrollTop = container.scrollHeight;
 
