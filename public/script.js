@@ -31,10 +31,10 @@ currentUser = await res.json();
 localStorage.setItem("userId", currentUser.id);
 }
 
-// 🔥 MOSTRA ID
+// ID
 document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-// 🔥 RESTAURA NOME SALVO
+// 🔥 RESTAURA NOME LOCAL
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
@@ -42,21 +42,21 @@ if(savedName){
   if(input) input.value = savedName;
 }
 
-// 🔥 RESTAURA FOTO
+// FOTO
 if(currentUser.photo){
   const img = document.getElementById("profilePreview");
   if(img) img.src = currentUser.photo;
 }
 
-renderContacts();
+await renderContacts();
 
-// 🔄 TEMPO REAL
+// 🔄 tempo real
 setInterval(loadMessages, 1500);
 
 });
 
 // =========================
-// SALVAR PERFIL
+// SALVAR PERFIL (ATUALIZA GLOBAL)
 
 document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
 
@@ -91,26 +91,34 @@ headers: {"Content-Type":"application/json"},
 body: JSON.stringify({ id: currentUser.id, username, photo })
 });
 
-// 🔥 SALVA LOCAL
+// salva local
 localStorage.setItem("username", username);
 
 currentUser.username = username;
 currentUser.photo = photo;
 
-renderContacts();
+await renderContacts();
 
 }
 
 // =========================
-// CONTATOS (RÁPIDO)
+// CONTATOS (ATUALIZA DO SERVIDOR)
 
-function renderContacts(){
+async function renderContacts(){
 
 const div = document.getElementById("contacts");
 
 let html = "";
 
-for (let user of contacts){
+for (let i = 0; i < contacts.length; i++) {
+
+// 🔥 BUSCA ATUALIZADO
+const res = await fetch(`/getUser/${contacts[i].id}`);
+const user = await res.json();
+
+if(!user.error){
+  contacts[i] = user;
+}
 
 const count = unreadCounts[user.id] || 0;
 
@@ -142,18 +150,26 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 
 async function abrirChat(user){
 
-currentChat = user;
+// 🔥 pega atualizado
+const res = await fetch(`/getUser/${user.id}`);
+const updatedUser = await res.json();
 
-// 🔴 ZERA CONTADOR
-unreadCounts[user.id] = 0;
+if(!updatedUser.error){
+  currentChat = updatedUser;
+} else {
+  currentChat = user;
+}
+
+// zerar contador
+unreadCounts[currentChat.id] = 0;
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
-renderContacts();
+await renderContacts();
 
 document.getElementById("home").style.display = "none";
 document.getElementById("chatScreen").style.display = "flex";
 
-document.getElementById("chatName").textContent = user.username;
+document.getElementById("chatName").textContent = currentChat.username;
 
 await loadMessages(true);
 
@@ -184,10 +200,9 @@ const message = {
   timestamp: Date.now()
 };
 
-// 🔥 mostra na hora
 addMessage(message);
 
-// 🔥 envia
+// envia
 await fetch("/sendMessage", {
 method: "POST",
 headers: {"Content-Type":"application/json"},
@@ -209,9 +224,18 @@ const msgs = await res.json();
 let updatedContacts = false;
 let updatedUnread = false;
 
+// 🔄 atualiza nomes sempre
+for (let i = 0; i < contacts.length; i++) {
+  const resUser = await fetch(`/getUser/${contacts[i].id}`);
+  const updated = await resUser.json();
+  if(!updated.error){
+    contacts[i] = updated;
+  }
+}
+
 for (let m of msgs){
 
-// 📩 AUTO CONTATO
+// auto contato
 if(m.toId == currentUser.id && m.fromId != currentUser.id){
 
   if(!contacts.some(c => c.id == m.fromId)){
@@ -228,7 +252,7 @@ if(m.toId == currentUser.id && m.fromId != currentUser.id){
 
 }
 
-// 🔴 CONTADOR CORRETO
+// contador
 if(m.toId == currentUser.id){
 
   if(!countedMessages[m.id]){
@@ -257,7 +281,7 @@ if(updatedContacts || updatedUnread){
 localStorage.setItem("contacts", JSON.stringify(contacts));
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
-renderContacts();
+await renderContacts();
 
 }
 
@@ -276,7 +300,7 @@ const filtered = msgs.filter(m =>
 
 const container = document.getElementById("messages");
 
-// 🔥 INSTANTÂNEO
+// instantâneo
 if(initial){
 
 let html = "";
@@ -298,7 +322,7 @@ container.scrollTop = container.scrollHeight;
 return;
 }
 
-// 🔥 NOVAS
+// novas
 for (let m of filtered){
 
 if(processedMessages["chat_" + m.id]) continue;
@@ -314,7 +338,7 @@ container.scrollTop = container.scrollHeight;
 }
 
 // =========================
-// ADICIONAR MENSAGEM
+// MENSAGEM
 
 function addMessage(m){
 
@@ -330,4 +354,4 @@ bubble.textContent = m.text;
 div.appendChild(bubble);
 container.appendChild(div);
 
-        }
+  }
