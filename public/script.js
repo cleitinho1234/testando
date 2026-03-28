@@ -3,8 +3,9 @@ let currentChat = null;
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
-// 🔴 CONTADOR
+// 🔴 CONTROLES
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
+let seenMessages = JSON.parse(localStorage.getItem("seenMessages")) || {};
 
 // =========================
 // INICIAR
@@ -45,7 +46,7 @@ if(currentUser.photo){
 
 await renderContacts();
 
-// 🔄 TEMPO REAL
+// 🔄 tempo real
 setInterval(loadMessages, 1500);
 
 });
@@ -103,6 +104,18 @@ const updatedUser = await res.json();
 
 currentChat = !updatedUser.error ? updatedUser : user;
 
+// 🔴 MARCAR COMO VISTO
+const resMsgs = await fetch(`/getMessages/${currentUser.id}`);
+const msgs = await resMsgs.json();
+
+for (let m of msgs){
+  if(m.fromId == currentChat.id && m.toId == currentUser.id){
+    seenMessages[m.id] = true;
+  }
+}
+
+localStorage.setItem("seenMessages", JSON.stringify(seenMessages));
+
 // 🔴 ZERA CONTADOR
 unreadCounts[currentChat.id] = 0;
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
@@ -135,7 +148,6 @@ document.getElementById("sendMessageBtn").onclick = async () => {
 const text = document.getElementById("messageText").value;
 if(!text || !currentChat) return;
 
-// envia pro servidor
 await fetch("/sendMessage", {
 method: "POST",
 headers: {"Content-Type":"application/json"},
@@ -147,7 +159,6 @@ body: JSON.stringify({
 })
 });
 
-// mostra na hora
 addMessage({
   fromId: currentUser.id,
   text
@@ -158,22 +169,22 @@ document.getElementById("messageText").value = "";
 };
 
 // =========================
-// LOAD MESSAGES (CONTADOR CORRETO)
+// LOAD MESSAGES
 
 async function loadMessages(initial = false){
 
 const res = await fetch(`/getMessages/${currentUser.id}`);
 const msgs = await res.json();
 
-// 🔴 RECONSTRUIR CONTADOR DO ZERO
+// 🔴 CONTADOR CORRETO (COM VISTOS)
 let newUnread = {};
 
 for (let m of msgs){
 
-// só mensagens que EU RECEBI
+// mensagens recebidas
 if(m.toId == currentUser.id){
 
-  if(currentChat?.id !== m.fromId){
+  if(!seenMessages[m.id]){
 
     if(!newUnread[m.fromId]){
       newUnread[m.fromId] = 0;
@@ -203,7 +214,9 @@ if(m.toId == currentUser.id && m.fromId != currentUser.id){
 }
 
 unreadCounts = newUnread;
+
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+localStorage.setItem("seenMessages", JSON.stringify(seenMessages));
 
 await renderContacts();
 
@@ -240,13 +253,11 @@ container.scrollTop = container.scrollHeight;
 return;
 }
 
-// novas mensagens
+// atualiza chat
 container.innerHTML = "";
 
 for (let m of filtered){
-
 addMessage(m);
-
 }
 
 container.scrollTop = container.scrollHeight;
@@ -270,4 +281,4 @@ bubble.textContent = m.text;
 div.appendChild(bubble);
 container.appendChild(div);
 
-}
+  }
