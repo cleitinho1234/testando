@@ -4,7 +4,7 @@ let currentChat = null;
 
 let lastMessageId = null;
 
-const contacts = JSON.parse(localStorage.getItem("contacts")) || [];
+let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
 // =========================
 
@@ -53,8 +53,6 @@ if(currentUser.username){
 document.getElementById("username").value = currentUser.username;
 
 }
-
-// 🔥 MOSTRA FOTO NO PERFIL
 
 if(currentUser.photo){
 
@@ -120,11 +118,7 @@ currentUser.username = username;
 
 currentUser.photo = photo;
 
-// 🔥 atualiza na tela
-
 document.getElementById("profilePreview").src = photo;
-
-// 🔥 atualiza contatos automaticamente
 
 renderContacts();
 
@@ -132,7 +126,7 @@ renderContacts();
 
 // =========================
 
-// CONTATOS (AGORA COM FOTO)
+// CONTATOS
 
 async function renderContacts(){
 
@@ -152,8 +146,6 @@ const el = document.createElement("div");
 
 el.className = "contact";
 
-// 🔥 FOTO + NOME
-
 el.innerHTML = `
 
   <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
@@ -167,8 +159,6 @@ el.innerHTML = `
 el.style.display = "flex";
 
 el.style.alignItems = "center";
-
-// 🔥 REMOVE SELEÇÃO AZUL
 
 el.style.userSelect = "none";
 
@@ -338,7 +328,7 @@ document.getElementById("messages").appendChild(div);
 
 // =========================
 
-// LOAD MESSAGES (SEM PISCAR)
+// 🔥 LOAD MESSAGES COM AUTO CONTATO
 
 async function loadMessages(initial = false){
 
@@ -355,6 +345,45 @@ const filtered = msgs.filter(m =>
 (m.fromId == currentChat.id && m.toId == currentUser.id)
 
 );
+
+// 🔥 NOVO: detectar novos contatos
+let updated = false;
+
+for (let m of msgs){
+
+let otherId = null;
+
+if(m.fromId != currentUser.id && m.toId == currentUser.id){
+
+  otherId = m.fromId;
+
+}
+
+if(otherId && !contacts.some(c => c.id == otherId)){
+
+  const resUser = await fetch(`/getUser/${otherId}`);
+
+  const newUser = await resUser.json();
+
+  if(!newUser.error){
+
+    contacts.push(newUser);
+    updated = true;
+
+  }
+
+}
+
+}
+
+if(updated){
+
+localStorage.setItem("contacts", JSON.stringify(contacts));
+renderContacts();
+
+}
+
+// =========================
 
 const usersCache = {};
 
