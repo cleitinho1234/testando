@@ -3,9 +3,8 @@ let currentChat = null;
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
-// 🔴 CONTROLES
+// 🔴 CONTADOR
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
-let seenMessages = JSON.parse(localStorage.getItem("seenMessages")) || {};
 
 // =========================
 // INICIAR
@@ -30,22 +29,23 @@ currentUser = await res.json();
 localStorage.setItem("userId", currentUser.id);
 }
 
+// ID
 document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-// nome
+// RESTAURA NOME
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
 }
 
-// foto
+// FOTO
 if(currentUser.photo){
   document.getElementById("profilePreview").src = currentUser.photo;
 }
 
 await renderContacts();
 
-// tempo real
+// 🔄 TEMPO REAL
 setInterval(loadMessages, 1500);
 
 });
@@ -103,20 +103,8 @@ const updatedUser = await res.json();
 
 currentChat = !updatedUser.error ? updatedUser : user;
 
-// 🔴 MARCAR COMO VISTO (SÓ ESSE CHAT)
-const resMsgs = await fetch(`/getMessages/${currentUser.id}`);
-const msgs = await resMsgs.json();
-
-for (let m of msgs){
-  if(m.fromId == currentChat.id && m.toId == currentUser.id){
-    seenMessages[m.id] = true;
-  }
-}
-
-// 🔴 ZERA SÓ ESSE CONTATO
+// 🔴 ZERA CONTADOR SÓ DESSE CONTATO
 unreadCounts[currentChat.id] = 0;
-
-localStorage.setItem("seenMessages", JSON.stringify(seenMessages));
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
 await renderContacts();
@@ -127,6 +115,9 @@ document.getElementById("chatScreen").style.display = "flex";
 document.getElementById("chatName").textContent = currentChat.username;
 
 await loadMessages(true);
+
+// 🔥 GARANTE ATUALIZAÇÃO CORRETA
+setTimeout(loadMessages, 100);
 
 }
 
@@ -147,6 +138,7 @@ document.getElementById("sendMessageBtn").onclick = async () => {
 const text = document.getElementById("messageText").value;
 if(!text || !currentChat) return;
 
+// envia pro servidor
 await fetch("/sendMessage", {
 method: "POST",
 headers: {"Content-Type":"application/json"},
@@ -158,6 +150,7 @@ body: JSON.stringify({
 })
 });
 
+// mostra na hora
 addMessage({
   fromId: currentUser.id,
   text
@@ -168,21 +161,22 @@ document.getElementById("messageText").value = "";
 };
 
 // =========================
-// LOAD MESSAGES
+// LOAD MESSAGES (CORRIGIDO)
 
 async function loadMessages(initial = false){
 
 const res = await fetch(`/getMessages/${currentUser.id}`);
 const msgs = await res.json();
 
+// 🔴 RECONSTRUIR CONTADOR
 let newUnread = {};
 
-// 🔴 RECONSTRUIR CONTADOR (SEM APAGAR TUDO)
 for (let m of msgs){
 
+// só mensagens recebidas
 if(m.toId == currentUser.id){
 
-  if(!seenMessages[m.id]){
+  if(currentChat?.id !== m.fromId){
 
     if(!newUnread[m.fromId]){
       newUnread[m.fromId] = 0;
@@ -211,12 +205,12 @@ if(m.toId == currentUser.id && m.fromId != currentUser.id){
 
 }
 
-// 🔥 ATUALIZA SEM APAGAR OS OUTROS
+// 🔥 ATUALIZA SEM QUEBRAR
 for (let userId in newUnread){
   unreadCounts[userId] = newUnread[userId];
 }
 
-// 🔥 limpa só quem ficou zerado
+// 🔥 ZERA SÓ QUEM NÃO TEM MENSAGEM
 for (let userId in unreadCounts){
   if(!newUnread[userId]){
     unreadCounts[userId] = 0;
@@ -224,7 +218,6 @@ for (let userId in unreadCounts){
 }
 
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-localStorage.setItem("seenMessages", JSON.stringify(seenMessages));
 
 await renderContacts();
 
@@ -261,7 +254,7 @@ container.scrollTop = container.scrollHeight;
 return;
 }
 
-// atualiza chat
+// atualiza mensagens
 container.innerHTML = "";
 
 for (let m of filtered){
