@@ -14,9 +14,6 @@ window.addEventListener("load", async () => {
 
 let savedId = localStorage.getItem("userId");
 
-// 🔥 BUSCA LOCAL PRIMEIRO
-let savedPhoto = localStorage.getItem("myPhoto");
-
 if (savedId) {
   const res = await fetch(`/getUser/${savedId}`);
   const user = await res.json();
@@ -42,18 +39,18 @@ if(savedName){
   currentUser.username = savedName;
 }
 
-// 🔥 AQUI ESTÁ A CORREÇÃO PRINCIPAL
+// 🔥 FOTO CORRIGIDA
+const savedPhoto = localStorage.getItem("userPhoto");
+
 if(savedPhoto){
   currentUser.photo = savedPhoto;
+  document.getElementById("profilePreview").src = savedPhoto;
+} else if(currentUser.photo){
+  document.getElementById("profilePreview").src = currentUser.photo;
 }
 
 document.getElementById("username").value = currentUser.username || "";
 document.getElementById("userIdDisplay").textContent = currentUser.id;
-
-// mostra foto
-if(currentUser.photo){
-  document.getElementById("profilePreview").src = currentUser.photo;
-}
 
 // ADD CONTATO
 document.getElementById("addFriendBtn").onclick = async () => {
@@ -102,10 +99,6 @@ if(file){
   const reader = new FileReader();
   reader.onload = async () => {
     photo = reader.result;
-
-    // 🔥 mostra na hora
-    document.getElementById("profilePreview").src = photo;
-
     await salvarPerfil(username, photo);
   };
   reader.readAsDataURL(file);
@@ -120,10 +113,11 @@ async function salvarPerfil(username, photo){
 currentUser.username = username;
 currentUser.photo = photo;
 
-// 🔥 SALVA LOCAL (ESSENCIAL)
+// salva local
 localStorage.setItem("username", username);
-localStorage.setItem("myPhoto", photo);
+localStorage.setItem("userPhoto", photo);
 
+// atualiza contatos locais
 contacts = contacts.map(c => {
   if(c.id === currentUser.id){
     return {...c, username, photo};
@@ -133,10 +127,11 @@ contacts = contacts.map(c => {
 
 localStorage.setItem("contacts", JSON.stringify(contacts));
 
-renderContacts();
+// atualiza imagem na tela
+document.getElementById("profilePreview").src = photo;
 
 // envia pro servidor
-fetch("/saveProfile", {
+await fetch("/saveProfile", {
   method: "POST",
   headers: {"Content-Type":"application/json"},
   body: JSON.stringify({
@@ -145,6 +140,11 @@ fetch("/saveProfile", {
     photo
   })
 });
+
+// 🔥 força atualização geral
+await atualizarContatos();
+
+renderContacts();
 
 }
 
@@ -192,6 +192,7 @@ document.querySelectorAll(".contact").forEach(el => {
 
 let pressTimer;
 
+// SEGURAR MAIS TEMPO
 el.addEventListener("mousedown", () => {
   pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
 });
@@ -292,6 +293,7 @@ const msg = {
   timestamp
 };
 
+// mostra instantâneo
 addMessage(msg);
 
 lastTimestamp = timestamp;
