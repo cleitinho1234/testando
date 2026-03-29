@@ -48,6 +48,19 @@ body {
   margin-right: 10px;
 }
 
+/* 🔥 BLOCO NOME + STATUS */
+#chatInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+/* digitando... */
+#typingStatus {
+  font-size: 12px;
+  color: #dcdcdc;
+  height: 15px;
+}
+
 /* CHAT */
 #messages {
   flex: 1;
@@ -116,7 +129,7 @@ body {
   background: white;
 }
 
-/* 🔥 FOTO PERFIL */
+/* FOTO PERFIL */
 #profilePreview {
   width: 60px;
   height: 60px;
@@ -133,7 +146,6 @@ body {
 
 <h2>Seu Perfil</h2>
 
-<!-- 🔥 FOTO DE PERFIL -->
 <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
 
 <form id="profileForm">
@@ -161,7 +173,13 @@ body {
 <div id="chatHeader">
   <button onclick="voltar()">⬅</button>
   <img id="chatAvatar">
-  <span id="chatName"></span>
+
+  <!-- 🔥 AQUI FICA NOME + DIGITANDO -->
+  <div id="chatInfo">
+    <span id="chatName"></span>
+    <div id="typingStatus"></div>
+  </div>
+
 </div>
 
 <div id="messages"></div>
