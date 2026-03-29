@@ -5,14 +5,6 @@ let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
-// 🎤 ÁUDIO
-let mediaRecorder;
-let audioChunks = [];
-let isRecording = false;
-
-// 💾 CACHE LOCAL
-let localMessages = JSON.parse(localStorage.getItem("localMessages")) || [];
-
 // =========================
 // INICIAR
 
@@ -55,6 +47,7 @@ if(currentUser.photo){
 renderContacts();
 atualizarContatos().then(renderContacts);
 
+// tempo real
 setInterval(loadMessages, 1500);
 
 });
@@ -205,7 +198,6 @@ if(!text || !currentChat) return;
 input.value = "";
 
 const msg = {
-  id: Date.now() + Math.random(),
   fromId: currentUser.id,
   toId: currentChat.id,
   text,
@@ -213,7 +205,6 @@ const msg = {
 };
 
 addMessage(msg);
-saveLocalMessage(msg);
 
 fetch("/sendMessage", {
 method: "POST",
@@ -224,95 +215,14 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// 🎤 ÁUDIO (CELULAR OK)
-
-const recordBtn = document.getElementById("recordBtn");
-
-recordBtn.onclick = async () => {
-
-if(!currentChat) return;
-
-if(!isRecording){
-
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-  mediaRecorder = new MediaRecorder(stream);
-  audioChunks = [];
-
-  mediaRecorder.ondataavailable = e => {
-    if(e.data.size > 0){
-      audioChunks.push(e.data);
-    }
-  };
-
-  mediaRecorder.onstop = () => {
-
-    const blob = new Blob(audioChunks, { type: "audio/webm" });
-
-    if(blob.size < 1000) return;
-
-    const reader = new FileReader();
-
-    reader.onloadend = () => {
-
-      const msg = {
-        id: Date.now() + Math.random(),
-        fromId: currentUser.id,
-        toId: currentChat.id,
-        audio: reader.result,
-        timestamp: Date.now()
-      };
-
-      addMessage(msg);
-      saveLocalMessage(msg);
-
-      fetch("/sendMessage", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(msg)
-      });
-
-    };
-
-    reader.readAsDataURL(blob);
-
-  };
-
-  mediaRecorder.start();
-  isRecording = true;
-  recordBtn.textContent = "⏺️";
-
-} else {
-
-  mediaRecorder.stop();
-  isRecording = false;
-  recordBtn.textContent = "🎤";
-
-}
-
-};
-
-// =========================
-// SALVAR LOCAL
-
-function saveLocalMessage(msg){
-localMessages.push(msg);
-localStorage.setItem("localMessages", JSON.stringify(localMessages));
-}
-
-// =========================
-// LOAD MESSAGES (SEM BUG)
+// LOAD MESSAGES (FIX REAL)
 
 async function loadMessages(){
 
 const res = await fetch(`/getMessages/${currentUser.id}`);
-const serverMsgs = await res.json();
-
-const msgs = [...serverMsgs, ...localMessages];
+const msgs = await res.json();
 
 for (let m of msgs){
-
-if(!m.text && !m.audio) continue;
 
 if(m.timestamp <= lastTimestamp) continue;
 
@@ -320,9 +230,9 @@ if(m.timestamp > lastTimestamp){
   lastTimestamp = m.timestamp;
 }
 
-// topo + contador
 if(m.toId == currentUser.id){
 
+  // sobe contato
   const index = contacts.findIndex(c => c.id == m.fromId);
 
   if(index !== -1){
@@ -354,25 +264,14 @@ const filtered = msgs.filter(m =>
 
 const container = document.getElementById("messages");
 
-// 🔥 NÃO LIMPA MAIS (ESSENCIAL)
-const existentes = container.children.length;
+container.innerHTML = "";
 
-for (let i = existentes; i < filtered.length; i++){
-  addMessage(filtered[i]);
+for (let m of filtered){
+addMessage(m);
 }
 
 container.scrollTop = container.scrollHeight;
 
-}
-
-// =========================
-// FORMATAR TEMPO
-
-function formatTime(seconds){
-if(!seconds || isNaN(seconds)) return "0:00";
-const m = Math.floor(seconds / 60);
-const s = Math.floor(seconds % 60);
-return `${m}:${String(s).padStart(2,"0")}`;
 }
 
 // =========================
@@ -388,32 +287,9 @@ div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
 const bubble = document.createElement("div");
 bubble.className = "bubble";
 
-// 🎧 ÁUDIO
-if(m.audio){
-  const audio = document.createElement("audio");
-  audio.controls = true;
-  audio.src = m.audio;
+const text = document.createElement("div");
+text.textContent = m.text;
 
-  const duration = document.createElement("div");
-  duration.style.fontSize = "10px";
-  duration.style.opacity = "0.6";
-
-  audio.onloadedmetadata = () => {
-    duration.textContent = formatTime(audio.duration);
-  };
-
-  bubble.appendChild(audio);
-  bubble.appendChild(duration);
-}
-
-// TEXTO
-if(m.text){
-  const text = document.createElement("div");
-  text.textContent = m.text;
-  bubble.appendChild(text);
-}
-
-// HORÁRIO
 const time = document.createElement("div");
 time.style.fontSize = "10px";
 time.style.opacity = "0.6";
@@ -426,6 +302,7 @@ const min = String(date.getMinutes()).padStart(2,"0");
 time.textContent = `${h}:${min}`;
 }
 
+bubble.appendChild(text);
 bubble.appendChild(time);
 
 div.appendChild(bubble);
