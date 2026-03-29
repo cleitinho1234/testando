@@ -10,7 +10,7 @@ let mediaRecorder;
 let audioChunks = [];
 let isRecording = false;
 
-// 💾 CACHE LOCAL (IMPOSSÍVEL PERDER ÁUDIO)
+// 💾 CACHE LOCAL
 let localMessages = JSON.parse(localStorage.getItem("localMessages")) || [];
 
 // =========================
@@ -39,7 +39,7 @@ if (!currentUser) {
   localStorage.setItem("userId", currentUser.id);
 }
 
-// 🔥 NOME NUNCA SOME
+// nome fixo
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
@@ -60,7 +60,7 @@ setInterval(loadMessages, 1500);
 });
 
 // =========================
-// SALVAR PERFIL
+// PERFIL
 
 document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
 
@@ -175,6 +175,9 @@ localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
 renderContacts();
 
+// 🔥 limpa só ao abrir
+document.getElementById("messages").innerHTML = "";
+
 document.getElementById("home").style.display = "none";
 document.getElementById("chatScreen").style.display = "flex";
 
@@ -221,7 +224,7 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// 🎤 ÁUDIO
+// ÁUDIO
 
 const recordBtn = document.getElementById("recordBtn");
 
@@ -296,7 +299,7 @@ recordBtn.textContent = "🎤";
 };
 
 // =========================
-// 💾 SALVAR LOCAL
+// SALVAR LOCAL
 
 function saveLocalMessage(msg){
 localMessages.push(msg);
@@ -304,14 +307,13 @@ localStorage.setItem("localMessages", JSON.stringify(localMessages));
 }
 
 // =========================
-// LOAD MESSAGES
+// LOAD MESSAGES (🔥 FIX ÁUDIO)
 
 async function loadMessages(){
 
 const res = await fetch(`/getMessages/${currentUser.id}`);
 const serverMsgs = await res.json();
 
-// 🔥 JUNTA TUDO (NUNCA PERDE ÁUDIO)
 const msgs = [...serverMsgs, ...localMessages];
 
 for (let m of msgs){
@@ -354,10 +356,12 @@ const filtered = msgs.filter(m =>
 );
 
 const container = document.getElementById("messages");
-container.innerHTML = "";
 
-for (let m of filtered){
-addMessage(m);
+// 🔥 NÃO LIMPA MAIS — SÓ ADICIONA NOVOS
+const existentes = container.children.length;
+
+for (let i = existentes; i < filtered.length; i++){
+  addMessage(filtered[i]);
 }
 
 container.scrollTop = container.scrollHeight;
@@ -365,7 +369,7 @@ container.scrollTop = container.scrollHeight;
 }
 
 // =========================
-// ⏱ FORMATAR TEMPO
+// FORMATAR TEMPO
 
 function formatTime(seconds){
 if(!seconds || isNaN(seconds)) return "0:00";
@@ -387,12 +391,11 @@ div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
 const bubble = document.createElement("div");
 bubble.className = "bubble";
 
-// 🎤 ÁUDIO
+// ÁUDIO
 if(m.audio){
   const audio = document.createElement("audio");
   audio.controls = true;
   audio.src = m.audio;
-  audio.style.display = "block";
 
   const duration = document.createElement("div");
   duration.style.fontSize = "10px";
@@ -432,4 +435,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-                          }
+}
