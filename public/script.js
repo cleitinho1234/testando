@@ -44,24 +44,21 @@ if(currentUser.photo){
   document.getElementById("profilePreview").src = currentUser.photo;
 }
 
-// 🔥 BOTÃO ADICIONAR CONTATO (FIX)
+// 🔥 ADICIONAR CONTATO
 document.getElementById("addFriendBtn").onclick = async () => {
 
 const id = document.getElementById("addUserId").value.trim();
 
 if(!id) return alert("Digite um ID");
 
-// não adicionar você mesmo
 if(id == currentUser.id){
   return alert("Você não pode adicionar você mesmo");
 }
 
-// evitar duplicado
 if(contacts.some(c => c.id == id)){
-  return alert("Contato já adicionado");
+  return alert("Contato já existe");
 }
 
-// buscar no servidor
 const res = await fetch(`/getUser/${id}`);
 const user = await res.json();
 
@@ -69,14 +66,11 @@ if(user.error || !user.username){
   return alert("Usuário não encontrado");
 }
 
-// adicionar no topo
 contacts.unshift(user);
-
 localStorage.setItem("contacts", JSON.stringify(contacts));
 
 renderContacts();
 
-// limpar input
 document.getElementById("addUserId").value = "";
 
 };
@@ -188,7 +182,6 @@ document.querySelectorAll(".contact").forEach(el => {
 
 let pressTimer;
 
-// segurar pra excluir
 el.addEventListener("mousedown", () => {
   pressTimer = setTimeout(() => deletarContato(el.dataset.id), 600);
 });
@@ -199,7 +192,6 @@ el.addEventListener("touchstart", () => {
 });
 el.addEventListener("touchend", () => clearTimeout(pressTimer));
 
-// clique normal
 el.onclick = () => {
   const user = contacts.find(c => c.id == el.dataset.id);
   abrirChat(user);
@@ -210,7 +202,7 @@ el.onclick = () => {
 }
 
 // =========================
-// DELETAR
+// DELETAR CONTATO
 
 function deletarContato(id){
 
@@ -286,7 +278,7 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// LOAD MESSAGES
+// LOAD MESSAGES (🔥 FIX FINAL)
 
 async function loadMessages(){
 
@@ -301,8 +293,20 @@ if(m.timestamp > lastTimestamp){
   lastTimestamp = m.timestamp;
 }
 
+// 🔥 RECEBEU MENSAGEM
 if(m.toId == currentUser.id){
 
+  // cria contato automático
+  if(!contacts.some(c => c.id == m.fromId)){
+    const resUser = await fetch(`/getUser/${m.fromId}`);
+    const newUser = await resUser.json();
+
+    if(!newUser.error){
+      contacts.unshift(newUser);
+    }
+  }
+
+  // sobe pro topo
   const index = contacts.findIndex(c => c.id == m.fromId);
 
   if(index !== -1){
@@ -310,6 +314,7 @@ if(m.toId == currentUser.id){
     contacts.unshift(user);
   }
 
+  // contador
   if(currentChat?.id !== m.fromId){
     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
   }
@@ -318,6 +323,7 @@ if(m.toId == currentUser.id){
 
 }
 
+localStorage.setItem("contacts", JSON.stringify(contacts));
 localStorage.setItem("lastTimestamp", lastTimestamp);
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
@@ -376,4 +382,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-     }
+}
