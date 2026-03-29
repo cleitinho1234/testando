@@ -47,9 +47,15 @@ if(currentUser.photo){
   document.getElementById("profilePreview").src = currentUser.photo;
 }
 
-await atualizarContatos();
-await renderContacts();
+// ⚡ MOSTRA CONTATOS NA HORA
+renderContacts();
 
+// 🔄 ATUALIZA EM BACKGROUND
+atualizarContatos().then(() => {
+  renderContacts();
+});
+
+// 🔄 tempo real
 setInterval(loadMessages, 1500);
 
 });
@@ -99,8 +105,12 @@ localStorage.setItem("username", username);
 currentUser.username = username;
 currentUser.photo = photo;
 
-await atualizarContatos();
-await renderContacts();
+// ⚡ mantém instantâneo aqui também
+renderContacts();
+
+atualizarContatos().then(() => {
+  renderContacts();
+});
 
 }
 
@@ -226,7 +236,7 @@ body: JSON.stringify({
 };
 
 // =========================
-// LOAD MESSAGES (FINAL)
+// LOAD MESSAGES
 
 async function loadMessages(initial = false){
 
@@ -243,7 +253,7 @@ for (let m of msgs){
 
   if(m.toId == currentUser.id){
 
-    // 🔼 SOBE PRO TOPO
+    // 🔼 sobe pro topo
     const index = contacts.findIndex(c => c.id == m.fromId);
 
     if(index !== -1){
@@ -251,7 +261,6 @@ for (let m of msgs){
       contacts.unshift(user);
     }
 
-    // 🔴 CONTADOR
     if(currentChat?.id !== m.fromId){
 
       if(!unreadCounts[m.fromId]){
@@ -264,7 +273,7 @@ for (let m of msgs){
 
   }
 
-  // AUTO CONTATO
+  // auto contato
   if(m.toId == currentUser.id && m.fromId != currentUser.id){
 
     if(!contacts.some(c => c.id == m.fromId)){
@@ -325,4 +334,4 @@ bubble.textContent = m.text;
 div.appendChild(bubble);
 container.appendChild(div);
 
-}
+                        }
