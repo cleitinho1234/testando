@@ -55,7 +55,7 @@ atualizarContatos().then(() => {
   renderContacts();
 });
 
-// 🔄 tempo real
+// tempo real
 setInterval(loadMessages, 1500);
 
 });
@@ -105,7 +105,6 @@ localStorage.setItem("username", username);
 currentUser.username = username;
 currentUser.photo = photo;
 
-// ⚡ mantém instantâneo aqui também
 renderContacts();
 
 atualizarContatos().then(() => {
@@ -146,7 +145,6 @@ let html = "";
 for (let i = 0; i < contacts.length; i++) {
 
 const user = contacts[i];
-
 const count = unreadCounts[user.id] || 0;
 
 html += `
@@ -215,10 +213,11 @@ if(!text || !currentChat) return;
 
 input.value = "";
 
-// mostra na hora
+// mostra na hora COM HORÁRIO
 addMessage({
   fromId: currentUser.id,
-  text
+  text,
+  timestamp: Date.now()
 });
 
 // envia
@@ -253,7 +252,7 @@ for (let m of msgs){
 
   if(m.toId == currentUser.id){
 
-    // 🔼 sobe pro topo
+    // sobe pro topo
     const index = contacts.findIndex(c => c.id == m.fromId);
 
     if(index !== -1){
@@ -318,7 +317,7 @@ container.scrollTop = container.scrollHeight;
 }
 
 // =========================
-// MENSAGEM
+// MENSAGEM COM HORÁRIO
 
 function addMessage(m){
 
@@ -329,9 +328,29 @@ div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
 
 const bubble = document.createElement("div");
 bubble.className = "bubble";
-bubble.textContent = m.text;
+
+// TEXTO
+const text = document.createElement("div");
+text.textContent = m.text;
+
+// HORÁRIO
+const time = document.createElement("div");
+time.style.fontSize = "10px";
+time.style.opacity = "0.6";
+time.style.marginTop = "5px";
+time.style.textAlign = "right";
+
+if(m.timestamp){
+  const date = new Date(m.timestamp);
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  time.textContent = `${hours}:${minutes}`;
+}
+
+bubble.appendChild(text);
+bubble.appendChild(time);
 
 div.appendChild(bubble);
 container.appendChild(div);
 
-                        }
+  }
