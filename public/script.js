@@ -125,6 +125,7 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 
 }
 
+// 🔥 CONTATOS COM SEGURAR PRA EXCLUIR
 function renderContacts(){
 
 const div = document.getElementById("contacts");
@@ -148,11 +149,56 @@ ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding
 div.innerHTML = html;
 
 document.querySelectorAll(".contact").forEach(el => {
-el.onclick = () => {
-const user = contacts.find(c => c.id == el.dataset.id);
-abrirChat(user);
-};
+
+let pressTimer;
+
+// 📱 SEGURAR (celular)
+el.addEventListener("touchstart", () => {
+  pressTimer = setTimeout(() => {
+    deletarContato(el.dataset.id);
+  }, 600);
 });
+
+el.addEventListener("touchend", () => {
+  clearTimeout(pressTimer);
+});
+
+// 💻 SEGURAR (PC)
+el.addEventListener("mousedown", () => {
+  pressTimer = setTimeout(() => {
+    deletarContato(el.dataset.id);
+  }, 600);
+});
+
+el.addEventListener("mouseup", () => {
+  clearTimeout(pressTimer);
+});
+
+// 👉 clique normal
+el.onclick = () => {
+  const user = contacts.find(c => c.id == el.dataset.id);
+  abrirChat(user);
+};
+
+});
+
+}
+
+// 🔥 DELETAR CONTATO
+function deletarContato(id){
+
+const confirmar = confirm("Excluir este contato?");
+
+if(!confirmar) return;
+
+contacts = contacts.filter(c => c.id != id);
+
+delete unreadCounts[id];
+
+localStorage.setItem("contacts", JSON.stringify(contacts));
+localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+
+renderContacts();
 
 }
 
@@ -215,7 +261,7 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// LOAD MESSAGES (FIX REAL)
+// LOAD MESSAGES
 
 async function loadMessages(){
 
@@ -232,7 +278,6 @@ if(m.timestamp > lastTimestamp){
 
 if(m.toId == currentUser.id){
 
-  // sobe contato
   const index = contacts.findIndex(c => c.id == m.fromId);
 
   if(index !== -1){
@@ -253,8 +298,6 @@ localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
 renderContacts();
 
-// CHAT
-
 if(!currentChat) return;
 
 const filtered = msgs.filter(m =>
@@ -267,7 +310,7 @@ const container = document.getElementById("messages");
 container.innerHTML = "";
 
 for (let m of filtered){
-addMessage(m);
+  addMessage(m);
 }
 
 container.scrollTop = container.scrollHeight;
@@ -308,4 +351,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-  }
+                   }
