@@ -5,13 +5,14 @@ let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
-// 🎤 ÁUDIO
 let mediaRecorder;
 let audioChunks = [];
 let isRecording = false;
 
-// 💾 CACHE LOCAL
 let localMessages = JSON.parse(localStorage.getItem("localMessages")) || [];
+
+// 🔥 CONTROLE PRA NÃO DUPLICAR
+let renderedMessages = new Set();
 
 // =========================
 // INICIAR
@@ -39,7 +40,6 @@ if (!currentUser) {
   localStorage.setItem("userId", currentUser.id);
 }
 
-// nome fixo
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
@@ -60,139 +60,6 @@ setInterval(loadMessages, 1500);
 });
 
 // =========================
-// PERFIL
-
-document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
-
-e.preventDefault();
-
-const username = document.getElementById("username").value;
-const file = document.getElementById("profilePic").files[0];
-
-let photo = currentUser.photo;
-
-if(file){
-  const reader = new FileReader();
-  reader.onload = async () => {
-    photo = reader.result;
-    await salvarPerfil(username, photo);
-  };
-  reader.readAsDataURL(file);
-} else {
-  await salvarPerfil(username, photo);
-}
-
-});
-
-async function salvarPerfil(username, photo){
-
-currentUser.username = username;
-currentUser.photo = photo;
-
-localStorage.setItem("username", username);
-
-contacts = contacts.map(c => {
-  if(c.id === currentUser.id){
-    return {...c, username, photo};
-  }
-  return c;
-});
-
-localStorage.setItem("contacts", JSON.stringify(contacts));
-
-renderContacts();
-
-fetch("/saveProfile", {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({
-    id: currentUser.id,
-    username,
-    photo
-  })
-});
-
-}
-
-// =========================
-// CONTATOS
-
-async function atualizarContatos(){
-
-for (let i = 0; i < contacts.length; i++){
-  const res = await fetch(`/getUser/${contacts[i].id}`);
-  const user = await res.json();
-
-  if(!user.error && user.username){
-    contacts[i] = user;
-  }
-}
-
-localStorage.setItem("contacts", JSON.stringify(contacts));
-
-}
-
-function renderContacts(){
-
-const div = document.getElementById("contacts");
-
-let html = "";
-
-for (let user of contacts){
-
-const count = unreadCounts[user.id] || 0;
-
-html += `
-<div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
-<img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
-style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
-<span style="flex:1;">${user.username}</span>
-${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
-</div>
-`;
-}
-
-div.innerHTML = html;
-
-document.querySelectorAll(".contact").forEach(el => {
-el.onclick = () => {
-const user = contacts.find(c => c.id == el.dataset.id);
-abrirChat(user);
-};
-});
-
-}
-
-// =========================
-// CHAT
-
-function abrirChat(user){
-
-currentChat = user;
-
-unreadCounts[user.id] = 0;
-localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-
-renderContacts();
-
-document.getElementById("messages").innerHTML = "";
-
-document.getElementById("home").style.display = "none";
-document.getElementById("chatScreen").style.display = "flex";
-
-document.getElementById("chatName").textContent = user.username;
-
-loadMessages();
-
-}
-
-function voltar(){
-document.getElementById("chatScreen").style.display = "none";
-document.getElementById("home").style.display = "block";
-currentChat = null;
-}
-
-// =========================
 // ENVIAR TEXTO
 
 document.getElementById("sendMessageBtn").onclick = () => {
@@ -205,7 +72,7 @@ if(!text || !currentChat) return;
 input.value = "";
 
 const msg = {
-  id: Date.now(),
+  id: Date.now() + Math.random(), // 🔥 ID único
   fromId: currentUser.id,
   toId: currentChat.id,
   text,
@@ -224,7 +91,7 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// 🎤 ÁUDIO (CELULAR OK)
+// 🎤 ÁUDIO (CORRIGIDO MOBILE)
 
 const recordBtn = document.getElementById("recordBtn");
 
@@ -232,7 +99,6 @@ recordBtn.onclick = async () => {
 
 if(!currentChat) return;
 
-// iniciar
 if(!isRecording){
 
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -257,7 +123,7 @@ if(!isRecording){
     reader.onloadend = () => {
 
       const msg = {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         fromId: currentUser.id,
         toId: currentChat.id,
         audio: reader.result,
@@ -283,13 +149,12 @@ if(!isRecording){
   isRecording = true;
   recordBtn.textContent = "⏺️";
 
-}
+} else {
 
-// parar
-else{
   mediaRecorder.stop();
   isRecording = false;
   recordBtn.textContent = "🎤";
+
 }
 
 };
@@ -298,37 +163,32 @@ else{
 // SALVAR LOCAL
 
 function saveLocalMessage(msg){
-
-if(localMessages.some(m => m.id === msg.id)) return;
-
 localMessages.push(msg);
 localStorage.setItem("localMessages", JSON.stringify(localMessages));
-
 }
 
 // =========================
-// LOAD MESSAGES (🔥 SEM RESET DE ÁUDIO)
+// LOAD MESSAGES (🔥 SEM BUG)
 
 async function loadMessages(){
 
 const res = await fetch(`/getMessages/${currentUser.id}`);
 const serverMsgs = await res.json();
 
-// remover duplicados
-const map = new Map();
+const msgs = [...serverMsgs, ...localMessages];
 
-[...serverMsgs, ...localMessages].forEach(m => {
-  map.set(m.id || m.timestamp, m);
-});
-
-const msgs = Array.from(map.values()).sort((a,b)=>a.timestamp-b.timestamp);
+// 🔥 ordena correto
+msgs.sort((a,b)=>a.timestamp - b.timestamp);
 
 for (let m of msgs){
 
-if(m.timestamp <= lastTimestamp) continue;
+const uniqueId = m.id || (m.fromId + m.timestamp);
 
-lastTimestamp = m.timestamp;
+if(renderedMessages.has(uniqueId)) continue;
 
+renderedMessages.add(uniqueId);
+
+// 🔥 contatos topo
 if(m.toId == currentUser.id){
 
   const index = contacts.findIndex(c => c.id == m.fromId);
@@ -344,29 +204,20 @@ if(m.toId == currentUser.id){
 
 }
 
+// 🔥 só adiciona se estiver no chat aberto
+if(currentChat &&
+((m.fromId == currentUser.id && m.toId == currentChat.id) ||
+ (m.fromId == currentChat.id && m.toId == currentUser.id))){
+
+  addMessage(m);
 }
 
-localStorage.setItem("lastTimestamp", lastTimestamp);
-localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+}
 
+localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 renderContacts();
 
-if(!currentChat) return;
-
-const filtered = msgs.filter(m =>
-(m.fromId == currentUser.id && m.toId == currentChat.id) ||
-(m.fromId == currentChat.id && m.toId == currentUser.id)
-);
-
 const container = document.getElementById("messages");
-
-// 🔥 NÃO RECRIA TUDO (resolve áudio bug)
-const existentes = container.children.length;
-
-for (let i = existentes; i < filtered.length; i++){
-  addMessage(filtered[i]);
-}
-
 container.scrollTop = container.scrollHeight;
 
 }
@@ -396,6 +247,7 @@ bubble.className = "bubble";
 
 // 🎧 ÁUDIO
 if(m.audio){
+
   const audio = document.createElement("audio");
   audio.controls = true;
   audio.src = m.audio;
@@ -403,7 +255,6 @@ if(m.audio){
   const duration = document.createElement("div");
   duration.style.fontSize = "10px";
   duration.style.opacity = "0.6";
-  duration.textContent = "Carregando...";
 
   audio.onloadedmetadata = () => {
     duration.textContent = formatTime(audio.duration);
@@ -438,4 +289,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-                                }
+        }
