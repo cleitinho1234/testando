@@ -175,7 +175,6 @@ localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
 renderContacts();
 
-// 🔥 limpa só ao abrir
 document.getElementById("messages").innerHTML = "";
 
 document.getElementById("home").style.display = "none";
@@ -224,11 +223,11 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// ÁUDIO
+// ÁUDIO (PC + CELULAR)
 
 const recordBtn = document.getElementById("recordBtn");
 
-recordBtn.onmousedown = async () => {
+async function startRecording(){
 
 if(isRecording) return;
 
@@ -245,57 +244,81 @@ mediaRecorder.ondataavailable = e => {
 
 mediaRecorder.start();
 isRecording = true;
+
 recordBtn.textContent = "⏺️";
 
-};
+}
 
-recordBtn.onmouseup = () => {
+function stopRecording(){
 
 if(!mediaRecorder || !isRecording) return;
 
-mediaRecorder.requestData();
-
-setTimeout(() => {
-
 mediaRecorder.stop();
 
-if(audioChunks.length === 0) return;
+mediaRecorder.onstop = () => {
 
-const blob = new Blob(audioChunks, { type: "audio/webm" });
+  if(audioChunks.length === 0){
+    isRecording = false;
+    recordBtn.textContent = "🎤";
+    return;
+  }
 
-if(blob.size < 1000) return;
+  const blob = new Blob(audioChunks, { type: "audio/webm" });
 
-const reader = new FileReader();
+  if(blob.size < 300){
+    isRecording = false;
+    recordBtn.textContent = "🎤";
+    return;
+  }
 
-reader.onloadend = () => {
+  const reader = new FileReader();
 
-  if(!reader.result) return;
+  reader.onloadend = () => {
 
-  const msg = {
-    fromId: currentUser.id,
-    toId: currentChat.id,
-    audio: reader.result,
-    timestamp: Date.now()
+    if(!reader.result){
+      isRecording = false;
+      recordBtn.textContent = "🎤";
+      return;
+    }
+
+    const msg = {
+      fromId: currentUser.id,
+      toId: currentChat.id,
+      audio: reader.result,
+      timestamp: Date.now()
+    };
+
+    addMessage(msg);
+    saveLocalMessage(msg);
+
+    fetch("/sendMessage", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(msg)
+    });
+
+    isRecording = false;
+    recordBtn.textContent = "🎤";
+
   };
 
-  addMessage(msg);
-  saveLocalMessage(msg);
-
-  fetch("/sendMessage", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(msg)
-  });
+  reader.readAsDataURL(blob);
 
 };
 
-reader.readAsDataURL(blob);
+// PC
+recordBtn.onmousedown = startRecording;
+recordBtn.onmouseup = stopRecording;
 
-isRecording = false;
-recordBtn.textContent = "🎤";
+// CELULAR
+recordBtn.ontouchstart = (e) => {
+  e.preventDefault();
+  startRecording();
+};
 
-}, 250);
-
+recordBtn.ontouchend = (e) => {
+  e.preventDefault();
+  stopRecording();
 };
 
 // =========================
@@ -307,7 +330,7 @@ localStorage.setItem("localMessages", JSON.stringify(localMessages));
 }
 
 // =========================
-// LOAD MESSAGES (🔥 FIX ÁUDIO)
+// LOAD MESSAGES
 
 async function loadMessages(){
 
@@ -346,8 +369,6 @@ localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
 renderContacts();
 
-// CHAT
-
 if(!currentChat) return;
 
 const filtered = msgs.filter(m =>
@@ -357,7 +378,6 @@ const filtered = msgs.filter(m =>
 
 const container = document.getElementById("messages");
 
-// 🔥 NÃO LIMPA MAIS — SÓ ADICIONA NOVOS
 const existentes = container.children.length;
 
 for (let i = existentes; i < filtered.length; i++){
