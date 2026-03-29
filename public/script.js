@@ -3,9 +3,7 @@ let currentChat = null;
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
-let lastTimestamp = localStorage.getItem("lastTimestamp") || 0;
-
-let typingTimeout = null;
+let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
 // =========================
 // INICIAR
@@ -30,100 +28,127 @@ currentUser = await res.json();
 localStorage.setItem("userId", currentUser.id);
 }
 
+// 🔥 NOME CORRETO
+if(currentUser.username){
+  localStorage.setItem("username", currentUser.username);
+} else {
+  const savedName = localStorage.getItem("username");
+  if(savedName){
+    currentUser.username = savedName;
+  }
+}
+
 document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-// nome salvo
-const savedName = localStorage.getItem("username");
-if(savedName){
-  currentUser.username = savedName;
+// FOTO
+if(currentUser.photo){
+  document.getElementById("profilePreview").src = currentUser.photo;
 }
 
 // contatos instantâneo
 renderContacts();
+
+// atualizar em background
 atualizarContatos().then(renderContacts);
 
-// tempo real mensagens
+// tempo real
 setInterval(loadMessages, 1500);
 
-// 🔥 tempo real digitando
-setInterval(checkTyping, 500);
-
 });
 
 // =========================
-// DIGITANDO (ENVIAR)
+// SALVAR PERFIL (CORRIGIDO)
 
-const inputMsg = document.getElementById("messageText");
+document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
 
-inputMsg.addEventListener("input", () => {
+e.preventDefault();
 
-if(!currentChat) return;
+const username = document.getElementById("username").value;
+const file = document.getElementById("profilePic").files[0];
 
-// envia digitando
-fetch("/typing", {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({
-    fromId: currentUser.id,
-    toId: currentChat.id,
-    typing: true
-  })
-});
+let photo = currentUser.photo;
 
-// parar depois
-clearTimeout(typingTimeout);
+if(file){
+const reader = new FileReader();
 
-typingTimeout = setTimeout(() => {
-  fetch("/typing", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({
-      fromId: currentUser.id,
-      toId: currentChat.id,
-      typing: false
-    })
-  });
-}, 1500);
+reader.onload = async () => {
+  photo = reader.result;
+  await salvarPerfil(username, photo);
+};
 
-});
+reader.readAsDataURL(file);
 
-// =========================
-// DIGITANDO (RECEBER)
-
-async function checkTyping(){
-
-if(!currentChat) return;
-
-try {
-
-const res = await fetch(`/typing/${currentUser.id}`);
-const typingData = await res.json();
-
-const statusDiv = document.getElementById("typingStatus");
-
-if(typingData[currentChat.id]){
-  statusDiv.textContent = "digitando...";
 } else {
-  statusDiv.textContent = "";
+await salvarPerfil(username, photo);
 }
 
-} catch(e){
-console.log("erro typing", e);
+});
+
+async function salvarPerfil(username, photo){
+
+const res = await fetch("/saveProfile", {
+method: "POST",
+headers: {"Content-Type":"application/json"},
+body: JSON.stringify({
+  id: currentUser.id,
+  username,
+  photo
+})
+});
+
+const updatedUser = await res.json();
+
+// 🔥 ATUALIZA USER GLOBAL
+currentUser = updatedUser;
+
+// salva local
+localStorage.setItem("username", updatedUser.username);
+
+// 🔥 ATUALIZA NOS CONTATOS
+contacts = contacts.map(c => {
+  if(c.id === updatedUser.id){
+    return updatedUser;
+  }
+  return c;
+});
+
+localStorage.setItem("contacts", JSON.stringify(contacts));
+
+renderContacts();
+
+}
+
+// =========================
+// ATUALIZAR CONTATOS (CORRIGIDO)
+
+async function atualizarContatos(){
+
+let mudou = false;
+
+for (let i = 0; i < contacts.length; i++){
+
+  const res = await fetch(`/getUser/${contacts[i].id}`);
+  const user = await res.json();
+
+  if(!user.error){
+
+    if(contacts[i].username !== user.username || contacts[i].photo !== user.photo){
+      contacts[i] = user;
+      mudou = true;
+    }
+
+  }
+
+}
+
+if(mudou){
+  localStorage.setItem("contacts", JSON.stringify(contacts));
 }
 
 }
 
 // =========================
 // CONTATOS
-
-async function atualizarContatos(){
-for (let i = 0; i < contacts.length; i++){
-  const res = await fetch(`/getUser/${contacts[i].id}`);
-  const user = await res.json();
-  if(!user.error) contacts[i] = user;
-}
-localStorage.setItem("contacts", JSON.stringify(contacts));
-}
 
 async function renderContacts(){
 
@@ -140,7 +165,7 @@ html += `
 <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
 style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
 <span style="flex:1;">${user.username}</span>
-${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;">${count}</span>` : ""}
+${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
 </div>
 `;
 }
@@ -175,6 +200,15 @@ document.getElementById("chatName").textContent = user.username;
 
 loadMessages(true);
 
+}
+
+// =========================
+// VOLTAR
+
+function voltar(){
+document.getElementById("chatScreen").style.display = "none";
+document.getElementById("home").style.display = "block";
+currentChat = null;
 }
 
 // =========================
@@ -227,6 +261,7 @@ if(m.timestamp > lastTimestamp){
 if(m.toId == currentUser.id){
 
   const index = contacts.findIndex(c => c.id == m.fromId);
+
   if(index !== -1){
     const user = contacts.splice(index, 1)[0];
     contacts.unshift(user);
@@ -264,6 +299,7 @@ const filtered = msgs.filter(m =>
 );
 
 const container = document.getElementById("messages");
+
 container.innerHTML = "";
 
 for (let m of filtered){
@@ -293,6 +329,7 @@ text.textContent = m.text;
 const time = document.createElement("div");
 time.style.fontSize = "10px";
 time.style.opacity = "0.6";
+time.style.marginTop = "5px";
 time.style.textAlign = "right";
 
 if(m.timestamp){
@@ -304,6 +341,7 @@ time.textContent = `${h}:${min}`;
 
 bubble.appendChild(text);
 bubble.appendChild(time);
+
 div.appendChild(bubble);
 container.appendChild(div);
 
