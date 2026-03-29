@@ -193,7 +193,7 @@ currentChat = null;
 }
 
 // =========================
-// ENVIAR TEXTO (🔥 FIX DUPLICAÇÃO)
+// ENVIAR TEXTO
 
 document.getElementById("sendMessageBtn").onclick = () => {
 
@@ -205,7 +205,7 @@ if(!text || !currentChat) return;
 input.value = "";
 
 const msg = {
-  id: Date.now(), // 🔥 ID único
+  id: Date.now(),
   fromId: currentUser.id,
   toId: currentChat.id,
   text,
@@ -224,7 +224,7 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// 🎤 ÁUDIO (CELULAR OK + SEM BUG)
+// 🎤 ÁUDIO (CELULAR OK)
 
 const recordBtn = document.getElementById("recordBtn");
 
@@ -257,7 +257,7 @@ if(!isRecording){
     reader.onloadend = () => {
 
       const msg = {
-        id: Date.now(), // 🔥 evita duplicação
+        id: Date.now(),
         fromId: currentUser.id,
         toId: currentChat.id,
         audio: reader.result,
@@ -295,7 +295,7 @@ else{
 };
 
 // =========================
-// SALVAR LOCAL (🔥 SEM DUPLICAR)
+// SALVAR LOCAL
 
 function saveLocalMessage(msg){
 
@@ -307,14 +307,14 @@ localStorage.setItem("localMessages", JSON.stringify(localMessages));
 }
 
 // =========================
-// LOAD MESSAGES (🔥 FIX TOTAL)
+// LOAD MESSAGES (🔥 SEM RESET DE ÁUDIO)
 
 async function loadMessages(){
 
 const res = await fetch(`/getMessages/${currentUser.id}`);
 const serverMsgs = await res.json();
 
-// 🔥 remover duplicados
+// remover duplicados
 const map = new Map();
 
 [...serverMsgs, ...localMessages].forEach(m => {
@@ -360,10 +360,11 @@ const filtered = msgs.filter(m =>
 
 const container = document.getElementById("messages");
 
-container.innerHTML = ""; // 🔥 resolve bug visual
+// 🔥 NÃO RECRIA TUDO (resolve áudio bug)
+const existentes = container.children.length;
 
-for (let m of filtered){
-  addMessage(m);
+for (let i = existentes; i < filtered.length; i++){
+  addMessage(filtered[i]);
 }
 
 container.scrollTop = container.scrollHeight;
@@ -437,4 +438,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-}
+                                }
