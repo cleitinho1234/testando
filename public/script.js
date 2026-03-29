@@ -36,7 +36,7 @@ if (!currentUser) {
   localStorage.setItem("userId", currentUser.id);
 }
 
-// 🔥 nome sempre salvo
+// nome salvo
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
@@ -53,13 +53,9 @@ if(currentUser.photo){
   document.getElementById("profilePreview").src = currentUser.photo;
 }
 
-// contatos instantâneo
 renderContacts();
-
-// atualizar em background
 atualizarContatos().then(renderContacts);
 
-// tempo real
 setInterval(loadMessages, 1500);
 
 });
@@ -243,7 +239,7 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// 🎤 GRAVAR ÁUDIO
+// 🎤 GRAVAÇÃO (FIX BUG)
 
 const recordBtn = document.getElementById("recordBtn");
 
@@ -257,22 +253,29 @@ mediaRecorder = new MediaRecorder(stream);
 audioChunks = [];
 
 mediaRecorder.ondataavailable = e => {
-  audioChunks.push(e.data);
+  if(e.data.size > 0){
+    audioChunks.push(e.data);
+  }
 };
 
 mediaRecorder.onstop = () => {
 
+if(audioChunks.length === 0) return;
+
 const blob = new Blob(audioChunks, { type: "audio/webm" });
+
+if(blob.size === 0) return;
+
 const reader = new FileReader();
 
 reader.onloadend = () => {
 
-  const base64Audio = reader.result;
+  if(!reader.result) return;
 
   const msg = {
     fromId: currentUser.id,
     toId: currentChat.id,
-    audio: base64Audio,
+    audio: reader.result,
     timestamp: Date.now()
   };
 
@@ -297,11 +300,17 @@ recordBtn.textContent = "⏺️";
 };
 
 recordBtn.onmouseup = () => {
-if(mediaRecorder && isRecording){
+
+if(!mediaRecorder || !isRecording) return;
+
+// evita bug de clique rápido
+setTimeout(() => {
   mediaRecorder.stop();
-  isRecording = false;
-  recordBtn.textContent = "🎤";
-}
+}, 200);
+
+isRecording = false;
+recordBtn.textContent = "🎤";
+
 };
 
 // =========================
@@ -371,7 +380,7 @@ container.scrollTop = container.scrollHeight;
 }
 
 // =========================
-// MENSAGEM (🔥 CORRIGIDO ÁUDIO)
+// MENSAGEM (COM ÁUDIO)
 
 function addMessage(m){
 
