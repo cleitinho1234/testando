@@ -14,9 +14,11 @@ window.addEventListener("load", async () => {
 
 let savedId = localStorage.getItem("userId");
 
+// 🔥 BUSCA LOCAL PRIMEIRO
+let savedPhoto = localStorage.getItem("myPhoto");
+
 if (savedId) {
-  // 🔥 força atualização (sem cache)
-  const res = await fetch(`/getUser/${savedId}?t=` + Date.now());
+  const res = await fetch(`/getUser/${savedId}`);
   const user = await res.json();
 
   if (!user.error && user.username) {
@@ -40,10 +42,15 @@ if(savedName){
   currentUser.username = savedName;
 }
 
+// 🔥 AQUI ESTÁ A CORREÇÃO PRINCIPAL
+if(savedPhoto){
+  currentUser.photo = savedPhoto;
+}
+
 document.getElementById("username").value = currentUser.username || "";
 document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-// 🔥 foto sempre atualiza
+// mostra foto
 if(currentUser.photo){
   document.getElementById("profilePreview").src = currentUser.photo;
 }
@@ -57,7 +64,7 @@ if(!id) return alert("Digite um ID");
 if(id == currentUser.id) return alert("Você não pode adicionar você mesmo");
 if(contacts.some(c => c.id == id)) return alert("Contato já existe");
 
-const res = await fetch(`/getUser/${id}?t=` + Date.now());
+const res = await fetch(`/getUser/${id}`);
 const user = await res.json();
 
 if(user.error || !user.username){
@@ -113,9 +120,8 @@ async function salvarPerfil(username, photo){
 currentUser.username = username;
 currentUser.photo = photo;
 
+// 🔥 SALVA LOCAL (ESSENCIAL)
 localStorage.setItem("username", username);
-
-// 🔥 salva também no localStorage (importante!)
 localStorage.setItem("myPhoto", photo);
 
 contacts = contacts.map(c => {
@@ -129,7 +135,8 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 
 renderContacts();
 
-await fetch("/saveProfile", {
+// envia pro servidor
+fetch("/saveProfile", {
   method: "POST",
   headers: {"Content-Type":"application/json"},
   body: JSON.stringify({
@@ -147,7 +154,7 @@ await fetch("/saveProfile", {
 async function atualizarContatos(){
 
 for (let i = 0; i < contacts.length; i++){
-  const res = await fetch(`/getUser/${contacts[i].id}?t=` + Date.now());
+  const res = await fetch(`/getUser/${contacts[i].id}`);
   const user = await res.json();
 
   if(!user.error && user.username){
@@ -315,7 +322,7 @@ lastTimestamp = m.timestamp;
 if(m.toId == currentUser.id){
 
   if(!contacts.some(c => c.id == m.fromId)){
-    const resUser = await fetch(`/getUser/${m.fromId}?t=` + Date.now());
+    const resUser = await fetch(`/getUser/${m.fromId}`);
     const newUser = await resUser.json();
     if(!newUser.error) contacts.unshift(newUser);
   }
@@ -394,4 +401,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-                        }
+}
