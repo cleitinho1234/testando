@@ -8,25 +8,9 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let contatoParaExcluir = null;
 
 // =========================
-// 🔔 NOTIFICAÇÃO (ADICIONADO)
-
-function notificar(titulo, mensagem) {
-  if (Notification.permission === "granted") {
-    new Notification(titulo, {
-      body: mensagem
-    });
-  }
-}
-
-// =========================
 // INICIAR
 
 window.addEventListener("load", async () => {
-
-// 🔐 pedir permissão (ADICIONADO)
-if (Notification.permission !== "granted") {
-  Notification.requestPermission();
-}
 
 let savedId = localStorage.getItem("userId");
 
@@ -192,6 +176,7 @@ document.querySelectorAll(".contact").forEach(el => {
 
 let pressTimer;
 
+// SEGURAR MAIS TEMPO
 el.addEventListener("mousedown", () => {
   pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
 });
@@ -202,6 +187,7 @@ el.addEventListener("touchstart", () => {
 });
 el.addEventListener("touchend", () => clearTimeout(pressTimer));
 
+// clique normal
 el.onclick = () => {
   const user = contacts.find(c => c.id == el.dataset.id);
   abrirChat(user);
@@ -210,6 +196,37 @@ el.onclick = () => {
 });
 
 }
+
+// =========================
+// MODAL EXCLUIR
+
+function deletarContato(id){
+  contatoParaExcluir = id;
+  document.getElementById("confirmModal").style.display = "flex";
+}
+
+document.getElementById("confirmYes").onclick = () => {
+
+if(!contatoParaExcluir) return;
+
+contacts = contacts.filter(c => c.id != contatoParaExcluir);
+
+delete unreadCounts[contatoParaExcluir];
+
+localStorage.setItem("contacts", JSON.stringify(contacts));
+localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+
+contatoParaExcluir = null;
+
+document.getElementById("confirmModal").style.display = "none";
+
+renderContacts();
+};
+
+document.getElementById("confirmNo").onclick = () => {
+contatoParaExcluir = null;
+document.getElementById("confirmModal").style.display = "none";
+};
 
 // =========================
 // CHAT
@@ -234,6 +251,47 @@ loadMessages();
 
 }
 
+function voltar(){
+document.getElementById("chatScreen").style.display = "none";
+document.getElementById("home").style.display = "block";
+currentChat = null;
+}
+
+// =========================
+// ENVIAR
+
+document.getElementById("sendMessageBtn").onclick = () => {
+
+const input = document.getElementById("messageText");
+const text = input.value.trim();
+
+if(!text || !currentChat) return;
+
+input.value = "";
+
+const timestamp = Date.now();
+
+const msg = {
+  fromId: currentUser.id,
+  toId: currentChat.id,
+  text,
+  timestamp
+};
+
+// mostra instantâneo
+addMessage(msg);
+
+lastTimestamp = timestamp;
+localStorage.setItem("lastTimestamp", lastTimestamp);
+
+fetch("/sendMessage", {
+method: "POST",
+headers: {"Content-Type":"application/json"},
+body: JSON.stringify(msg)
+});
+
+};
+
 // =========================
 // LOAD
 
@@ -249,11 +307,6 @@ if(m.timestamp <= lastTimestamp) continue;
 lastTimestamp = m.timestamp;
 
 if(m.toId == currentUser.id){
-
-  // 🔔 NOTIFICAÇÃO (ADICIONADO)
-  if(currentChat?.id !== m.fromId){
-    notificar("Nova mensagem", m.text);
-  }
 
   if(!contacts.some(c => c.id == m.fromId)){
     const resUser = await fetch(`/getUser/${m.fromId}`);
@@ -335,4 +388,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-      }
+  }
