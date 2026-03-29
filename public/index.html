@@ -82,6 +82,18 @@ body {
 
 #chatInput button {
   padding: 10px;
+  margin-left: 5px;
+}
+
+/* 🎤 BOTÃO ÁUDIO */
+#recordBtn {
+  background: #075e54;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
 }
 
 /* CONTATOS */
@@ -174,7 +186,7 @@ body {
   <button onclick="voltar()">⬅</button>
   <img id="chatAvatar">
 
-  <!-- 🔥 AQUI FICA NOME + DIGITANDO -->
+  <!-- NOME + STATUS -->
   <div id="chatInfo">
     <span id="chatName"></span>
     <div id="typingStatus"></div>
@@ -184,9 +196,11 @@ body {
 
 <div id="messages"></div>
 
+<!-- 🔥 INPUT COM ÁUDIO -->
 <div id="chatInput">
   <input type="text" id="messageText" placeholder="Mensagem">
   <button id="sendMessageBtn">Enviar</button>
+  <button id="recordBtn">🎤</button>
 </div>
 
 </div>
