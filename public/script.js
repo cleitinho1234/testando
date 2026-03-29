@@ -5,6 +5,8 @@ let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
+let contatoParaExcluir = null;
+
 // =========================
 // INICIAR
 
@@ -31,6 +33,7 @@ if (!currentUser) {
   localStorage.setItem("userId", currentUser.id);
 }
 
+// nome fixo
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
@@ -43,7 +46,7 @@ if(currentUser.photo){
   document.getElementById("profilePreview").src = currentUser.photo;
 }
 
-// ADICIONAR CONTATO
+// ADD CONTATO
 document.getElementById("addFriendBtn").onclick = async () => {
 
 const id = document.getElementById("addUserId").value.trim();
@@ -173,18 +176,18 @@ document.querySelectorAll(".contact").forEach(el => {
 
 let pressTimer;
 
-// 🔥 SEGURAR MAIS TEMPO
+// SEGURAR MAIS TEMPO
 el.addEventListener("mousedown", () => {
-  pressTimer = setTimeout(() => mostrarConfirmacao(el.dataset.id), 1200);
+  pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
 });
 el.addEventListener("mouseup", () => clearTimeout(pressTimer));
 
 el.addEventListener("touchstart", () => {
-  pressTimer = setTimeout(() => mostrarConfirmacao(el.dataset.id), 1200);
+  pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
 });
 el.addEventListener("touchend", () => clearTimeout(pressTimer));
 
-// clicar normal abre chat
+// clique normal
 el.onclick = () => {
   const user = contacts.find(c => c.id == el.dataset.id);
   abrirChat(user);
@@ -195,52 +198,35 @@ el.onclick = () => {
 }
 
 // =========================
-// MODAL BONITO RGB
-
-function mostrarConfirmacao(id){
-
-const modal = document.createElement("div");
-modal.id = "confirmModal";
-
-modal.innerHTML = `
-<div class="modal-box">
-  <h3>Excluir contato?</h3>
-  <p>Essa ação não pode ser desfeita</p>
-  
-  <div class="modal-actions">
-    <button id="cancelBtn">Cancelar</button>
-    <button id="deleteBtn">Excluir</button>
-  </div>
-</div>
-`;
-
-document.body.appendChild(modal);
-
-document.getElementById("cancelBtn").onclick = () => {
-  modal.remove();
-};
-
-document.getElementById("deleteBtn").onclick = () => {
-  deletarContato(id);
-  modal.remove();
-};
-
-}
-
-// =========================
-// DELETAR CONTATO
+// MODAL EXCLUIR
 
 function deletarContato(id){
+  contatoParaExcluir = id;
+  document.getElementById("confirmModal").style.display = "flex";
+}
 
-contacts = contacts.filter(c => c.id != id);
-delete unreadCounts[id];
+document.getElementById("confirmYes").onclick = () => {
+
+if(!contatoParaExcluir) return;
+
+contacts = contacts.filter(c => c.id != contatoParaExcluir);
+
+delete unreadCounts[contatoParaExcluir];
 
 localStorage.setItem("contacts", JSON.stringify(contacts));
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
-renderContacts();
+contatoParaExcluir = null;
 
-}
+document.getElementById("confirmModal").style.display = "none";
+
+renderContacts();
+};
+
+document.getElementById("confirmNo").onclick = () => {
+contatoParaExcluir = null;
+document.getElementById("confirmModal").style.display = "none";
+};
 
 // =========================
 // CHAT
@@ -292,21 +278,22 @@ const msg = {
   timestamp
 };
 
+// mostra instantâneo
 addMessage(msg);
 
 lastTimestamp = timestamp;
 localStorage.setItem("lastTimestamp", lastTimestamp);
 
 fetch("/sendMessage", {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify(msg)
+method: "POST",
+headers: {"Content-Type":"application/json"},
+body: JSON.stringify(msg)
 });
 
 };
 
 // =========================
-// LOAD MESSAGES
+// LOAD
 
 async function loadMessages(){
 
@@ -401,4 +388,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-  }
+                      }
