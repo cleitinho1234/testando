@@ -85,29 +85,6 @@ body {
   margin-left: 5px;
 }
 
-/* 🎤 BOTÃO */
-#recordBtn {
-  background: #075e54;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  font-size: 18px;
-}
-
-/* 🎧 PREVIEW ÁUDIO */
-#audioPreview {
-  display: none;
-  align-items: center;
-  gap: 5px;
-  margin-left: 10px;
-}
-
-#audioPreview button {
-  padding: 5px 10px;
-}
-
 /* CONTATOS */
 .contact {
   background: white;
@@ -201,23 +178,10 @@ body {
 
 <div id="messages"></div>
 
-<!-- 🔥 INPUT COM ÁUDIO COMPLETO -->
+<!-- 🔥 INPUT LIMPO -->
 <div id="chatInput">
-
   <input type="text" id="messageText" placeholder="Mensagem">
-
   <button id="sendMessageBtn">Enviar</button>
-
-  <!-- 🎤 -->
-  <button id="recordBtn">🎤</button>
-
-  <!-- 🎧 PREVIEW -->
-  <div id="audioPreview">
-    <span id="audioTime">0:00</span>
-    <button id="sendAudioBtn">Enviar</button>
-    <button id="cancelAudioBtn">❌</button>
-  </div>
-
 </div>
 
 </div>
