@@ -37,7 +37,7 @@ if (!currentUser) {
   localStorage.setItem("userId", currentUser.id);
 }
 
-// nome fixo
+// nome local
 const savedName = localStorage.getItem("username");
 if(savedName) currentUser.username = savedName;
 
@@ -171,7 +171,6 @@ localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 
 renderContacts();
 
-// limpa chat só ao abrir
 document.getElementById("messages").innerHTML = "";
 
 document.getElementById("home").style.display = "none";
@@ -220,11 +219,11 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// 🎤 GRAVAR
+// 🎤 ÁUDIO (FIX MOBILE)
 
 const recordBtn = document.getElementById("recordBtn");
 
-recordBtn.onmousedown = async () => {
+async function startRecording(){
 
 if(isRecording) return;
 
@@ -241,9 +240,9 @@ mediaRecorder.start();
 isRecording = true;
 recordBtn.textContent = "⏺️";
 
-};
+}
 
-recordBtn.onmouseup = () => {
+function stopRecording(){
 
 if(!mediaRecorder || !isRecording) return;
 
@@ -253,11 +252,11 @@ setTimeout(() => {
 
 mediaRecorder.stop();
 
-if(audioChunks.length === 0) return;
+if(audioChunks.length === 0) return resetBtn();
 
 const blob = new Blob(audioChunks, { type: "audio/webm" });
 
-if(blob.size < 1000) return;
+if(blob.size < 1000) return resetBtn();
 
 const reader = new FileReader();
 
@@ -265,25 +264,40 @@ reader.onloadend = () => {
 
   recordedAudio = reader.result;
 
-  const preview = document.getElementById("audioPreview");
-  const player = document.getElementById("previewPlayer");
-
-  preview.style.display = "flex";
-  player.src = recordedAudio;
+  document.getElementById("audioPreview").style.display = "flex";
+  document.getElementById("previewPlayer").src = recordedAudio;
 
 };
 
 reader.readAsDataURL(blob);
 
+resetBtn();
+
+}, 200);
+
+}
+
+function resetBtn(){
 isRecording = false;
 recordBtn.textContent = "🎤";
+}
 
-}, 250);
+// eventos
+recordBtn.addEventListener("mousedown", startRecording);
+recordBtn.addEventListener("mouseup", stopRecording);
 
-};
+recordBtn.addEventListener("touchstart", e => {
+e.preventDefault();
+startRecording();
+});
+
+recordBtn.addEventListener("touchend", e => {
+e.preventDefault();
+stopRecording();
+});
 
 // =========================
-// 📤 ENVIAR ÁUDIO
+// ENVIAR ÁUDIO
 
 document.getElementById("sendAudioBtn").onclick = () => {
 
@@ -311,12 +325,11 @@ document.getElementById("audioPreview").style.display = "none";
 };
 
 // =========================
-// 🗑️ APAGAR ÁUDIO
+// APAGAR ÁUDIO
 
 document.getElementById("deleteAudioBtn").onclick = () => {
 
 recordedAudio = null;
-
 document.getElementById("previewPlayer").src = "";
 document.getElementById("audioPreview").style.display = "none";
 
@@ -402,7 +415,6 @@ div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
 const bubble = document.createElement("div");
 bubble.className = "bubble";
 
-// 🎤 ÁUDIO
 if(m.audio){
   const audio = document.createElement("audio");
   audio.controls = true;
@@ -410,14 +422,12 @@ if(m.audio){
   bubble.appendChild(audio);
 }
 
-// TEXTO
 if(m.text){
   const text = document.createElement("div");
   text.textContent = m.text;
   bubble.appendChild(text);
 }
 
-// HORÁRIO
 const time = document.createElement("div");
 time.style.fontSize = "10px";
 time.style.opacity = "0.6";
@@ -433,4 +443,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-}
+  }
