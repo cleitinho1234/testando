@@ -48,7 +48,6 @@ body {
   margin-right: 10px;
 }
 
-/* BLOCO NOME + STATUS */
 #chatInfo {
   display: flex;
   flex-direction: column;
@@ -72,7 +71,6 @@ body {
   display: flex;
   padding: 10px;
   background: #ddd;
-  align-items: center;
 }
 
 #chatInput input {
@@ -92,6 +90,16 @@ body {
   margin-top: 5px;
   border-radius: 8px;
   cursor: pointer;
+
+  /* 🚫 BLOQUEAR COPIAR */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.contact * {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* MENSAGEM */
@@ -133,126 +141,9 @@ body {
   margin-bottom: 10px;
 }
 
-/* 🔥 MODAL RGB */
+/* ========================= */
+/* 🌈 MODAL RGB */
+
 #confirmModal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
   display: none;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.5);
-  z-index: 999;
-}
-
-#confirmBox {
-  background: white;
-  padding: 20px;
-  border-radius: 15px;
-  text-align: center;
-  width: 250px;
-
-  border: 3px solid;
-  border-image: linear-gradient(45deg, red, orange, yellow, green, cyan, blue, violet) 1;
-  animation: rgbBorder 3s linear infinite;
-}
-
-@keyframes rgbBorder {
-  0% { border-image-source: linear-gradient(45deg, red, orange); }
-  25% { border-image-source: linear-gradient(45deg, yellow, green); }
-  50% { border-image-source: linear-gradient(45deg, cyan, blue); }
-  75% { border-image-source: linear-gradient(45deg, violet, red); }
-  100% { border-image-source: linear-gradient(45deg, red, orange); }
-}
-
-#confirmBox p {
-  margin-bottom: 15px;
-  font-weight: bold;
-}
-
-#confirmBox button {
-  padding: 8px 15px;
-  margin: 5px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-#confirmYes {
-  background: red;
-  color: white;
-}
-
-#confirmNo {
-  background: gray;
-  color: white;
-}
-</style>
-</head>
-
-<body>
-
-<div id="home">
-
-<h2>Seu Perfil</h2>
-
-<img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
-
-<form id="profileForm">
-  <input type="text" id="username" placeholder="Seu nome">
-  <input type="file" id="profilePic">
-  <button>Salvar</button>
-</form>
-
-<p>ID: <span id="userIdDisplay"></span></p>
-
-<hr>
-
-<h2>Contatos</h2>
-
-<input type="text" id="addUserId" placeholder="ID do amigo">
-<button id="addFriendBtn">Adicionar</button>
-
-<div id="contacts"></div>
-
-</div>
-
-<!-- CHAT -->
-<div id="chatScreen">
-
-<div id="chatHeader">
-  <button onclick="voltar()">⬅</button>
-  <img id="chatAvatar">
-
-  <div id="chatInfo">
-    <span id="chatName"></span>
-    <div id="typingStatus"></div>
-  </div>
-
-</div>
-
-<div id="messages"></div>
-
-<!-- INPUT -->
-<div id="chatInput">
-  <input type="text" id="messageText" placeholder="Mensagem">
-  <button id="sendMessageBtn">Enviar</button>
-</div>
-
-</div>
-
-<!-- 🔥 MODAL CONFIRMAÇÃO -->
-<div id="confirmModal">
-  <div id="confirmBox">
-    <p>Excluir contato?</p>
-    <button id="confirmYes">Excluir</button>
-    <button id="confirmNo">Cancelar</button>
-  </div>
-</div>
-
-<script src="script.js"></script>
-
-</body>
-</html>
+  position: fixed;
