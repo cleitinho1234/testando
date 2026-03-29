@@ -18,7 +18,7 @@ if (savedId) {
   const res = await fetch(`/getUser/${savedId}`);
   const user = await res.json();
 
-  if (!user.error) {
+  if (!user.error && user.username) {
     currentUser = user;
   }
 }
@@ -33,7 +33,7 @@ if (!currentUser) {
   localStorage.setItem("userId", currentUser.id);
 }
 
-// nome salvo
+// nome fixo
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
@@ -42,9 +42,10 @@ if(savedName){
 document.getElementById("username").value = currentUser.username || "";
 document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-// 🔥 SEMPRE FOTO DO SERVIDOR
-document.getElementById("profilePreview").src =
-currentUser.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+// 🔥 CORREÇÃO CACHE FOTO
+if(currentUser.photo){
+  document.getElementById("profilePreview").src = currentUser.photo + "?t=" + Date.now();
+}
 
 // ADD CONTATO
 document.getElementById("addFriendBtn").onclick = async () => {
@@ -58,7 +59,7 @@ if(contacts.some(c => c.id == id)) return alert("Contato já existe");
 const res = await fetch(`/getUser/${id}`);
 const user = await res.json();
 
-if(user.error){
+if(user.error || !user.username){
   return alert("Usuário não encontrado");
 }
 
@@ -78,65 +79,40 @@ setInterval(loadMessages, 1500);
 });
 
 // =========================
-// PERFIL (🔥 CORRIGIDO 100%)
+// PERFIL
 
-document.getElementById("profileForm")?.addEventListener("submit", (e) => {
+document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
 
 e.preventDefault();
 
 const username = document.getElementById("username").value;
 const file = document.getElementById("profilePic").files[0];
 
-// COM FOTO NOVA
+let photo = currentUser.photo;
+
 if(file){
-
   const reader = new FileReader();
-
-  reader.onload = function () {
-    const photo = reader.result;
-    salvarPerfil(username, photo);
+  reader.onload = async () => {
+    photo = reader.result;
+    await salvarPerfil(username, photo);
   };
-
   reader.readAsDataURL(file);
-
 } else {
-
-  salvarPerfil(username, currentUser.photo);
-
+  await salvarPerfil(username, photo);
 }
 
 });
 
 async function salvarPerfil(username, photo){
 
-// 🔥 salva no servidor
-await fetch("/saveProfile", {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({
-    id: currentUser.id,
-    username,
-    photo
-  })
-});
+currentUser.username = username;
+currentUser.photo = photo;
 
-// 🔥 busca atualizado
-const res = await fetch(`/getUser/${currentUser.id}`);
-const updatedUser = await res.json();
+localStorage.setItem("username", username);
 
-currentUser = updatedUser;
-
-// salva nome
-localStorage.setItem("username", currentUser.username);
-
-// atualiza preview
-document.getElementById("profilePreview").src =
-currentUser.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
-
-// atualiza contatos
 contacts = contacts.map(c => {
   if(c.id === currentUser.id){
-    return currentUser;
+    return {...c, username, photo};
   }
   return c;
 });
@@ -145,7 +121,15 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 
 renderContacts();
 
-alert("Perfil atualizado!");
+fetch("/saveProfile", {
+  method: "POST",
+  headers: {"Content-Type":"application/json"},
+  body: JSON.stringify({
+    id: currentUser.id,
+    username,
+    photo
+  })
+});
 
 }
 
@@ -158,7 +142,7 @@ for (let i = 0; i < contacts.length; i++){
   const res = await fetch(`/getUser/${contacts[i].id}`);
   const user = await res.json();
 
-  if(!user.error){
+  if(!user.error && user.username){
     contacts[i] = user;
   }
 }
@@ -179,7 +163,7 @@ const count = unreadCounts[user.id] || 0;
 
 html += `
 <div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
-<img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
+<img src="${(user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png')}?t=${Date.now()}"
 style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
 <span style="flex:1;">${user.username}</span>
 ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
@@ -193,6 +177,7 @@ document.querySelectorAll(".contact").forEach(el => {
 
 let pressTimer;
 
+// SEGURAR MAIS TEMPO
 el.addEventListener("mousedown", () => {
   pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
 });
@@ -203,6 +188,7 @@ el.addEventListener("touchstart", () => {
 });
 el.addEventListener("touchend", () => clearTimeout(pressTimer));
 
+// clique normal
 el.onclick = () => {
   const user = contacts.find(c => c.id == el.dataset.id);
   abrirChat(user);
@@ -213,7 +199,7 @@ el.onclick = () => {
 }
 
 // =========================
-// RESTO (CHAT, MENSAGEM, LOAD)
+// MODAL EXCLUIR
 
 function deletarContato(id){
   contatoParaExcluir = id;
@@ -243,6 +229,9 @@ contatoParaExcluir = null;
 document.getElementById("confirmModal").style.display = "none";
 };
 
+// =========================
+// CHAT
+
 function abrirChat(user){
 
 currentChat = user;
@@ -269,6 +258,7 @@ document.getElementById("home").style.display = "block";
 currentChat = null;
 }
 
+// =========================
 // ENVIAR
 
 document.getElementById("sendMessageBtn").onclick = () => {
@@ -289,6 +279,7 @@ const msg = {
   timestamp
 };
 
+// mostra instantâneo
 addMessage(msg);
 
 lastTimestamp = timestamp;
@@ -302,6 +293,7 @@ body: JSON.stringify(msg)
 
 };
 
+// =========================
 // LOAD
 
 async function loadMessages(){
@@ -363,6 +355,7 @@ container.scrollTop = container.scrollHeight;
 
 }
 
+// =========================
 // MENSAGEM
 
 function addMessage(m){
@@ -396,4 +389,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-                     }
+  }
