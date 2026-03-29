@@ -8,7 +8,7 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let contatoParaExcluir = null;
 
 // =========================
-// 🔔 NOTIFICAÇÃO
+// 🔔 NOTIFICAÇÃO (ADICIONADO)
 
 function notificar(titulo, mensagem) {
   if (Notification.permission === "granted") {
@@ -23,7 +23,7 @@ function notificar(titulo, mensagem) {
 
 window.addEventListener("load", async () => {
 
-// 🔐 pedir permissão
+// 🔐 pedir permissão (ADICIONADO)
 if (Notification.permission !== "granted") {
   Notification.requestPermission();
 }
@@ -250,7 +250,7 @@ lastTimestamp = m.timestamp;
 
 if(m.toId == currentUser.id){
 
-  // 🔔 NOTIFICAÇÃO
+  // 🔔 NOTIFICAÇÃO (ADICIONADO)
   if(currentChat?.id !== m.fromId){
     notificar("Nova mensagem", m.text);
   }
