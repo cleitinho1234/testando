@@ -5,6 +5,11 @@ let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
+// 🎤 ÁUDIO
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+
 // =========================
 // INICIAR
 
@@ -16,7 +21,6 @@ if (savedId) {
 const res = await fetch(`/getUser/${savedId}`);
 const user = await res.json();
 
-// 🔥 só usa servidor se vier válido
 if (!user.error && user.username) {
   currentUser = user;
 }
@@ -32,14 +36,13 @@ currentUser = await res.json();
 localStorage.setItem("userId", currentUser.id);
 }
 
-// 🔥 PRIORIDADE LOCAL (NUNCA MAIS SOME)
+// 🔥 PRIORIDADE LOCAL
 const savedName = localStorage.getItem("username");
-
 if(savedName){
   currentUser.username = savedName;
 }
 
-// 🔥 INPUT
+// input
 const input = document.getElementById("username");
 if(input){
   input.value = currentUser.username || "";
@@ -47,7 +50,7 @@ if(input){
 
 document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-// FOTO
+// foto
 if(currentUser.photo){
   document.getElementById("profilePreview").src = currentUser.photo;
 }
@@ -55,16 +58,92 @@ if(currentUser.photo){
 // contatos instantâneo
 renderContacts();
 
-// atualizar em background
+// atualizar depois
 atualizarContatos().then(renderContacts);
 
 // tempo real
 setInterval(loadMessages, 1500);
 
+// 🎤 botão áudio
+setupAudio();
+
 });
 
 // =========================
-// SALVAR PERFIL (FIX REAL)
+// ÁUDIO
+
+function setupAudio(){
+
+const recordBtn = document.getElementById("recordBtn");
+
+recordBtn.onclick = async () => {
+
+if(!currentChat) return;
+
+if(!isRecording){
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.start();
+
+  isRecording = true;
+  recordBtn.textContent = "⏹";
+
+  audioChunks = [];
+
+  mediaRecorder.ondataavailable = e => {
+    audioChunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = () => {
+
+    const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+
+      const base64Audio = reader.result;
+
+      // mostra na hora
+      addMessage({
+        fromId: currentUser.id,
+        audio: base64Audio,
+        timestamp: Date.now()
+      });
+
+      // envia
+      fetch("/sendMessage", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          fromId: currentUser.id,
+          toId: currentChat.id,
+          audio: base64Audio,
+          timestamp: Date.now()
+        })
+      });
+
+    };
+
+    reader.readAsDataURL(audioBlob);
+  };
+
+} else {
+
+  mediaRecorder.stop();
+  isRecording = false;
+  recordBtn.textContent = "🎤";
+
+}
+
+};
+
+}
+
+// =========================
+// SALVAR PERFIL
 
 document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
 
@@ -93,21 +172,14 @@ await salvarPerfil(username, photo);
 
 async function salvarPerfil(username, photo){
 
-// 🔥 ATUALIZA NA HORA (FRONT MANDA)
 currentUser.username = username;
 currentUser.photo = photo;
 
-// salva local (PRINCIPAL)
 localStorage.setItem("username", username);
 
-// 🔥 atualiza contatos local
 contacts = contacts.map(c => {
   if(c.id === currentUser.id){
-    return {
-      ...c,
-      username,
-      photo
-    };
+    return {...c, username, photo};
   }
   return c;
 });
@@ -116,7 +188,6 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 
 renderContacts();
 
-// 🔥 envia pro servidor (sem confiar nele)
 fetch("/saveProfile", {
   method: "POST",
   headers: {"Content-Type":"application/json"},
@@ -130,11 +201,9 @@ fetch("/saveProfile", {
 }
 
 // =========================
-// ATUALIZAR CONTATOS
+// CONTATOS
 
 async function atualizarContatos(){
-
-let mudou = false;
 
 for (let i = 0; i < contacts.length; i++){
 
@@ -142,26 +211,16 @@ for (let i = 0; i < contacts.length; i++){
   const user = await res.json();
 
   if(!user.error && user.username){
-
-    if(contacts[i].username !== user.username || contacts[i].photo !== user.photo){
-      contacts[i] = user;
-      mudou = true;
-    }
-
+    contacts[i] = user;
   }
 
 }
 
-if(mudou){
-  localStorage.setItem("contacts", JSON.stringify(contacts));
-}
+localStorage.setItem("contacts", JSON.stringify(contacts));
 
 }
 
-// =========================
-// CONTATOS
-
-async function renderContacts(){
+function renderContacts(){
 
 const div = document.getElementById("contacts");
 
@@ -193,7 +252,7 @@ abrirChat(user);
 }
 
 // =========================
-// ABRIR CHAT
+// CHAT
 
 function abrirChat(user){
 
@@ -213,9 +272,6 @@ loadMessages(true);
 
 }
 
-// =========================
-// VOLTAR
-
 function voltar(){
 document.getElementById("chatScreen").style.display = "none";
 document.getElementById("home").style.display = "block";
@@ -223,7 +279,7 @@ currentChat = null;
 }
 
 // =========================
-// ENVIAR
+// ENVIAR TEXTO
 
 document.getElementById("sendMessageBtn").onclick = () => {
 
@@ -321,7 +377,7 @@ container.scrollTop = container.scrollHeight;
 }
 
 // =========================
-// MENSAGEM
+// MENSAGEM (TEXTO + ÁUDIO)
 
 function addMessage(m){
 
@@ -333,9 +389,22 @@ div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
 const bubble = document.createElement("div");
 bubble.className = "bubble";
 
+// TEXTO
+if(m.text){
 const text = document.createElement("div");
 text.textContent = m.text;
+bubble.appendChild(text);
+}
 
+// 🎤 ÁUDIO
+if(m.audio){
+const audio = document.createElement("audio");
+audio.controls = true;
+audio.src = m.audio;
+bubble.appendChild(audio);
+}
+
+// HORÁRIO
 const time = document.createElement("div");
 time.style.fontSize = "10px";
 time.style.opacity = "0.6";
@@ -349,7 +418,6 @@ const min = String(date.getMinutes()).padStart(2,"0");
 time.textContent = `${h}:${min}`;
 }
 
-bubble.appendChild(text);
 bubble.appendChild(time);
 
 div.appendChild(bubble);
