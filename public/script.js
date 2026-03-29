@@ -50,14 +50,8 @@ document.getElementById("addFriendBtn").onclick = async () => {
 const id = document.getElementById("addUserId").value.trim();
 
 if(!id) return alert("Digite um ID");
-
-if(id == currentUser.id){
-  return alert("Você não pode adicionar você mesmo");
-}
-
-if(contacts.some(c => c.id == id)){
-  return alert("Contato já existe");
-}
+if(id == currentUser.id) return alert("Você não pode adicionar você mesmo");
+if(contacts.some(c => c.id == id)) return alert("Contato já existe");
 
 const res = await fetch(`/getUser/${id}`);
 const user = await res.json();
@@ -70,7 +64,6 @@ contacts.unshift(user);
 localStorage.setItem("contacts", JSON.stringify(contacts));
 
 renderContacts();
-
 document.getElementById("addUserId").value = "";
 
 };
@@ -249,36 +242,44 @@ currentChat = null;
 }
 
 // =========================
-// ENVIAR
+// 🚀 ENVIAR (INSTANTÂNEO SEM BUG)
 
 document.getElementById("sendMessageBtn").onclick = () => {
 
 const input = document.getElementById("messageText");
-const text = input.value;
+const text = input.value.trim();
 
 if(!text || !currentChat) return;
 
 input.value = "";
 
+const timestamp = Date.now();
+
 const msg = {
   fromId: currentUser.id,
   toId: currentChat.id,
   text,
-  timestamp: Date.now()
+  timestamp
 };
 
+// 🔥 mostra na hora
 addMessage(msg);
 
+// 🔥 salva timestamp pra não duplicar depois
+lastTimestamp = timestamp;
+localStorage.setItem("lastTimestamp", lastTimestamp);
+
+// 🔥 envia pro servidor
 fetch("/sendMessage", {
-method: "POST",
-headers: {"Content-Type":"application/json"},
-body: JSON.stringify(msg)
+  method: "POST",
+  headers: {"Content-Type":"application/json"},
+  body: JSON.stringify(msg)
 });
 
 };
 
 // =========================
-// LOAD MESSAGES (🔥 FIX FINAL)
+// LOAD MESSAGES
 
 async function loadMessages(){
 
@@ -289,24 +290,17 @@ for (let m of msgs){
 
 if(m.timestamp <= lastTimestamp) continue;
 
-if(m.timestamp > lastTimestamp){
-  lastTimestamp = m.timestamp;
-}
+lastTimestamp = m.timestamp;
 
-// 🔥 RECEBEU MENSAGEM
+// recebeu mensagem
 if(m.toId == currentUser.id){
 
-  // cria contato automático
   if(!contacts.some(c => c.id == m.fromId)){
     const resUser = await fetch(`/getUser/${m.fromId}`);
     const newUser = await resUser.json();
-
-    if(!newUser.error){
-      contacts.unshift(newUser);
-    }
+    if(!newUser.error) contacts.unshift(newUser);
   }
 
-  // sobe pro topo
   const index = contacts.findIndex(c => c.id == m.fromId);
 
   if(index !== -1){
@@ -314,7 +308,6 @@ if(m.toId == currentUser.id){
     contacts.unshift(user);
   }
 
-  // contador
   if(currentChat?.id !== m.fromId){
     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
   }
@@ -382,4 +375,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-}
+                    }
