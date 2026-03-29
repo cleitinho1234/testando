@@ -389,4 +389,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-  }
+}
