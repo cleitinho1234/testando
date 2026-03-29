@@ -13,9 +13,6 @@ let isRecording = false;
 // 💾 CACHE LOCAL
 let localMessages = JSON.parse(localStorage.getItem("localMessages")) || [];
 
-// 🔥 CONTROLE (não duplicar e não recriar áudio)
-let renderedIds = new Set();
-
 // =========================
 // INICIAR
 
@@ -42,6 +39,7 @@ if (!currentUser) {
   localStorage.setItem("userId", currentUser.id);
 }
 
+// nome fixo
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
@@ -178,7 +176,6 @@ localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
 renderContacts();
 
 document.getElementById("messages").innerHTML = "";
-renderedIds.clear(); // 🔥 importante
 
 document.getElementById("home").style.display = "none";
 document.getElementById("chatScreen").style.display = "flex";
@@ -304,7 +301,7 @@ localStorage.setItem("localMessages", JSON.stringify(localMessages));
 }
 
 // =========================
-// LOAD MESSAGES (FINAL)
+// LOAD MESSAGES (SEM BUG)
 
 async function loadMessages(){
 
@@ -313,21 +310,17 @@ const serverMsgs = await res.json();
 
 const msgs = [...serverMsgs, ...localMessages];
 
-msgs.sort((a,b)=>a.timestamp - b.timestamp);
-
 for (let m of msgs){
 
-// ❌ ignora mensagem bugada
 if(!m.text && !m.audio) continue;
 
-const id = m.id || (m.fromId + "_" + m.timestamp);
+if(m.timestamp <= lastTimestamp) continue;
 
-// ❌ não renderiza de novo
-if(renderedIds.has(id)) continue;
+if(m.timestamp > lastTimestamp){
+  lastTimestamp = m.timestamp;
+}
 
-renderedIds.add(id);
-
-// 🔥 contatos topo
+// topo + contador
 if(m.toId == currentUser.id){
 
   const index = contacts.findIndex(c => c.id == m.fromId);
@@ -343,20 +336,31 @@ if(m.toId == currentUser.id){
 
 }
 
-// 🔥 render no chat
-if(currentChat &&
-((m.fromId == currentUser.id && m.toId == currentChat.id) ||
- (m.fromId == currentChat.id && m.toId == currentUser.id))){
-
-  addMessage(m);
 }
 
-}
-
+localStorage.setItem("lastTimestamp", lastTimestamp);
 localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+
 renderContacts();
 
+// CHAT
+
+if(!currentChat) return;
+
+const filtered = msgs.filter(m =>
+(m.fromId == currentUser.id && m.toId == currentChat.id) ||
+(m.fromId == currentChat.id && m.toId == currentUser.id)
+);
+
 const container = document.getElementById("messages");
+
+// 🔥 NÃO LIMPA MAIS (ESSENCIAL)
+const existentes = container.children.length;
+
+for (let i = existentes; i < filtered.length; i++){
+  addMessage(filtered[i]);
+}
+
 container.scrollTop = container.scrollHeight;
 
 }
