@@ -205,6 +205,7 @@ if(!text || !currentChat) return;
 input.value = "";
 
 const msg = {
+  id: Date.now() + Math.random(), // 🔥 FIX
   fromId: currentUser.id,
   toId: currentChat.id,
   text,
@@ -223,7 +224,7 @@ body: JSON.stringify(msg)
 };
 
 // =========================
-// 🎤 ÁUDIO (FUNCIONA NO CELULAR)
+// 🎤 ÁUDIO
 
 const recordBtn = document.getElementById("recordBtn");
 
@@ -231,7 +232,6 @@ recordBtn.onclick = async () => {
 
 if(!currentChat) return;
 
-// 👉 INICIAR GRAVAÇÃO
 if(!isRecording){
 
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -256,6 +256,7 @@ if(!isRecording){
     reader.onloadend = () => {
 
       const msg = {
+        id: Date.now() + Math.random(), // 🔥 FIX
         fromId: currentUser.id,
         toId: currentChat.id,
         audio: reader.result,
@@ -281,10 +282,7 @@ if(!isRecording){
   isRecording = true;
   recordBtn.textContent = "⏺️";
 
-}
-
-// 👉 PARAR E ENVIAR
-else{
+}else{
 
   mediaRecorder.stop();
   isRecording = false;
@@ -303,14 +301,24 @@ localStorage.setItem("localMessages", JSON.stringify(localMessages));
 }
 
 // =========================
-// LOAD MESSAGES
+// LOAD MESSAGES (🔥 FIX PRINCIPAL)
 
 async function loadMessages(){
 
 const res = await fetch(`/getMessages/${currentUser.id}`);
 const serverMsgs = await res.json();
 
-const msgs = [...serverMsgs, ...localMessages];
+// 🔥 REMOVE DUPLICADOS
+const allMsgs = [...serverMsgs, ...localMessages];
+const msgs = [];
+const ids = new Set();
+
+for (let m of allMsgs) {
+  if (!ids.has(m.id)) {
+    ids.add(m.id);
+    msgs.push(m);
+  }
+}
 
 for (let m of msgs){
 
@@ -351,10 +359,11 @@ const filtered = msgs.filter(m =>
 
 const container = document.getElementById("messages");
 
-const existentes = container.children.length;
+// 🔥 RECRIA CHAT (SEM BUG)
+container.innerHTML = "";
 
-for (let i = existentes; i < filtered.length; i++){
-  addMessage(filtered[i]);
+for (let m of filtered){
+  addMessage(m);
 }
 
 container.scrollTop = container.scrollHeight;
@@ -384,7 +393,7 @@ div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
 const bubble = document.createElement("div");
 bubble.className = "bubble";
 
-// 🎧 ÁUDIO
+// ÁUDIO
 if(m.audio){
   const audio = document.createElement("audio");
   audio.controls = true;
@@ -428,4 +437,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-}
+  }
