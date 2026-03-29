@@ -48,13 +48,12 @@ body {
   margin-right: 10px;
 }
 
-/* 🔥 BLOCO NOME + STATUS */
+/* BLOCO NOME + STATUS */
 #chatInfo {
   display: flex;
   flex-direction: column;
 }
 
-/* digitando... */
 #typingStatus {
   font-size: 12px;
   color: #dcdcdc;
@@ -73,6 +72,7 @@ body {
   display: flex;
   padding: 10px;
   background: #ddd;
+  align-items: center;
 }
 
 #chatInput input {
@@ -85,7 +85,7 @@ body {
   margin-left: 5px;
 }
 
-/* 🎤 BOTÃO ÁUDIO */
+/* 🎤 BOTÃO */
 #recordBtn {
   background: #075e54;
   color: white;
@@ -94,6 +94,18 @@ body {
   width: 40px;
   height: 40px;
   font-size: 18px;
+}
+
+/* 🎧 PREVIEW ÁUDIO */
+#audioPreview {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+}
+
+#audioPreview button {
+  padding: 5px 10px;
 }
 
 /* CONTATOS */
@@ -118,12 +130,6 @@ body {
 
 .other {
   justify-content: flex-start;
-}
-
-.avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
 }
 
 .bubble {
@@ -186,7 +192,6 @@ body {
   <button onclick="voltar()">⬅</button>
   <img id="chatAvatar">
 
-  <!-- NOME + STATUS -->
   <div id="chatInfo">
     <span id="chatName"></span>
     <div id="typingStatus"></div>
@@ -196,11 +201,23 @@ body {
 
 <div id="messages"></div>
 
-<!-- 🔥 INPUT COM ÁUDIO -->
+<!-- 🔥 INPUT COM ÁUDIO COMPLETO -->
 <div id="chatInput">
+
   <input type="text" id="messageText" placeholder="Mensagem">
+
   <button id="sendMessageBtn">Enviar</button>
+
+  <!-- 🎤 -->
   <button id="recordBtn">🎤</button>
+
+  <!-- 🎧 PREVIEW -->
+  <div id="audioPreview">
+    <span id="audioTime">0:00</span>
+    <button id="sendAudioBtn">Enviar</button>
+    <button id="cancelAudioBtn">❌</button>
+  </div>
+
 </div>
 
 </div>
@@ -208,4 +225,4 @@ body {
 <script src="script.js"></script>
 
 </body>
-</html>
+  </html>
