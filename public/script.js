@@ -42,9 +42,9 @@ if(savedName){
 document.getElementById("username").value = currentUser.username || "";
 document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-// 🔥 CORREÇÃO CACHE FOTO
+// ✅ FOTO NORMAL (SEM ?t)
 if(currentUser.photo){
-  document.getElementById("profilePreview").src = currentUser.photo + "?t=" + Date.now();
+  document.getElementById("profilePreview").src = currentUser.photo;
 }
 
 // ADD CONTATO
@@ -94,6 +94,10 @@ if(file){
   const reader = new FileReader();
   reader.onload = async () => {
     photo = reader.result;
+
+    // 🔥 ATUALIZA NA HORA
+    document.getElementById("profilePreview").src = photo;
+
     await salvarPerfil(username, photo);
   };
   reader.readAsDataURL(file);
@@ -163,7 +167,7 @@ const count = unreadCounts[user.id] || 0;
 
 html += `
 <div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
-<img src="${(user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png')}?t=${Date.now()}"
+<img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
 style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
 <span style="flex:1;">${user.username}</span>
 ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
@@ -177,7 +181,6 @@ document.querySelectorAll(".contact").forEach(el => {
 
 let pressTimer;
 
-// SEGURAR MAIS TEMPO
 el.addEventListener("mousedown", () => {
   pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
 });
@@ -188,7 +191,6 @@ el.addEventListener("touchstart", () => {
 });
 el.addEventListener("touchend", () => clearTimeout(pressTimer));
 
-// clique normal
 el.onclick = () => {
   const user = contacts.find(c => c.id == el.dataset.id);
   abrirChat(user);
@@ -279,7 +281,6 @@ const msg = {
   timestamp
 };
 
-// mostra instantâneo
 addMessage(msg);
 
 lastTimestamp = timestamp;
@@ -389,4 +390,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-  }
+}
