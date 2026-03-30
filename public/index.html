@@ -5,8 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mini-Zap</title>
 <style>
-  body { font-family: Arial; background: #e5ddd5; margin: 0; }
+  body { font-family: Arial; background: #e5ddd5; margin: 0; user-select: none; } /* user-select evita selecionar texto ao segurar */
   #home { padding: 10px; }
+  
+  /* Barra de Seleção (Aparece ao segurar contato) */
+  #headerSelecao { 
+    display: none; position: fixed; top: 0; left: 0; width: 100%; 
+    background: #075e54; color: white; padding: 15px; z-index: 100;
+    box-sizing: border-box; justify-content: space-between; align-items: center;
+  }
+
   #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; }
   #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; }
   #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
@@ -14,7 +22,10 @@
   #chatInput { display: flex; padding: 10px; background: #ddd; }
   #chatInput input { flex: 1; padding: 10px; border: none; border-radius: 20px; outline: none; }
   #chatInput button { margin-left: 5px; padding: 10px; border: none; background: #075e54; color: white; border-radius: 50%; }
+  
   .contact { background: white; padding: 10px; margin-top: 5px; border-radius: 8px; cursor: pointer; }
+  .contact.selected { background: #d1e7dd !important; } /* Cor de quando o contato está selecionado */
+
   .message { display: flex; margin: 5px 0; }
   .me { justify-content: flex-end; }
   .other { justify-content: flex-start; }
@@ -22,9 +33,24 @@
   .me .bubble { background: #dcf8c6; }
   .other .bubble { background: white; }
   #profilePreview { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; }
+
+  /* Modal de Confirmação */
+  #confirmModal { 
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+    background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; 
+  }
+  .modal-box { background: white; padding: 20px; border-radius: 10px; text-align: center; width: 80%; }
 </style>
 </head>
 <body>
+
+<div id="headerSelecao">
+  <div style="display:flex; align-items:center;">
+    <button onclick="cancelarSelecao()" style="background:none; border:none; color:white; font-size:20px; margin-right:20px;">✕</button>
+    <span style="font-weight:bold;">Selecionado</span>
+  </div>
+  <button onclick="abrirModal()" style="background:none; border:none; color:white; font-size:20px;">🗑️</button>
+</div>
 
 <div id="home">
   <h2>Seu Perfil</h2>
@@ -55,6 +81,14 @@
   <div id="chatInput">
     <input type="text" id="messageText" placeholder="Mensagem">
     <button id="sendMessageBtn">➤</button>
+  </div>
+</div>
+
+<div id="confirmModal">
+  <div class="modal-box">
+    <p>Deseja excluir este contato da sua lista?</p>
+    <button onclick="confirmarExclusao()" style="background:red; color:white; border:none; padding:10px; border-radius:5px; margin-right:10px;">Excluir</button>
+    <button onclick="fecharModal()" style="background:#ccc; border:none; padding:10px; border-radius:5px;">Cancelar</button>
   </div>
 </div>
 
