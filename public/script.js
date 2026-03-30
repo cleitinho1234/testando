@@ -94,7 +94,6 @@ function renderContacts() {
             ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:2px 8px;font-size:12px;">${count}</span>` : ""}
         `;
 
-        // Lógica de segurar para excluir
         let pressTimer;
         contactEl.onmousedown = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
         contactEl.onmouseup = () => clearTimeout(pressTimer);
@@ -118,15 +117,13 @@ async function loadMessages() {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
             
-            // 1. Mensagem recebida
             if (m.toId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.fromId);
                 if (index === -1) {
                     const resUser = await fetch(`/getUser/${m.fromId}`);
                     const newUser = await resUser.json();
-                    if (!newUser.error) contacts.unshift(newUser); // Novo contato vai pro topo
+                    if (!newUser.error) contacts.unshift(newUser); 
                 } else {
-                    // Contato existente: remove da posição atual e joga pro topo (index 0)
                     const contatoMovido = contacts.splice(index, 1)[0];
                     contacts.unshift(contatoMovido);
                 }
@@ -134,7 +131,6 @@ async function loadMessages() {
                     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
                 }
             } 
-            // 2. Mensagem enviada por mim (também sobe o contato)
             else if (m.fromId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.toId);
                 if (index !== -1) {
@@ -158,11 +154,24 @@ async function loadMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
+// 🔥 NOVA FUNÇÃO ADDMESSAGE COM HORÁRIO
 function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    div.innerHTML = `<div class="bubble">${m.text}</div>`;
+    
+    // Formata o horário (Ex: 14:30)
+    const date = new Date(m.timestamp);
+    const hora = date.getHours().toString().padStart(2, '0');
+    const min = date.getMinutes().toString().padStart(2, '0');
+    const horarioFormatado = `${hora}:${min}`;
+
+    div.innerHTML = `
+        <div class="bubble">
+            ${m.text}
+            <span class="time">${horarioFormatado}</span>
+        </div>
+    `;
     container.appendChild(div);
 }
 
@@ -196,7 +205,7 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
     });
-    loadMessages(); // Chama o loadMessages imediatamente para subir o contato no topo
+    loadMessages(); 
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
@@ -206,7 +215,7 @@ document.getElementById("addFriendBtn").onclick = async () => {
     const user = await res.json();
     if(user.error) return alert("Não encontrado");
     if(!contacts.some(c => c.id == id)) {
-        contacts.unshift(user); // Adiciona novos amigos no topo
+        contacts.unshift(user); 
         localStorage.setItem("contacts", JSON.stringify(contacts));
         renderContacts();
     }
@@ -233,3 +242,4 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         reader.readAsDataURL(file);
     } else salvar(currentUser.photo);
 };
+        
