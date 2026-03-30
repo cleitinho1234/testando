@@ -47,7 +47,7 @@ if(currentUser.photo){
 }
 
 // =========================
-// 🔥 ONLINE (CORRIGIDO DE VERDADE)
+// 🔥 ONLINE (ADICIONADO CERTO)
 
 function enviarOnline(){
   if(currentUser){
@@ -59,10 +59,10 @@ function enviarOnline(){
   }
 }
 
-// envia na hora
+// envia ao entrar
 enviarOnline();
 
-// continua enviando
+// mantém online
 setInterval(enviarOnline, 3000);
 
 // =========================
@@ -96,12 +96,67 @@ atualizarContatos().then(renderContacts);
 
 setInterval(loadMessages, 1500);
 
-// 🔥 atualizar contatos (online/offline)
+// 🔥 atualiza online/offline sem mexer no resto
 setInterval(() => {
   atualizarContatos().then(renderContacts);
 }, 3000);
 
 });
+
+// =========================
+// PERFIL
+
+document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
+
+e.preventDefault();
+
+const username = document.getElementById("username").value;
+const file = document.getElementById("profilePic").files[0];
+
+let photo = currentUser.photo;
+
+if(file){
+  const reader = new FileReader();
+  reader.onload = async () => {
+    photo = reader.result;
+    await salvarPerfil(username, photo);
+  };
+  reader.readAsDataURL(file);
+} else {
+  await salvarPerfil(username, photo);
+}
+
+});
+
+async function salvarPerfil(username, photo){
+
+currentUser.username = username;
+currentUser.photo = photo;
+
+localStorage.setItem("username", username);
+
+contacts = contacts.map(c => {
+  if(c.id === currentUser.id){
+    return {...c, username, photo};
+  }
+  return c;
+});
+
+localStorage.setItem("contacts", JSON.stringify(contacts));
+
+renderContacts();
+
+fetch("/saveProfile", {
+  method: "POST",
+  headers: {"Content-Type":"application/json"},
+  body: JSON.stringify({
+    id: currentUser.id,
+    username,
+    photo
+  })
+});
+
+}
 
 // =========================
 // CONTATOS
@@ -114,6 +169,7 @@ for (let i = 0; i < contacts.length; i++){
 
   if(!user.error && user.username){
 
+    // 🔥 lógica online/offline
     const agora = Date.now();
 
     if(user.lastSeen && (agora - user.lastSeen < 20000)){
@@ -171,6 +227,7 @@ el.addEventListener("touchstart", () => {
 });
 el.addEventListener("touchend", () => clearTimeout(pressTimer));
 
+// clique normal (MANTIDO)
 el.onclick = () => {
   const user = contacts.find(c => c.id == el.dataset.id);
   abrirChat(user);
@@ -178,4 +235,7 @@ el.onclick = () => {
 
 });
 
-                    }
+}
+
+// =========================
+// RESTO DO CÓDIGO (CHAT, MENSAGEM) NÃO FOI ALTERADO
