@@ -1,95 +1,194 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const path = require("path");
+let currentUser = null;
+let currentChat = null;
 
-const app = express();
+let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
+let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
+let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
-// CONFIGURAÇÃO DE LIMITE PARA FOTOS GRANDES
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.static(path.join(__dirname, "public")));
+window.addEventListener("load", async () => {
+    let savedId = localStorage.getItem("userId");
 
-// ==========================
-// Conexão MongoDB
-mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZap?retryWrites=true&w=majority")
-  .then(() => console.log("Mongo conectado"))
-  .catch(err => console.log("Erro Mongo:", err));
-
-// ==========================
-// Modelos
-const User = mongoose.model("User", {
-    id: String,
-    username: String,
-    photo: String,
-    lastSeen: Number
-});
-
-const Message = mongoose.model("Message", {
-    fromId: String,
-    toId: String,
-    text: String,
-    timestamp: Number
-});
-
-// ==========================
-// Rota de Presença (Online)
-app.post("/updatePresence", async (req, res) => {
-    const { userId } = req.body;
-    await User.findOneAndUpdate({ id: userId }, { lastSeen: Date.now() });
-    res.sendStatus(200);
-});
-
-// Criar novo usuário
-app.post("/user", async (req, res) => {
-    const { username, photo } = req.body;
-    let id;
-    while (true) {
-        id = Math.floor(1000 + Math.random() * 9000).toString();
-        const existe = await User.findOne({ id });
-        if (!existe) break;
+    if (savedId) {
+        const res = await fetch(`/getUser/${savedId}`);
+        const user = await res.json();
+        if (!user.error) currentUser = user;
     }
-    const user = new User({ id, username, photo, lastSeen: Date.now() });
-    await user.save();
-    res.json(user);
+
+    if (!currentUser) {
+        const res = await fetch("/user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: "Novo Usuário", photo: "" })
+        });
+        currentUser = await res.json();
+        localStorage.setItem("userId", currentUser.id);
+    }
+
+    document.getElementById("username").value = currentUser.username || "";
+    document.getElementById("userIdDisplay").textContent = currentUser.id;
+    if (currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
+
+    // ADD CONTATO
+    document.getElementById("addFriendBtn").onclick = async () => {
+        const id = document.getElementById("addUserId").value.trim();
+        if (!id || id == currentUser.id) return;
+        const res = await fetch(`/getUser/${id}`);
+        const user = await res.json();
+        if (user.error) return alert("ID não encontrado");
+        contacts.unshift(user);
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+    };
+
+    renderContacts();
+
+    // LOOP PRINCIPAL
+    setInterval(() => {
+        loadMessages();
+        enviarSinalOnline(); 
+        atualizarContatos().then(() => {
+            renderContacts();
+            atualizarStatusHeader();
+        });
+    }, 1500);
 });
 
-// Salvar Perfil (Foto e Nome)
-app.post("/saveProfile", async (req, res) => {
-    const { id, username, photo } = req.body;
-    try {
-        await User.findOneAndUpdate(
-            { id },
-            { username, photo, lastSeen: Date.now() },
-            { upsert: true }
-        );
-        res.send({ success: true });
-    } catch (err) {
-        res.status(500).send({ error: "Erro ao salvar foto muito grande" });
+async function enviarSinalOnline() {
+    if (currentUser?.id) {
+        fetch("/updatePresence", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: currentUser.id })
+        });
+    }
+}
+
+// PERFIL (FOTO E NOME)
+document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("username").value;
+    const file = document.getElementById("profilePic").files[0];
+
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const photo = reader.result;
+            document.getElementById("profilePreview").src = photo;
+            await salvarPerfil(username, photo);
+        };
+        reader.readAsDataURL(file);
+    } else {
+        await salvarPerfil(username, currentUser.photo);
     }
 });
 
-// Buscar usuário
-app.get("/getUser/:id", async (req, res) => {
-    const user = await User.findOne({ id: req.params.id });
-    if (user) res.send(user);
-    else res.status(404).send({ error: "Não encontrado" });
-});
+async function salvarPerfil(username, photo) {
+    currentUser.username = username;
+    currentUser.photo = photo;
 
-// Enviar mensagem
-app.post("/sendMessage", async (req, res) => {
-    const { fromId, toId, text } = req.body;
-    const msg = await Message.create({ fromId, toId, text, timestamp: Date.now() });
-    res.json({ success: true, msg });
-});
+    const res = await fetch("/saveProfile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: currentUser.id, username, photo })
+    });
 
-// Buscar mensagens
-app.get("/getMessages/:id", async (req, res) => {
-    const msgs = await Message.find({
-        $or: [ { fromId: req.params.id }, { toId: req.params.id } ]
-    }).sort({ timestamp: 1 });
-    res.send(msgs);
-});
+    if (res.ok) alert("Perfil atualizado!");
+    else alert("Erro: Foto muito pesada.");
+}
 
-// Porta para o Render
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Rodando na porta ${PORT}`));
+async function atualizarContatos() {
+    for (let i = 0; i < contacts.length; i++) {
+        const res = await fetch(`/getUser/${contacts[i].id}`);
+        const user = await res.json();
+        if (!user.error) contacts[i] = user;
+    }
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+}
+
+function renderContacts() {
+    const div = document.getElementById("contacts");
+    let html = "";
+    for (let user of contacts) {
+        const isOnline = user.lastSeen && (Date.now() - user.lastSeen < 30000);
+        html += `
+            <div class="contact" onclick="abrirChat('${user.id}')" style="display:flex;align-items:center;padding:10px;cursor:pointer;">
+                <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" 
+                     style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid ${isOnline ? '#2ecc71' : '#ccc'}">
+                <div style="margin-left:10px">
+                    <div style="font-weight:bold">${user.username}</div>
+                    <div style="font-size:10px;color:${isOnline ? '#2ecc71' : 'gray'}">${isOnline ? 'online' : 'offline'}</div>
+                </div>
+            </div>`;
+    }
+    div.innerHTML = html;
+}
+
+function atualizarStatusHeader() {
+    if (!currentChat) return;
+    const user = contacts.find(c => c.id === currentChat.id);
+    if (!user) return;
+
+    const isOnline = user.lastSeen && (Date.now() - user.lastSeen < 30000);
+    let statusText = "offline";
+    
+    if (isOnline) {
+        statusText = `<span style="color:#2ecc71;font-weight:bold">online</span>`;
+    } else if (user.lastSeen) {
+        const d = new Date(user.lastSeen);
+        statusText = `visto hoje às ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    document.getElementById("chatName").innerHTML = `
+        <div style="text-align:center">
+            <div style="font-weight:bold">${user.username}</div>
+            <div style="font-size:11px;color:#666">${statusText}</div>
+        </div>`;
+}
+
+function abrirChat(id) {
+    currentChat = contacts.find(c => c.id == id);
+    document.getElementById("home").style.display = "none";
+    document.getElementById("chatScreen").style.display = "flex";
+    atualizarStatusHeader();
+    loadMessages();
+}
+
+function voltar() {
+    document.getElementById("chatScreen").style.display = "none";
+    document.getElementById("home").style.display = "block";
+    currentChat = null;
+}
+
+document.getElementById("sendMessageBtn").onclick = () => {
+    const input = document.getElementById("messageText");
+    const text = input.value.trim();
+    if (!text || !currentChat) return;
+    const msg = { fromId: currentUser.id, toId: currentChat.id, text };
+    fetch("/sendMessage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(msg)
+    });
+    input.value = "";
+    addMessage({...msg, timestamp: Date.now()});
+};
+
+async function loadMessages() {
+    if (!currentChat) return;
+    const res = await fetch(`/getMessages/${currentUser.id}`);
+    const msgs = await res.json();
+    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
+    const container = document.getElementById("messages");
+    container.innerHTML = "";
+    filtered.forEach(addMessage);
+    container.scrollTop = container.scrollHeight;
+}
+
+function addMessage(m) {
+    const container = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+    const d = new Date(m.timestamp);
+    div.innerHTML = `<div class="bubble">${m.text}<div style="font-size:9px;opacity:0.5;text-align:right">${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}</div></div>`;
+    container.appendChild(div);
+}
