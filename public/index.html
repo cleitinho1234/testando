@@ -5,89 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mini-Zap</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #e5ddd5; margin: 0; user-select: none; }
-  
-  /* Barra de Seleção (Estilo WhatsApp) */
-  #headerSelecao { 
-    display: none; position: fixed; top: 0; left: 0; width: 100%; 
-    background: #075e54; color: white; padding: 15px; z-index: 100;
-    box-sizing: border-box; justify-content: space-between; align-items: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  }
-
-  #home { padding: 10px; padding-top: 20px; }
-  
-  /* Estilo dos Contatos */
-  .contact { 
-    background: white; padding: 12px; margin-bottom: 6px; 
-    border-radius: 10px; cursor: pointer; display: flex; 
-    align-items: center; transition: background 0.3s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .contact.selected { background: #d1e7dd !important; border: 1px solid #075e54; }
-
-  #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; z-index: 50; }
+  body { font-family: Arial; background: #e5ddd5; margin: 0; }
+  #home { padding: 10px; }
+  #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; }
   #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; }
-  #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; background: #ccc; }
-  #typingStatus { font-size: 12px; color: #dcdcdc; }
-  #messages { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; }
-  
-  #chatInput { display: flex; padding: 10px; background: #f0f0f0; }
-  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; }
-  #chatInput button { margin-left: 8px; padding: 10px 15px; border: none; background: #075e54; color: white; border-radius: 50%; cursor: pointer; }
-
-  .message { margin: 5px 0; max-width: 75%; padding: 8px 12px; border-radius: 10px; font-size: 15px; }
-  .me { align-self: flex-end; background: #dcf8c6; }
-  .other { align-self: flex-start; background: white; }
-
-  /* Modal de Confirmação */
-  #confirmModal { 
-    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-    background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; 
-  }
-  .modal-box { background: white; padding: 20px; border-radius: 12px; width: 80%; text-align: center; }
-  .btn-excluir { background: #d9534f; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 5px; cursor: pointer; }
-  .btn-cancelar { background: #ccc; border: none; padding: 10px 20px; border-radius: 5px; margin: 5px; cursor: pointer; }
-
-  #profilePreview { width: 65px; height: 65px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; }
+  #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
+  #messages { flex: 1; overflow-y: auto; padding: 10px; }
+  #chatInput { display: flex; padding: 10px; background: #ddd; }
+  #chatInput input { flex: 1; padding: 10px; border: none; border-radius: 20px; outline: none; }
+  #chatInput button { margin-left: 5px; padding: 10px; border: none; background: #075e54; color: white; border-radius: 50%; }
+  .contact { background: white; padding: 10px; margin-top: 5px; border-radius: 8px; cursor: pointer; }
+  .message { display: flex; margin: 5px 0; }
+  .me { justify-content: flex-end; }
+  .other { justify-content: flex-start; }
+  .bubble { padding: 10px; border-radius: 10px; max-width: 70%; }
+  .me .bubble { background: #dcf8c6; }
+  .other .bubble { background: white; }
+  #profilePreview { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; }
 </style>
 </head>
 <body>
 
-<div id="headerSelecao">
-  <div style="display:flex; align-items:center;">
-    <button onclick="cancelarSelecao()" style="background:none; border:none; color:white; font-size:22px; margin-right:20px; cursor:pointer;">✕</button>
-    <span style="font-size:18px; font-weight:bold;">1 selecionado</span>
-  </div>
-  <button onclick="abrirConfirmacao()" style="background:none; border:none; color:white; font-size:22px; cursor:pointer;">🗑️</button>
-</div>
-
 <div id="home">
-  <h2>Meu Perfil</h2>
+  <h2>Seu Perfil</h2>
   <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
   <form id="profileForm">
     <input type="text" id="username" placeholder="Seu nome">
-    <input type="file" id="profilePic" accept="image/*">
-    <button type="submit">Salvar Perfil</button>
+    <input type="file" id="profilePic">
+    <button type="submit">Salvar</button>
   </form>
-  <p style="font-size: 14px; color: #555;">Meu ID: <b id="userIdDisplay">...</b></p>
-  
+  <p>ID: <span id="userIdDisplay"></span></p>
   <hr>
-  
-  <h3>Contatos</h3>
-  <div style="display:flex; gap:5px;">
-    <input type="text" id="addUserId" placeholder="Digite o ID do amigo" style="flex:1; padding:8px;">
-    <button id="addFriendBtn">Adicionar</button>
-  </div>
-  <div id="contacts" style="margin-top:15px;"></div>
+  <h2>Contatos</h2>
+  <input type="text" id="addUserId" placeholder="ID do amigo">
+  <button id="addFriendBtn">Adicionar</button>
+  <div id="contacts"></div>
 </div>
 
 <div id="chatScreen">
   <div id="chatHeader">
-    <button onclick="voltar()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer; margin-right:10px;">←</button>
-    <img id="chatAvatar" src="">
+    <button onclick="voltar()" style="background:none; border:none; color:white; font-size:20px;">⬅</button>
+    <img id="chatAvatar">
     <div>
-      <div id="chatName" style="font-weight:bold;">Nome</div>
+      <div id="chatName" style="font-weight:bold;"></div>
       <div id="typingStatus">offline</div>
     </div>
   </div>
@@ -95,15 +55,6 @@
   <div id="chatInput">
     <input type="text" id="messageText" placeholder="Mensagem">
     <button id="sendMessageBtn">➤</button>
-  </div>
-</div>
-
-<div id="confirmModal">
-  <div class="modal-box">
-    <p style="font-weight:bold;">Excluir este contato?</p>
-    <p style="font-size:14px; color:#666;">As mensagens não serão apagadas do servidor, apenas o contato da sua lista.</p>
-    <button class="btn-excluir" onclick="confirmarExclusao()">Excluir</button>
-    <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
   </div>
 </div>
 
