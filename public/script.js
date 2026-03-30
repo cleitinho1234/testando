@@ -7,8 +7,9 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
 let contatoParaExcluir = null;
 
-// 🔥 SOCKET
-const socket = io();
+// 🔥 SOCKET (CONECTA NO RENDER)
+const socket = io("https://mini-zap-4.onrender.com");
+
 let onlineUsers = [];
 
 // =========================
@@ -267,4 +268,4 @@ function voltar(){
 document.getElementById("chatScreen").style.display = "none";
 document.getElementById("home").style.display = "block";
 currentChat = null;
-}
+  }
