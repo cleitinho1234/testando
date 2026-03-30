@@ -33,7 +33,7 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// ATUALIZAÇÃO DE PERFIL EM TEMPO REAL
+// ATUALIZAÇÃO DE PERFIL
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -72,7 +72,6 @@ function confirmarExclusao() {
     cancelarSelecao();
 }
 
-// RENDERIZAR LISTA DE CONTATOS
 function renderContacts() {
     const div = document.getElementById("contacts");
     div.innerHTML = "";
@@ -108,7 +107,6 @@ function renderContacts() {
     });
 }
 
-// 🔥 CARREGAR MENSAGENS + MOVER PARA O TOPO
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
@@ -148,23 +146,23 @@ async function loadMessages() {
 
     if (!currentChat) return;
     const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
+    
+    // Evita recarregar tudo se o número de mensagens for o mesmo (evita piscar a tela)
     const container = document.getElementById("messages");
-    container.innerHTML = "";
-    filtered.forEach(addMessage);
-    container.scrollTop = container.scrollHeight;
+    if(container.children.length !== filtered.length) {
+        container.innerHTML = "";
+        filtered.forEach(addMessage);
+        container.scrollTop = container.scrollHeight;
+    }
 }
 
-// 🔥 NOVA FUNÇÃO ADDMESSAGE COM HORÁRIO
 function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
     
-    // Formata o horário (Ex: 14:30)
     const date = new Date(m.timestamp);
-    const hora = date.getHours().toString().padStart(2, '0');
-    const min = date.getMinutes().toString().padStart(2, '0');
-    const horarioFormatado = `${hora}:${min}`;
+    const horarioFormatado = date.getHours().toString().padStart(2, '0') + ":" + date.getMinutes().toString().padStart(2, '0');
 
     div.innerHTML = `
         <div class="bubble">
@@ -183,8 +181,9 @@ function abrirChat(user) {
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    const estaOnline = listaOnlineGlobal.includes(user.id);
-    document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
+    
+    // Limpa o chat e carrega as mensagens imediatamente
+    document.getElementById("messages").innerHTML = "";
     loadMessages();
 }
 
@@ -195,17 +194,41 @@ function voltar() {
     renderContacts();
 }
 
+// 🔥 FUNÇÃO DE ENVIO INSTANTÂNEO
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
     if(!text || !currentChat) return;
-    input.value = "";
+
+    input.value = ""; // Limpa o campo na hora
+
+    // 1. Mostra a mensagem na tela IMEDIATAMENTE (Otimista)
+    const msgOtimista = {
+        fromId: currentUser.id,
+        toId: currentChat.id,
+        text: text,
+        timestamp: Date.now()
+    };
+    addMessage(msgOtimista);
+    
+    // Rola para o fim na hora
+    const container = document.getElementById("messages");
+    container.scrollTop = container.scrollHeight;
+
+    // 2. Move o contato para o topo na interface na hora
+    const index = contacts.findIndex(c => c.id == currentChat.id);
+    if (index !== -1) {
+        const contatoMovido = contacts.splice(index, 1)[0];
+        contacts.unshift(contatoMovido);
+        renderContacts();
+    }
+
+    // 3. Envia para o servidor em segundo plano
     await fetch("/sendMessage", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
     });
-    loadMessages(); 
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
@@ -242,4 +265,3 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         reader.readAsDataURL(file);
     } else salvar(currentUser.photo);
 };
-        
