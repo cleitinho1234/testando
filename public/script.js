@@ -73,9 +73,25 @@ document.getElementById("addUserId").value = "";
 renderContacts();
 atualizarContatos().then(renderContacts);
 
-setInterval(loadMessages, 1500);
+// --- MODIFICAÇÃO PARA ONLINE EM TEMPO REAL ---
+setInterval(() => {
+  loadMessages();
+  atualizarContatos().then(renderContacts); // Atualiza os status na lista
+  enviarSinalOnline(); // Avisa que você está online
+}, 1500);
 
 });
+
+// NOVA FUNÇÃO: Sinal de presença
+async function enviarSinalOnline() {
+  if (currentUser && currentUser.id) {
+    fetch("/updatePresence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: currentUser.id })
+    });
+  }
+}
 
 // =========================
 // PERFIL
@@ -150,6 +166,7 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 
 }
 
+// FUNÇÃO ALTERADA PARA MOSTRAR ONLINE/OFFLINE
 function renderContacts(){
 
 const div = document.getElementById("contacts");
@@ -160,11 +177,20 @@ for (let user of contacts){
 
 const count = unreadCounts[user.id] || 0;
 
+// Verifica se o lastSeen foi há menos de 20 segundos
+const isOnline = user.lastSeen && (Date.now() - user.lastSeen < 20000);
+const statusLabel = isOnline ? 
+  `<span style="color:#2ecc71; font-size:10px; display:block;">online</span>` : 
+  `<span style="color:gray; font-size:10px; display:block;">offline</span>`;
+
 html += `
-<div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
+<div class="contact" data-id="${user.id}" style="display:flex;align-items:center; padding: 5px;">
 <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
-style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
-<span style="flex:1;">${user.username}</span>
+style="width:30px;height:30px;border-radius:50%;margin-right:10px; border: 2px solid ${isOnline ? '#2ecc71' : 'transparent'}">
+<div style="flex:1;">
+  <span style="display:block;">${user.username}</span>
+  ${statusLabel}
+</div>
 ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
 </div>
 `;
@@ -388,4 +414,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-  }
+}
