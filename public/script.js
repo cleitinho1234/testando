@@ -7,6 +7,10 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
 let contatoParaExcluir = null;
 
+// 🔥 SOCKET
+const socket = io();
+let onlineUsers = [];
+
 // =========================
 // INICIAR
 
@@ -33,7 +37,10 @@ if (!currentUser) {
   localStorage.setItem("userId", currentUser.id);
 }
 
-// nome fixo
+// 🔥 MARCAR ONLINE
+socket.emit("userOnline", currentUser.id);
+
+// nome salvo
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
@@ -46,28 +53,7 @@ if(currentUser.photo){
   document.getElementById("profilePreview").src = currentUser.photo;
 }
 
-// =========================
-// 🔥 ONLINE (ADICIONADO CERTO)
-
-function enviarOnline(){
-  if(currentUser){
-    fetch("/online", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ id: currentUser.id })
-    }).catch(() => {});
-  }
-}
-
-// envia ao entrar
-enviarOnline();
-
-// mantém online
-setInterval(enviarOnline, 3000);
-
-// =========================
 // ADD CONTATO
-
 document.getElementById("addFriendBtn").onclick = async () => {
 
 const id = document.getElementById("addUserId").value.trim();
@@ -96,11 +82,14 @@ atualizarContatos().then(renderContacts);
 
 setInterval(loadMessages, 1500);
 
-// 🔥 atualiza online/offline sem mexer no resto
-setInterval(() => {
-  atualizarContatos().then(renderContacts);
-}, 3000);
+});
 
+// =========================
+// 🔥 RECEBER ONLINE
+
+socket.on("updateOnline", (list) => {
+  onlineUsers = list;
+  renderContacts();
 });
 
 // =========================
@@ -168,16 +157,6 @@ for (let i = 0; i < contacts.length; i++){
   const user = await res.json();
 
   if(!user.error && user.username){
-
-    // 🔥 lógica online/offline
-    const agora = Date.now();
-
-    if(user.lastSeen && (agora - user.lastSeen < 20000)){
-      user.online = true;
-    } else {
-      user.online = false;
-    }
-
     contacts[i] = user;
   }
 }
@@ -195,17 +174,13 @@ let html = "";
 for (let user of contacts){
 
 const count = unreadCounts[user.id] || 0;
+const isOnline = onlineUsers.includes(user.id);
 
 html += `
 <div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
 <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
 style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
-<span style="flex:1;">
-  ${user.username}
-  <div style="font-size:10px;color:${user.online ? 'green' : 'gray'};">
-    ${user.online ? 'online' : 'offline'}
-  </div>
-</span>
+<span style="flex:1;">${user.username} ${isOnline ? "🟢" : ""}</span>
 ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
 </div>
 `;
@@ -227,7 +202,6 @@ el.addEventListener("touchstart", () => {
 });
 el.addEventListener("touchend", () => clearTimeout(pressTimer));
 
-// clique normal (MANTIDO)
 el.onclick = () => {
   const user = contacts.find(c => c.id == el.dataset.id);
   abrirChat(user);
@@ -238,4 +212,178 @@ el.onclick = () => {
 }
 
 // =========================
-// RESTO DO CÓDIGO (CHAT, MENSAGEM) NÃO FOI ALTERADO
+// RESTANTE (CHAT E MENSAGENS)
+
+function deletarContato(id){
+  contatoParaExcluir = id;
+  document.getElementById("confirmModal").style.display = "flex";
+}
+
+document.getElementById("confirmYes").onclick = () => {
+
+if(!contatoParaExcluir) return;
+
+contacts = contacts.filter(c => c.id != contatoParaExcluir);
+delete unreadCounts[contatoParaExcluir];
+
+localStorage.setItem("contacts", JSON.stringify(contacts));
+localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+
+contatoParaExcluir = null;
+
+document.getElementById("confirmModal").style.display = "none";
+
+renderContacts();
+};
+
+document.getElementById("confirmNo").onclick = () => {
+contatoParaExcluir = null;
+document.getElementById("confirmModal").style.display = "none";
+};
+
+function abrirChat(user){
+
+currentChat = user;
+
+unreadCounts[user.id] = 0;
+localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+
+renderContacts();
+
+document.getElementById("messages").innerHTML = "";
+
+document.getElementById("home").style.display = "none";
+document.getElementById("chatScreen").style.display = "flex";
+
+document.getElementById("chatName").textContent = user.username;
+
+loadMessages();
+
+}
+
+function voltar(){
+document.getElementById("chatScreen").style.display = "none";
+document.getElementById("home").style.display = "block";
+currentChat = null;
+}
+
+document.getElementById("sendMessageBtn").onclick = () => {
+
+const input = document.getElementById("messageText");
+const text = input.value.trim();
+
+if(!text || !currentChat) return;
+
+input.value = "";
+
+const timestamp = Date.now();
+
+const msg = {
+  fromId: currentUser.id,
+  toId: currentChat.id,
+  text,
+  timestamp
+};
+
+addMessage(msg);
+
+lastTimestamp = timestamp;
+localStorage.setItem("lastTimestamp", lastTimestamp);
+
+fetch("/sendMessage", {
+method: "POST",
+headers: {"Content-Type":"application/json"},
+body: JSON.stringify(msg)
+});
+
+};
+
+async function loadMessages(){
+
+const res = await fetch(`/getMessages/${currentUser.id}`);
+const msgs = await res.json();
+
+for (let m of msgs){
+
+if(m.timestamp <= lastTimestamp) continue;
+
+lastTimestamp = m.timestamp;
+
+if(m.toId == currentUser.id){
+
+  if(!contacts.some(c => c.id == m.fromId)){
+    const resUser = await fetch(`/getUser/${m.fromId}`);
+    const newUser = await resUser.json();
+    if(!newUser.error) contacts.unshift(newUser);
+  }
+
+  const index = contacts.findIndex(c => c.id == m.fromId);
+
+  if(index !== -1){
+    const user = contacts.splice(index, 1)[0];
+    contacts.unshift(user);
+  }
+
+  if(currentChat?.id !== m.fromId){
+    unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
+  }
+
+}
+
+}
+
+localStorage.setItem("contacts", JSON.stringify(contacts));
+localStorage.setItem("lastTimestamp", lastTimestamp);
+localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+
+renderContacts();
+
+if(!currentChat) return;
+
+const filtered = msgs.filter(m =>
+(m.fromId == currentUser.id && m.toId == currentChat.id) ||
+(m.fromId == currentChat.id && m.toId == currentUser.id)
+);
+
+const container = document.getElementById("messages");
+container.innerHTML = "";
+
+for (let m of filtered){
+  addMessage(m);
+}
+
+container.scrollTop = container.scrollHeight;
+
+}
+
+function addMessage(m){
+
+const container = document.getElementById("messages");
+
+const div = document.createElement("div");
+div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+
+const bubble = document.createElement("div");
+bubble.className = "bubble";
+
+const text = document.createElement("div");
+text.textContent = m.text;
+
+const time = document.createElement("div");
+time.style.fontSize = "10px";
+time.style.opacity = "0.6";
+time.style.textAlign = "right";
+
+if(m.timestamp){
+const date = new Date(m.timestamp);
+const h = String(date.getHours()).padStart(2,"0");
+const min = String(date.getMinutes()).padStart(2,"0");
+time.textContent = `${h}:${min}`;
+}
+
+bubble.appendChild(text);
+bubble.appendChild(time);
+
+div.appendChild(bubble);
+container.appendChild(div);
+  }
