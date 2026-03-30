@@ -33,16 +33,23 @@ const Message = mongoose.model("Message", {
 });
 
 // ==========================
-// Lógica de Status Online (Socket.io)
+// Lógica de Status e Atualização em Tempo Real
 let usuariosOnline = {}; 
 
 io.on("connection", (socket) => {
+    // Registro de entrada
     socket.on("register", (userId) => {
         socket.userId = userId;
         usuariosOnline[userId] = socket.id;
         io.emit("updateStatus", Object.keys(usuariosOnline));
     });
 
+    // 🔥 NOVIDADE: Quando alguém muda o perfil, avisa todos os outros
+    socket.on("updateProfileVisual", (dados) => {
+        socket.broadcast.emit("userUpdated", dados);
+    });
+
+    // Registro de saída
     socket.on("disconnect", () => {
         if (socket.userId) {
             delete usuariosOnline[socket.userId];
@@ -71,7 +78,7 @@ app.post("/user", async (req, res) => {
 app.post("/saveProfile", async (req, res) => {
     const { id, username, photo } = req.body;
     await User.findOneAndUpdate({ id }, { username, photo }, { upsert: true });
-    res.send({ success: true });
+    res.json({ success: true });
 });
 
 app.get("/getUser/:id", async (req, res) => {
@@ -95,4 +102,3 @@ app.get("/getMessages/:id", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
-  
