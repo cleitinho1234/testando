@@ -47,7 +47,7 @@ if(currentUser.photo){
 }
 
 // =========================
-// ONLINE (CORRIGIDO)
+// 🔥 ONLINE (CORRIGIDO DE VERDADE)
 
 function enviarOnline(){
   if(currentUser){
@@ -178,4 +178,4 @@ el.onclick = () => {
 
 });
 
-  }
+                    }
