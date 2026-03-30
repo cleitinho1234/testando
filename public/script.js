@@ -47,7 +47,7 @@ if(currentUser.photo){
 }
 
 // =========================
-// ONLINE STATUS (NOVO)
+// 🔥 ONLINE STATUS (ADICIONADO)
 
 setInterval(() => {
   if(currentUser){
@@ -90,7 +90,7 @@ atualizarContatos().then(renderContacts);
 
 setInterval(loadMessages, 1500);
 
-// atualizar contatos sempre
+// 🔥 atualizar contatos (online/offline)
 setInterval(() => {
   atualizarContatos().then(renderContacts);
 }, 5000);
@@ -163,7 +163,7 @@ for (let i = 0; i < contacts.length; i++){
 
   if(!user.error && user.username){
 
-    // ONLINE LOGICA
+    // 🔥 ONLINE LOGICA
     const agora = Date.now();
 
     if(user.lastSeen && (agora - user.lastSeen < 10000)){
@@ -231,5 +231,7 @@ el.onclick = () => {
 }
 
 // =========================
-// RESTO DO SEU CÓDIGO (CHAT, MENSAGENS, ETC)
-// NÃO FOI ALTERADO 👇
+// (RESTO DO CÓDIGO CONTINUA IGUAL — NÃO ALTEREI NADA)
+// =========================
+
+// CHAT, ENVIAR, LOAD, MENSAGEM continuam exatamente iguais...
