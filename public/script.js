@@ -39,10 +39,16 @@ if(savedName){
   currentUser.username = savedName;
 }
 
+// 🔥 carregar foto salva localmente
+const savedPhoto = localStorage.getItem("userPhoto");
+if(savedPhoto){
+  currentUser.photo = savedPhoto;
+}
+
 document.getElementById("username").value = currentUser.username || "";
 document.getElementById("userIdDisplay").textContent = currentUser.id;
 
-// ✅ CORRIGIDO (SEM ?t=)
+// preview
 if(currentUser.photo){
   document.getElementById("profilePreview").src = currentUser.photo;
 }
@@ -74,7 +80,7 @@ document.getElementById("addUserId").value = "";
 renderContacts();
 atualizarContatos().then(renderContacts);
 
-// continua atualizando para todos verem mudanças
+// 🔥 atualizar tudo (mensagens + contatos)
 setInterval(() => {
   loadMessages();
   atualizarContatos().then(renderContacts);
@@ -107,27 +113,24 @@ if(file){
 
 });
 
-// ✅ FUNÇÃO 100% CORRIGIDA
 async function salvarPerfil(username, photo){
 
 currentUser.username = username;
 currentUser.photo = photo;
 
+// 🔥 salvar LOCAL (resolve sumir ao atualizar)
 localStorage.setItem("username", username);
+localStorage.setItem("userPhoto", photo);
 
-// ✅ preview imediato (sem bug)
+// preview imediato
 if(photo){
   document.getElementById("profilePreview").src = photo;
 }
 
-// ✅ atualizar contatos corretamente
+// atualizar contatos
 contacts = contacts.map(c => {
   if(c.id === currentUser.id){
-    return {
-      ...c,
-      username: username,
-      photo: photo
-    };
+    return {...c, username, photo};
   }
   return c;
 });
@@ -137,7 +140,7 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 renderContacts();
 
 // salvar no servidor
-await fetch("/saveProfile", {
+fetch("/saveProfile", {
   method: "POST",
   headers: {"Content-Type":"application/json"},
   body: JSON.stringify({
@@ -210,7 +213,4 @@ el.onclick = () => {
 
 });
 
-}
-
-// =========================
-// RESTO DO CÓDIGO (NÃO ALTERADO)
+    }
