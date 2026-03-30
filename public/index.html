@@ -133,7 +133,7 @@ body {
   margin-bottom: 10px;
 }
 
-/* 🔥 MODAL RGB */
+/* 🔥 MODAL */
 #confirmModal {
   position: fixed;
   top: 0;
@@ -153,23 +153,6 @@ body {
   border-radius: 15px;
   text-align: center;
   width: 250px;
-
-  border: 3px solid;
-  border-image: linear-gradient(45deg, red, orange, yellow, green, cyan, blue, violet) 1;
-  animation: rgbBorder 3s linear infinite;
-}
-
-@keyframes rgbBorder {
-  0% { border-image-source: linear-gradient(45deg, red, orange); }
-  25% { border-image-source: linear-gradient(45deg, yellow, green); }
-  50% { border-image-source: linear-gradient(45deg, cyan, blue); }
-  75% { border-image-source: linear-gradient(45deg, violet, red); }
-  100% { border-image-source: linear-gradient(45deg, red, orange); }
-}
-
-#confirmBox p {
-  margin-bottom: 15px;
-  font-weight: bold;
 }
 
 #confirmBox button {
@@ -230,7 +213,6 @@ body {
     <span id="chatName"></span>
     <div id="typingStatus"></div>
   </div>
-
 </div>
 
 <div id="messages"></div>
@@ -243,7 +225,7 @@ body {
 
 </div>
 
-<!-- 🔥 MODAL CONFIRMAÇÃO -->
+<!-- MODAL -->
 <div id="confirmModal">
   <div id="confirmBox">
     <p>Excluir contato?</p>
@@ -252,6 +234,10 @@ body {
   </div>
 </div>
 
+<!-- 🔥 SOCKET.IO (OBRIGATÓRIO) -->
+<script src="/socket.io/socket.io.js"></script>
+
+<!-- SEU SCRIPT -->
 <script src="script.js"></script>
 
 </body>
