@@ -7,8 +7,7 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
 let contatoParaExcluir = null;
 
-// 🔥 SOCKET
-const socket = io();
+// ❌ DESATIVADO SOCKET (pra não quebrar)
 let onlineUsers = [];
 
 // =========================
@@ -36,9 +35,6 @@ if (!currentUser) {
   currentUser = await res.json();
   localStorage.setItem("userId", currentUser.id);
 }
-
-// 🔥 MARCAR ONLINE
-socket.emit("userOnline", currentUser.id);
 
 // nome salvo
 const savedName = localStorage.getItem("username");
@@ -82,14 +78,6 @@ atualizarContatos().then(renderContacts);
 
 setInterval(loadMessages, 1500);
 
-});
-
-// =========================
-// 🔥 RECEBER ONLINE
-
-socket.on("updateOnline", (list) => {
-  onlineUsers = list;
-  renderContacts();
 });
 
 // =========================
@@ -174,13 +162,12 @@ let html = "";
 for (let user of contacts){
 
 const count = unreadCounts[user.id] || 0;
-const isOnline = onlineUsers.includes(user.id);
 
 html += `
 <div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
 <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
 style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
-<span style="flex:1;">${user.username} ${isOnline ? "🟢" : ""}</span>
+<span style="flex:1;">${user.username}</span>
 ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
 </div>
 `;
@@ -212,7 +199,7 @@ el.onclick = () => {
 }
 
 // =========================
-// RESTANTE (CHAT E MENSAGENS)
+// RESTANTE
 
 function deletarContato(id){
   contatoParaExcluir = id;
