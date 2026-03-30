@@ -1,237 +1,94 @@
-let currentUser = null;
-let currentChat = null;
+const express = require("express");
+const app = express();
 
-let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
-let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
-let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
+app.use(express.json());
 
-let contatoParaExcluir = null;
-
-// =========================
-// INICIAR
-
-window.addEventListener("load", async () => {
-
-let savedId = localStorage.getItem("userId");
-
-if (savedId) {
-  const res = await fetch(`/getUser/${savedId}`);
-  const user = await res.json();
-
-  if (!user.error && user.username) {
-    currentUser = user;
-  }
-}
-
-if (!currentUser) {
-  const res = await fetch("/user", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ username: "Novo Usuário", photo: "" })
-  });
-  currentUser = await res.json();
-  localStorage.setItem("userId", currentUser.id);
-}
-
-// nome fixo
-const savedName = localStorage.getItem("username");
-if(savedName){
-  currentUser.username = savedName;
-}
-
-document.getElementById("username").value = currentUser.username || "";
-document.getElementById("userIdDisplay").textContent = currentUser.id;
-
-if(currentUser.photo){
-  document.getElementById("profilePreview").src = currentUser.photo;
-}
+let users = [];
+let messages = [];
+let onlineUsers = {};
 
 // =========================
-// 🔥 ONLINE STATUS (ADICIONADO)
+// CRIAR USUÁRIO
 
-setInterval(() => {
-  if(currentUser){
-    fetch("/online", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ id: currentUser.id })
-    });
-  }
-}, 5000);
+app.post("/user", (req, res) => {
+  const id = Date.now().toString();
 
-// =========================
-// ADD CONTATO
-
-document.getElementById("addFriendBtn").onclick = async () => {
-
-const id = document.getElementById("addUserId").value.trim();
-
-if(!id) return alert("Digite um ID");
-if(id == currentUser.id) return alert("Você não pode adicionar você mesmo");
-if(contacts.some(c => c.id == id)) return alert("Contato já existe");
-
-const res = await fetch(`/getUser/${id}`);
-const user = await res.json();
-
-if(user.error || !user.username){
-  return alert("Usuário não encontrado");
-}
-
-contacts.unshift(user);
-localStorage.setItem("contacts", JSON.stringify(contacts));
-
-renderContacts();
-document.getElementById("addUserId").value = "";
-
-};
-
-renderContacts();
-atualizarContatos().then(renderContacts);
-
-setInterval(loadMessages, 1500);
-
-// 🔥 atualizar contatos (online/offline)
-setInterval(() => {
-  atualizarContatos().then(renderContacts);
-}, 5000);
-
-});
-
-// =========================
-// PERFIL
-
-document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
-
-e.preventDefault();
-
-const username = document.getElementById("username").value;
-const file = document.getElementById("profilePic").files[0];
-
-let photo = currentUser.photo;
-
-if(file){
-  const reader = new FileReader();
-  reader.onload = async () => {
-    photo = reader.result;
-    await salvarPerfil(username, photo);
+  const user = {
+    id,
+    username: req.body.username,
+    photo: req.body.photo
   };
-  reader.readAsDataURL(file);
-} else {
-  await salvarPerfil(username, photo);
-}
 
+  users.push(user);
+
+  res.json(user);
 });
 
-async function salvarPerfil(username, photo){
+// =========================
+// PEGAR USUÁRIO
 
-currentUser.username = username;
-currentUser.photo = photo;
+app.get("/getUser/:id", (req, res) => {
+  const id = req.params.id;
 
-localStorage.setItem("username", username);
+  const user = users.find(u => u.id == id);
 
-contacts = contacts.map(c => {
-  if(c.id === currentUser.id){
-    return {...c, username, photo};
+  if (!user) {
+    return res.json({ error: true });
   }
-  return c;
+
+  // 🔥 ONLINE AQUI
+  user.lastSeen = onlineUsers[id] || 0;
+
+  res.json(user);
 });
-
-localStorage.setItem("contacts", JSON.stringify(contacts));
-
-renderContacts();
-
-fetch("/saveProfile", {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({
-    id: currentUser.id,
-    username,
-    photo
-  })
-});
-
-}
 
 // =========================
-// CONTATOS
+// SALVAR PERFIL
 
-async function atualizarContatos(){
+app.post("/saveProfile", (req, res) => {
+  const { id, username, photo } = req.body;
 
-for (let i = 0; i < contacts.length; i++){
-  const res = await fetch(`/getUser/${contacts[i].id}`);
-  const user = await res.json();
+  const user = users.find(u => u.id == id);
 
-  if(!user.error && user.username){
-
-    // 🔥 ONLINE LOGICA
-    const agora = Date.now();
-
-    if(user.lastSeen && (agora - user.lastSeen < 10000)){
-      user.online = true;
-    } else {
-      user.online = false;
-    }
-
-    contacts[i] = user;
+  if (user) {
+    user.username = username;
+    user.photo = photo;
   }
-}
 
-localStorage.setItem("contacts", JSON.stringify(contacts));
-
-}
-
-function renderContacts(){
-
-const div = document.getElementById("contacts");
-
-let html = "";
-
-for (let user of contacts){
-
-const count = unreadCounts[user.id] || 0;
-
-html += `
-<div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
-<img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
-style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
-<span style="flex:1;">
-  ${user.username}
-  <div style="font-size:10px;color:${user.online ? 'green' : 'gray'};">
-    ${user.online ? 'online' : 'offline'}
-  </div>
-</span>
-${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
-</div>
-`;
-}
-
-div.innerHTML = html;
-
-document.querySelectorAll(".contact").forEach(el => {
-
-let pressTimer;
-
-el.addEventListener("mousedown", () => {
-  pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
+  res.json({ ok: true });
 });
-el.addEventListener("mouseup", () => clearTimeout(pressTimer));
-
-el.addEventListener("touchstart", () => {
-  pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
-});
-el.addEventListener("touchend", () => clearTimeout(pressTimer));
-
-el.onclick = () => {
-  const user = contacts.find(c => c.id == el.dataset.id);
-  abrirChat(user);
-};
-
-});
-
-}
 
 // =========================
-// (RESTO DO CÓDIGO CONTINUA IGUAL — NÃO ALTEREI NADA)
+// ONLINE STATUS
+
+app.post("/online", (req, res) => {
+  const { id } = req.body;
+
+  onlineUsers[id] = Date.now();
+
+  res.json({ ok: true });
+});
+
+// =========================
+// MENSAGENS
+
+app.post("/sendMessage", (req, res) => {
+  messages.push(req.body);
+  res.json({ ok: true });
+});
+
+app.get("/getMessages/:id", (req, res) => {
+  const id = req.params.id;
+
+  const userMessages = messages.filter(
+    m => m.toId == id || m.fromId == id
+  );
+
+  res.json(userMessages);
+});
+
 // =========================
 
-// CHAT, ENVIAR, LOAD, MENSAGEM continuam exatamente iguais...
+app.listen(3000, () => {
+  console.log("Servidor rodando na porta 3000");
+});
