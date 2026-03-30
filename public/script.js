@@ -265,3 +265,4 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         reader.readAsDataURL(file);
     } else salvar(currentUser.photo);
 };
+                     
