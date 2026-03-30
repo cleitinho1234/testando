@@ -12,10 +12,10 @@ let contatoParaExcluir = null;
 // =========================
 
 window.addEventListener("load", async () => {
-
     let savedId = localStorage.getItem("userId");
 
     if (savedId) {
+        // Busca os dados MAIS RECENTES do servidor para a foto não sumir
         const res = await fetch(`/getUser/${savedId}`);
         const user = await res.json();
 
@@ -34,11 +34,7 @@ window.addEventListener("load", async () => {
         localStorage.setItem("userId", currentUser.id);
     }
 
-    const savedName = localStorage.getItem("username");
-    if (savedName) {
-        currentUser.username = savedName;
-    }
-
+    // Preenche os campos com os dados vindos do BANCO
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
 
@@ -72,10 +68,9 @@ window.addEventListener("load", async () => {
         enviarSinalOnline(); 
         atualizarContatos().then(() => {
             renderContacts();
-            atualizarStatusHeader(); // Atualiza o "visto por último" no topo
+            atualizarStatusHeader(); 
         });
     }, 1500);
-
 });
 
 // AVISA O SERVIDOR QUE VOCÊ ESTÁ ATIVO
@@ -90,41 +85,48 @@ async function enviarSinalOnline() {
 }
 
 // =========================
-// PERFIL
+// PERFIL (CORRIGIDO PARA SALVAR FOTO)
 // =========================
 
 document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const username = document.getElementById("username").value;
     const file = document.getElementById("profilePic").files[0];
-    let photo = currentUser.photo;
-
+    
     if (file) {
         const reader = new FileReader();
         reader.onload = async () => {
-            photo = reader.result;
+            const photo = reader.result;
+            // Atualiza o preview na hora
+            document.getElementById("profilePreview").src = photo;
             await salvarPerfil(username, photo);
         };
         reader.readAsDataURL(file);
     } else {
-        await salvarPerfil(username, photo);
+        await salvarPerfil(username, currentUser.photo);
     }
 });
 
 async function salvarPerfil(username, photo) {
+    // Atualiza localmente primeiro
     currentUser.username = username;
     currentUser.photo = photo;
     localStorage.setItem("username", username);
 
-    contacts = contacts.map(c => (c.id === currentUser.id ? { ...c, username, photo } : c));
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
-
-    fetch("/saveProfile", {
+    // Envia para o MongoDB
+    const res = await fetch("/saveProfile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: currentUser.id, username, photo })
     });
+
+    if (res.ok) {
+        alert("Perfil atualizado!");
+    } else {
+        alert("Erro ao salvar perfil (talvez a foto seja muito grande).");
+    }
+    
+    renderContacts();
 }
 
 // =========================
@@ -144,6 +146,7 @@ async function atualizarContatos() {
 
 function renderContacts() {
     const div = document.getElementById("contacts");
+    if (!div) return;
     let html = "";
 
     for (let user of contacts) {
@@ -156,7 +159,7 @@ function renderContacts() {
         html += `
 <div class="contact" data-id="${user.id}" style="display:flex;align-items:center; padding: 10px; cursor:pointer;">
 <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
-style="width:35px;height:35px;border-radius:50%;margin-right:10px; border: 2px solid ${isOnline ? '#2ecc71' : 'transparent'}">
+style="width:35px;height:35px;border-radius:50%;margin-right:10px; object-fit: cover; border: 2px solid ${isOnline ? '#2ecc71' : 'transparent'}">
 <div style="flex:1;">
   <span style="display:block; font-weight:500;">${user.username}</span>
   ${statusLabel}
@@ -168,16 +171,10 @@ ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding
     div.innerHTML = html;
 
     document.querySelectorAll(".contact").forEach(el => {
-        let pressTimer;
-        el.addEventListener("mousedown", () => pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200));
-        el.addEventListener("mouseup", () => clearTimeout(pressTimer));
-        el.addEventListener("touchstart", () => pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200));
-        el.addEventListener("touchend", () => clearTimeout(pressTimer));
         el.onclick = () => abrirChat(contacts.find(c => c.id == el.dataset.id));
     });
 }
 
-// ATUALIZA O TOPO DA TELA DE CHAT (NOME + STATUS)
 function atualizarStatusHeader() {
     if (!currentChat) return;
 
@@ -193,8 +190,8 @@ function atualizarStatusHeader() {
     } else if (user.lastSeen) {
         const dataSaida = new Date(user.lastSeen);
         const horas = String(dataSaida.getHours()).padStart(2, "0");
-        const minutos = String(dataSaida.getMinutes()).padStart(2, "0");
-        statusHtml = `<span style="color:#aaa; font-size:12px;">visto por último hoje às ${horas}:${minutos}</span>`;
+        const min = String(dataSaida.getMinutes()).padStart(2, "0");
+        statusHtml = `<span style="color:#aaa; font-size:12px;">visto hoje às ${horas}:${min}</span>`;
     } else {
         statusHtml = `<span style="color:#aaa; font-size:12px;">offline</span>`;
     }
@@ -298,20 +295,18 @@ function addMessage(m) {
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
     const bubble = document.createElement("div");
     bubble.className = "bubble";
-    const text = document.createElement("div");
-    text.textContent = m.text;
-    const time = document.createElement("div");
-    time.style.fontSize = "10px";
-    time.style.opacity = "0.6";
-    time.style.textAlign = "right";
+    bubble.innerHTML = `<div>${m.text}</div>`;
+    
     if (m.timestamp) {
         const date = new Date(m.timestamp);
         const h = String(date.getHours()).padStart(2, "0");
         const min = String(date.getMinutes()).padStart(2, "0");
-        time.textContent = `${h}:${min}`;
+        const timeDiv = document.createElement("div");
+        timeDiv.style = "font-size:10px; opacity:0.6; text-align:right";
+        timeDiv.textContent = `${h}:${min}`;
+        bubble.appendChild(timeDiv);
     }
-    bubble.appendChild(text);
-    bubble.appendChild(time);
+    
     div.appendChild(bubble);
     container.appendChild(div);
 }
