@@ -1,6 +1,6 @@
 let currentUser = null;
 let currentChat = null;
-let contatoSelecionadoId = null; // 🔥 Para a função de excluir
+let contatoSelecionadoId = null; 
 const socket = io(); 
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
@@ -33,6 +33,7 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
+// ATUALIZAÇÃO DE PERFIL EM TEMPO REAL
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -48,7 +49,7 @@ socket.on("updateStatus", (listaOnline) => {
     renderContacts();
 });
 
-// --- NOVAS FUNÇÕES DE EXCLUSÃO ---
+// FUNÇÕES DE EXCLUSÃO
 function ativarSelecao(id) {
     contatoSelecionadoId = id;
     document.getElementById("headerSelecao").style.display = "flex";
@@ -71,7 +72,7 @@ function confirmarExclusao() {
     cancelarSelecao();
 }
 
-// RENDER CONTACTS (Ajustada para clique longo)
+// RENDERIZAR LISTA DE CONTATOS
 function renderContacts() {
     const div = document.getElementById("contacts");
     div.innerHTML = "";
@@ -93,7 +94,7 @@ function renderContacts() {
             ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:2px 8px;font-size:12px;">${count}</span>` : ""}
         `;
 
-        // LÓGICA DE SEGURAR
+        // Lógica de segurar para excluir
         let pressTimer;
         contactEl.onmousedown = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
         contactEl.onmouseup = () => clearTimeout(pressTimer);
@@ -101,36 +102,49 @@ function renderContacts() {
         contactEl.ontouchend = () => clearTimeout(pressTimer);
 
         contactEl.onclick = () => {
-            if (contatoSelecionadoId) {
-                cancelarSelecao(); // Se clicar em outro contato enquanto um está selecionado, cancela a seleção
-            } else {
-                abrirChat(user);
-            }
+            if (contatoSelecionadoId) cancelarSelecao();
+            else abrirChat(user);
         };
         div.appendChild(contactEl);
     });
 }
 
-// CARREGAR MENSAGENS (IGUAL AO SEU)
+// 🔥 CARREGAR MENSAGENS + MOVER PARA O TOPO
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
+    
     for (let m of msgs) {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
+            
+            // 1. Mensagem recebida
             if (m.toId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.fromId);
                 if (index === -1) {
                     const resUser = await fetch(`/getUser/${m.fromId}`);
                     const newUser = await resUser.json();
-                    if (!newUser.error) contacts.unshift(newUser);
+                    if (!newUser.error) contacts.unshift(newUser); // Novo contato vai pro topo
+                } else {
+                    // Contato existente: remove da posição atual e joga pro topo (index 0)
+                    const contatoMovido = contacts.splice(index, 1)[0];
+                    contacts.unshift(contatoMovido);
                 }
                 if (currentChat?.id !== m.fromId) {
                     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
                 }
+            } 
+            // 2. Mensagem enviada por mim (também sobe o contato)
+            else if (m.fromId == currentUser.id) {
+                const index = contacts.findIndex(c => c.id == m.toId);
+                if (index !== -1) {
+                    const contatoMovido = contacts.splice(index, 1)[0];
+                    contacts.unshift(contatoMovido);
+                }
             }
         }
     }
+
     localStorage.setItem("lastTimestamp", lastTimestamp);
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     localStorage.setItem("contacts", JSON.stringify(contacts));
@@ -182,7 +196,7 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
     });
-    loadMessages();
+    loadMessages(); // Chama o loadMessages imediatamente para subir o contato no topo
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
@@ -192,7 +206,7 @@ document.getElementById("addFriendBtn").onclick = async () => {
     const user = await res.json();
     if(user.error) return alert("Não encontrado");
     if(!contacts.some(c => c.id == id)) {
-        contacts.unshift(user);
+        contacts.unshift(user); // Adiciona novos amigos no topo
         localStorage.setItem("contacts", JSON.stringify(contacts));
         renderContacts();
     }
@@ -219,4 +233,3 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         reader.readAsDataURL(file);
     } else salvar(currentUser.photo);
 };
-            
