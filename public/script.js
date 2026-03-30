@@ -107,52 +107,62 @@ function renderContacts() {
     });
 }
 
+// 🔥 CORREÇÃO: LOAD MESSAGES MAIS SEGURO
 async function loadMessages() {
-    const res = await fetch(`/getMessages/${currentUser.id}`);
-    const msgs = await res.json();
-    
-    for (let m of msgs) {
-        if (m.timestamp > lastTimestamp) {
-            lastTimestamp = m.timestamp;
-            
-            if (m.toId == currentUser.id) {
-                const index = contacts.findIndex(c => c.id == m.fromId);
-                if (index === -1) {
-                    const resUser = await fetch(`/getUser/${m.fromId}`);
-                    const newUser = await resUser.json();
-                    if (!newUser.error) contacts.unshift(newUser); 
-                } else {
-                    const contatoMovido = contacts.splice(index, 1)[0];
-                    contacts.unshift(contatoMovido);
-                }
-                if (currentChat?.id !== m.fromId) {
-                    unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
-                }
-            } 
-            else if (m.fromId == currentUser.id) {
-                const index = contacts.findIndex(c => c.id == m.toId);
-                if (index !== -1) {
-                    const contatoMovido = contacts.splice(index, 1)[0];
-                    contacts.unshift(contatoMovido);
+    try {
+        const res = await fetch(`/getMessages/${currentUser.id}`);
+        const msgs = await res.json();
+        
+        // Se der erro no servidor ou não vier array, para aqui
+        if (!Array.isArray(msgs)) return;
+
+        for (let m of msgs) {
+            if (m.timestamp > lastTimestamp) {
+                lastTimestamp = m.timestamp;
+                
+                if (m.toId == currentUser.id) {
+                    const index = contacts.findIndex(c => c.id == m.fromId);
+                    if (index === -1) {
+                        const resUser = await fetch(`/getUser/${m.fromId}`);
+                        const newUser = await resUser.json();
+                        if (!newUser.error) contacts.unshift(newUser); 
+                    } else {
+                        const contatoMovido = contacts.splice(index, 1)[0];
+                        contacts.unshift(contatoMovido);
+                    }
+                    if (currentChat?.id !== m.fromId) {
+                        unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
+                    }
+                } 
+                else if (m.fromId == currentUser.id) {
+                    const index = contacts.findIndex(c => c.id == m.toId);
+                    if (index !== -1) {
+                        const contatoMovido = contacts.splice(index, 1)[0];
+                        contacts.unshift(contatoMovido);
+                    }
                 }
             }
         }
-    }
 
-    localStorage.setItem("lastTimestamp", lastTimestamp);
-    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
+        localStorage.setItem("lastTimestamp", lastTimestamp);
+        localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
 
-    if (!currentChat) return;
-    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
-    
-    // Evita recarregar tudo se o número de mensagens for o mesmo (evita piscar a tela)
-    const container = document.getElementById("messages");
-    if(container.children.length !== filtered.length) {
-        container.innerHTML = "";
-        filtered.forEach(addMessage);
-        container.scrollTop = container.scrollHeight;
+        if (!currentChat) return;
+        
+        const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
+        
+        const container = document.getElementById("messages");
+        // 🔥 Só atualiza o DOM se realmente houver mudança na quantidade de mensagens
+        if(container.dataset.count != filtered.length) {
+            container.innerHTML = "";
+            filtered.forEach(addMessage);
+            container.scrollTop = container.scrollHeight;
+            container.dataset.count = filtered.length; // Guarda a contagem atual
+        }
+    } catch (e) {
+        console.log("Aguardando novas mensagens...");
     }
 }
 
@@ -182,8 +192,9 @@ function abrirChat(user) {
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     
-    // Limpa o chat e carrega as mensagens imediatamente
-    document.getElementById("messages").innerHTML = "";
+    const container = document.getElementById("messages");
+    container.innerHTML = "";
+    container.dataset.count = 0; // Reseta o contador ao mudar de chat
     loadMessages();
 }
 
@@ -194,28 +205,27 @@ function voltar() {
     renderContacts();
 }
 
-// 🔥 FUNÇÃO DE ENVIO INSTANTÂNEO
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
     if(!text || !currentChat) return;
 
-    input.value = ""; // Limpa o campo na hora
+    input.value = ""; 
 
-    // 1. Mostra a mensagem na tela IMEDIATAMENTE (Otimista)
+    // Envio Otimista
     const msgOtimista = {
         fromId: currentUser.id,
         toId: currentChat.id,
         text: text,
         timestamp: Date.now()
     };
-    addMessage(msgOtimista);
     
-    // Rola para o fim na hora
+    addMessage(msgOtimista);
     const container = document.getElementById("messages");
     container.scrollTop = container.scrollHeight;
+    container.dataset.count = parseInt(container.dataset.count || 0) + 1; // Incrementa manual
 
-    // 2. Move o contato para o topo na interface na hora
+    // Move contato topo
     const index = contacts.findIndex(c => c.id == currentChat.id);
     if (index !== -1) {
         const contatoMovido = contacts.splice(index, 1)[0];
@@ -223,7 +233,6 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         renderContacts();
     }
 
-    // 3. Envia para o servidor em segundo plano
     await fetch("/sendMessage", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
@@ -258,6 +267,14 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         currentUser.username = nome; currentUser.photo = f;
         socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: f });
         alert("Perfil Salvo!");
+    };
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => salvar(ev.target.result);
+        reader.readAsDataURL(file);
+    } else salvar(currentUser.photo);
+};
+        ");
     };
     if (file) {
         const reader = new FileReader();
