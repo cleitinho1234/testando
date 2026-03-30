@@ -1,74 +1,221 @@
-const express = require("express");
-const app = express();
+let currentUser = null;
+let currentChat = null;
 
-app.use(express.json({ limit: "10mb" }));
+let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
+let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
+let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 
-let users = {};
-let messages = [];
+let contatoParaExcluir = null;
 
 // =========================
-// CRIAR USUÁRIO
+// INICIAR
 
-app.post("/user", (req, res) => {
-  const id = Date.now().toString();
+window.addEventListener("load", async () => {
 
-  users[id] = {
-    id,
-    username: req.body.username,
-    photo: req.body.photo || ""
+let savedId = localStorage.getItem("userId");
+
+if (savedId) {
+  const res = await fetch(`/getUser/${savedId}`);
+  const user = await res.json();
+
+  if (!user.error && user.username) {
+    currentUser = user;
+  }
+}
+
+if (!currentUser) {
+  const res = await fetch("/user", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ username: "Novo Usuário", photo: "" })
+  });
+  currentUser = await res.json();
+  localStorage.setItem("userId", currentUser.id);
+}
+
+// nome fixo
+const savedName = localStorage.getItem("username");
+if(savedName){
+  currentUser.username = savedName;
+}
+
+// 🔥 NOVO: carregar foto salva localmente
+const savedPhoto = localStorage.getItem("userPhoto");
+if(savedPhoto){
+  currentUser.photo = savedPhoto;
+}
+
+document.getElementById("username").value = currentUser.username || "";
+document.getElementById("userIdDisplay").textContent = currentUser.id;
+
+// preview correto
+if(currentUser.photo){
+  document.getElementById("profilePreview").src = currentUser.photo;
+}
+
+// ADD CONTATO
+document.getElementById("addFriendBtn").onclick = async () => {
+
+const id = document.getElementById("addUserId").value.trim();
+
+if(!id) return alert("Digite um ID");
+if(id == currentUser.id) return alert("Você não pode adicionar você mesmo");
+if(contacts.some(c => c.id == id)) return alert("Contato já existe");
+
+const res = await fetch(`/getUser/${id}`);
+const user = await res.json();
+
+if(user.error || !user.username){
+  return alert("Usuário não encontrado");
+}
+
+contacts.unshift(user);
+localStorage.setItem("contacts", JSON.stringify(contacts));
+
+renderContacts();
+document.getElementById("addUserId").value = "";
+
+};
+
+renderContacts();
+atualizarContatos().then(renderContacts);
+
+// 🔥 NOVO: atualiza contatos também (pra pegar foto nova dos outros)
+setInterval(() => {
+  loadMessages();
+  atualizarContatos().then(renderContacts);
+}, 1500);
+
+});
+
+// =========================
+// PERFIL
+
+document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
+
+e.preventDefault();
+
+const username = document.getElementById("username").value;
+const file = document.getElementById("profilePic").files[0];
+
+let photo = currentUser.photo;
+
+if(file){
+  const reader = new FileReader();
+  reader.onload = async () => {
+    photo = reader.result;
+    await salvarPerfil(username, photo);
   };
+  reader.readAsDataURL(file);
+} else {
+  await salvarPerfil(username, photo);
+}
 
-  res.json(users[id]);
 });
+
+async function salvarPerfil(username, photo){
+
+currentUser.username = username;
+currentUser.photo = photo;
+
+// 🔥 SALVAR LOCAL (resolve sumir ao atualizar)
+localStorage.setItem("username", username);
+localStorage.setItem("userPhoto", photo);
+
+// preview imediato
+if(photo){
+  document.getElementById("profilePreview").src = photo;
+}
+
+// atualizar contatos
+contacts = contacts.map(c => {
+  if(c.id === currentUser.id){
+    return {...c, username, photo};
+  }
+  return c;
+});
+
+localStorage.setItem("contacts", JSON.stringify(contacts));
+
+renderContacts();
+
+// salvar no servidor
+fetch("/saveProfile", {
+  method: "POST",
+  headers: {"Content-Type":"application/json"},
+  body: JSON.stringify({
+    id: currentUser.id,
+    username,
+    photo
+  })
+});
+
+}
 
 // =========================
-// PEGAR USUÁRIO
+// CONTATOS
 
-app.get("/getUser/:id", (req, res) => {
-  const user = users[req.params.id];
+async function atualizarContatos(){
 
-  if (!user) return res.json({ error: true });
+for (let i = 0; i < contacts.length; i++){
+  const res = await fetch(`/getUser/${contacts[i].id}`);
+  const user = await res.json();
 
-  res.json(user); // 🔥 inclui photo
+  if(!user.error && user.username){
+    contacts[i] = user;
+  }
+}
+
+localStorage.setItem("contacts", JSON.stringify(contacts));
+
+}
+
+function renderContacts(){
+
+const div = document.getElementById("contacts");
+
+let html = "";
+
+for (let user of contacts){
+
+const count = unreadCounts[user.id] || 0;
+
+html += `
+<div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
+<img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
+style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
+<span style="flex:1;">${user.username}</span>
+${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
+</div>
+`;
+}
+
+div.innerHTML = html;
+
+document.querySelectorAll(".contact").forEach(el => {
+
+let pressTimer;
+
+// SEGURAR MAIS TEMPO
+el.addEventListener("mousedown", () => {
+  pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
 });
+el.addEventListener("mouseup", () => clearTimeout(pressTimer));
+
+el.addEventListener("touchstart", () => {
+  pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
+});
+el.addEventListener("touchend", () => clearTimeout(pressTimer));
+
+// clique normal
+el.onclick = () => {
+  const user = contacts.find(c => c.id == el.dataset.id);
+  abrirChat(user);
+};
+
+});
+
+}
 
 // =========================
-// SALVAR PERFIL
-
-app.post("/saveProfile", (req, res) => {
-  const { id, username, photo } = req.body;
-
-  if (!users[id]) return res.json({ error: true });
-
-  users[id].username = username;
-  users[id].photo = photo; // 🔥 salva foto
-
-  res.json({ success: true });
-});
-
-// =========================
-// ENVIAR MENSAGEM
-
-app.post("/sendMessage", (req, res) => {
-  messages.push(req.body);
-  res.json({ ok: true });
-});
-
-// =========================
-// PEGAR MENSAGENS
-
-app.get("/getMessages/:id", (req, res) => {
-  const userId = req.params.id;
-
-  const result = messages.filter(m =>
-    m.fromId === userId || m.toId === userId
-  );
-
-  res.json(result);
-});
-
-// =========================
-
-app.listen(3000, () => {
-  console.log("Servidor rodando na porta 3000");
-});
+// RESTO DO SEU CÓDIGO (CHAT, MENSAGENS, ETC) CONTINUA IGUAL
