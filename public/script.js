@@ -72,7 +72,7 @@ window.addEventListener("load", async () => {
         enviarSinalOnline(); 
         atualizarContatos().then(() => {
             renderContacts();
-            atualizarStatusHeader(); // Atualiza o "visto por último" no topo
+            atualizarStatusHeader();
         });
     }, 1500);
 
@@ -90,7 +90,7 @@ async function enviarSinalOnline() {
 }
 
 // =========================
-// PERFIL
+// PERFIL (FOTO ATUALIZADA PARA TODOS)
 // =========================
 
 document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
@@ -102,7 +102,7 @@ document.getElementById("profileForm")?.addEventListener("submit", async (e) => 
     if (file) {
         const reader = new FileReader();
         reader.onload = async () => {
-            photo = reader.result;
+            photo = reader.result; // Foto em Base64 (texto longo)
             await salvarPerfil(username, photo);
         };
         reader.readAsDataURL(file);
@@ -114,17 +114,23 @@ document.getElementById("profileForm")?.addEventListener("submit", async (e) => 
 async function salvarPerfil(username, photo) {
     currentUser.username = username;
     currentUser.photo = photo;
+    
+    // Atualiza preview local
+    document.getElementById("profilePreview").src = photo;
     localStorage.setItem("username", username);
 
-    contacts = contacts.map(c => (c.id === currentUser.id ? { ...c, username, photo } : c));
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
-
-    fetch("/saveProfile", {
+    // Envia para o MongoDB
+    const res = await fetch("/saveProfile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: currentUser.id, username, photo })
     });
+
+    if(res.ok) {
+        alert("Perfil atualizado com sucesso! Todos verão sua nova foto.");
+    }
+
+    renderContacts();
 }
 
 // =========================
@@ -132,10 +138,12 @@ async function salvarPerfil(username, photo) {
 // =========================
 
 async function atualizarContatos() {
+    // Percorre todos os seus contatos e puxa a versão mais recente deles do servidor
     for (let i = 0; i < contacts.length; i++) {
         const res = await fetch(`/getUser/${contacts[i].id}`);
         const user = await res.json();
         if (!user.error && user.username) {
+            // Aqui ele atualiza TUDO: nome, lastSeen e principalmente a PHOTO
             contacts[i] = user;
         }
     }
@@ -144,6 +152,7 @@ async function atualizarContatos() {
 
 function renderContacts() {
     const div = document.getElementById("contacts");
+    if (!div) return;
     let html = "";
 
     for (let user of contacts) {
@@ -156,7 +165,7 @@ function renderContacts() {
         html += `
 <div class="contact" data-id="${user.id}" style="display:flex;align-items:center; padding: 10px; cursor:pointer;">
 <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
-style="width:35px;height:35px;border-radius:50%;margin-right:10px; border: 2px solid ${isOnline ? '#2ecc71' : 'transparent'}">
+style="width:35px;height:35px;border-radius:50%;margin-right:10px; object-fit: cover; border: 2px solid ${isOnline ? '#2ecc71' : 'transparent'}">
 <div style="flex:1;">
   <span style="display:block; font-weight:500;">${user.username}</span>
   ${statusLabel}
@@ -177,7 +186,7 @@ ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding
     });
 }
 
-// ATUALIZA O TOPO DA TELA DE CHAT (NOME + STATUS)
+// ATUALIZA O TOPO DA TELA DE CHAT
 function atualizarStatusHeader() {
     if (!currentChat) return;
 
@@ -193,8 +202,8 @@ function atualizarStatusHeader() {
     } else if (user.lastSeen) {
         const dataSaida = new Date(user.lastSeen);
         const horas = String(dataSaida.getHours()).padStart(2, "0");
-        const minutos = String(dataSaida.getMinutes()).padStart(2, "0");
-        statusHtml = `<span style="color:#aaa; font-size:12px;">visto por último hoje às ${horas}:${minutos}</span>`;
+        const min = String(dataSaida.getMinutes()).padStart(2, "0");
+        statusHtml = `<span style="color:#aaa; font-size:12px;">visto hoje às ${horas}:${min}</span>`;
     } else {
         statusHtml = `<span style="color:#aaa; font-size:12px;">offline</span>`;
     }
