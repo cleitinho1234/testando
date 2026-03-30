@@ -14,7 +14,7 @@ window.addEventListener("load", async () => {
     if (savedId) {
         const res = await fetch(`/getUser/${savedId}`);
         const user = await res.json();
-        if (!user.error && user.username) currentUser = user;
+        if (!user.error) currentUser = user;
     }
 
     if (!currentUser) {
@@ -37,32 +37,20 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// ATUALIZAR STATUS EM TEMPO REAL
+// OUVIR STATUS E ATUALIZAR TOPO DO CHAT
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts();
+    
     if (currentChat) {
         const estaOnline = listaOnline.includes(currentChat.id);
         const statusDiv = document.getElementById("typingStatus");
-        statusDiv.textContent = estaOnline ? "Online" : "offline";
-        statusDiv.style.color = estaOnline ? "#25D366" : "#dcdcdc";
+        if (statusDiv) {
+            statusDiv.textContent = estaOnline ? "Online" : "offline";
+            statusDiv.style.color = estaOnline ? "#25D366" : "#dcdcdc";
+        }
     }
 });
-
-// ADICIONAR CONTATO
-document.getElementById("addFriendBtn").onclick = async () => {
-    const id = document.getElementById("addUserId").value.trim();
-    if(!id || id == currentUser.id || contacts.some(c => c.id == id)) return;
-
-    const res = await fetch(`/getUser/${id}`);
-    const user = await res.json();
-    if(user.error) return alert("Usuário não encontrado");
-
-    contacts.unshift(user);
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
-    document.getElementById("addUserId").value = "";
-};
 
 function renderContacts() {
     const div = document.getElementById("contacts");
@@ -76,10 +64,9 @@ function renderContacts() {
         contactEl.className = "contact";
         contactEl.style.display = "flex";
         contactEl.style.alignItems = "center";
-        contactEl.dataset.id = user.id;
-
+        
         contactEl.innerHTML = `
-            <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;">
+            <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
             <div style="flex:1;">
                 <div style="font-weight:bold;">${user.username}</div>
                 <div style="font-size:11px; color:${isOnline ? '#25D366' : 'gray'}">
@@ -89,19 +76,29 @@ function renderContacts() {
             ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:2px 8px;font-size:12px;">${count}</span>` : ""}
         `;
 
-        // Lógica de segurar para excluir
-        let pressTimer;
-        contactEl.addEventListener("mousedown", () => pressTimer = setTimeout(() => deletarContato(user.id), 1200));
-        contactEl.addEventListener("mouseup", () => clearTimeout(pressTimer));
-        contactEl.addEventListener("touchstart", () => pressTimer = setTimeout(() => deletarContato(user.id), 1200));
-        contactEl.addEventListener("touchend", () => clearTimeout(pressTimer));
-
         contactEl.onclick = () => abrirChat(user);
         div.appendChild(contactEl);
     });
 }
 
-// RESTANTE DAS FUNÇÕES (PERFIL, CHAT, MENSAGENS)
+function abrirChat(user) {
+    currentChat = user;
+    unreadCounts[user.id] = 0;
+    
+    document.getElementById("home").style.display = "none";
+    document.getElementById("chatScreen").style.display = "flex";
+    document.getElementById("chatName").textContent = user.username;
+    document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+
+    // VERIFICAÇÃO INSTANTÂNEA AO ABRIR
+    const estaOnline = listaOnlineGlobal.includes(user.id);
+    const statusDiv = document.getElementById("typingStatus");
+    statusDiv.textContent = estaOnline ? "Online" : "offline";
+    statusDiv.style.color = estaOnline ? "#25D366" : "#dcdcdc";
+
+    loadMessages();
+}
+
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
@@ -131,18 +128,8 @@ function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    const time = m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "";
-    div.innerHTML = `<div class="bubble">${m.text}<div style="font-size:10px; opacity:0.6; text-align:right;">${time}</div></div>`;
+    div.innerHTML = `<div class="bubble">${m.text}</div>`;
     container.appendChild(div);
-}
-
-function abrirChat(user) {
-    currentChat = user;
-    unreadCounts[user.id] = 0;
-    document.getElementById("home").style.display = "none";
-    document.getElementById("chatScreen").style.display = "flex";
-    document.getElementById("chatName").textContent = user.username;
-    loadMessages();
 }
 
 function voltar() {
@@ -164,16 +151,14 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     loadMessages();
 };
 
-function deletarContato(id) {
-    contatoParaExcluir = id;
-    document.getElementById("confirmModal").style.display = "flex";
-}
-
-document.getElementById("confirmYes").onclick = () => {
-    contacts = contacts.filter(c => c.id != contatoParaExcluir);
+document.getElementById("addFriendBtn").onclick = async () => {
+    const id = document.getElementById("addUserId").value.trim();
+    if(!id) return;
+    const res = await fetch(`/getUser/${id}`);
+    const user = await res.json();
+    if(user.error) return alert("Não encontrado");
+    contacts.unshift(user);
     localStorage.setItem("contacts", JSON.stringify(contacts));
-    document.getElementById("confirmModal").style.display = "none";
     renderContacts();
 };
-
-document.getElementById("confirmNo").onclick = () => document.getElementById("confirmModal").style.display = "none";
+            
