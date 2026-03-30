@@ -10,12 +10,16 @@ let listaOnlineGlobal = [];
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
 
+    // 1. Tenta carregar o usuário do servidor para ter o nome mais atual
     if (savedId) {
         const res = await fetch(`/getUser/${savedId}`);
         const user = await res.json();
-        if (!user.error) currentUser = user;
+        if (!user.error && user.username) {
+            currentUser = user;
+        }
     }
 
+    // 2. Se não existir, cria um novo
     if (!currentUser) {
         const res = await fetch("/user", {
             method: "POST",
@@ -26,8 +30,8 @@ window.addEventListener("load", async () => {
         localStorage.setItem("userId", currentUser.id);
     }
 
+    // Registra no socket e preenche a tela
     socket.emit("register", currentUser.id);
-
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
     if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
@@ -36,10 +40,61 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
+// ==========================================
+// 🔥 FUNÇÃO DE SALVAR PERFIL ATUALIZADA
+// ==========================================
+document.getElementById("profileForm").onsubmit = async (e) => {
+    e.preventDefault();
+    
+    const novoNome = document.getElementById("username").value.trim();
+    const inputFoto = document.getElementById("profilePic");
+    let fotoBase64 = currentUser.photo;
+
+    if (!novoNome) return alert("Digite um nome!");
+
+    // Se tiver arquivo de foto, converte para Base64 antes de salvar
+    if (inputFoto.files && inputFoto.files[0]) {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            fotoBase64 = event.target.result;
+            await enviarDadosPerfil(novoNome, fotoBase64);
+        };
+        reader.readAsDataURL(inputFoto.files[0]);
+    } else {
+        await enviarDadosPerfil(novoNome, fotoBase64);
+    }
+};
+
+async function enviarDadosPerfil(nome, foto) {
+    // Atualiza localmente
+    currentUser.username = nome;
+    currentUser.photo = foto;
+    if(foto) document.getElementById("profilePreview").src = foto;
+
+    // Salva no Banco de Dados via Servidor
+    const res = await fetch("/saveProfile", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+            id: currentUser.id,
+            username: nome,
+            photo: foto
+        })
+    });
+
+    const data = await res.json();
+    if(data.success) {
+        alert("Perfil atualizado com sucesso!");
+    }
+}
+
+// ==========================================
+// RESTANTE DO CÓDIGO (CONTATOS E MENSAGENS)
+// ==========================================
+
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts();
-    
     if (currentChat) {
         const estaOnline = listaOnline.includes(currentChat.id);
         const statusDiv = document.getElementById("typingStatus");
@@ -52,6 +107,7 @@ socket.on("updateStatus", (listaOnline) => {
 
 function renderContacts() {
     const div = document.getElementById("contacts");
+    if(!div) return;
     div.innerHTML = "";
 
     contacts.forEach(user => {
@@ -79,7 +135,6 @@ function renderContacts() {
     });
 }
 
-// 🔥 FUNÇÃO ATUALIZADA: Agora ela adiciona quem te mandou mensagem automaticamente
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
@@ -88,22 +143,24 @@ async function loadMessages() {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
 
-            // Se a mensagem é para mim e quem enviou NÃO está nos meus contatos
             if (m.toId == currentUser.id) {
-                const jaExiste = contacts.some(c => c.id == m.fromId);
+                const index = contacts.findIndex(c => c.id == m.fromId);
                 
-                if (!jaExiste) {
-                    // Busca os dados do desconhecido no servidor
+                if (index === -1) {
                     const resUser = await fetch(`/getUser/${m.fromId}`);
                     const newUser = await resUser.json();
-                    
                     if (!newUser.error) {
-                        contacts.unshift(newUser); // Adiciona no topo da lista
-                        localStorage.setItem("contacts", JSON.stringify(contacts));
+                        contacts.unshift(newUser);
                     }
+                } else {
+                    // Atualiza os dados do contato (caso ele tenha mudado de nome/foto)
+                    const resUser = await fetch(`/getUser/${m.fromId}`);
+                    const updatedUser = await resUser.json();
+                    if(!updatedUser.error) contacts[index] = updatedUser;
                 }
+                
+                localStorage.setItem("contacts", JSON.stringify(contacts));
 
-                // Se eu não estiver com o chat dessa pessoa aberto, conta como não lida
                 if (currentChat?.id !== m.fromId) {
                     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
                 }
@@ -180,10 +237,10 @@ document.getElementById("addFriendBtn").onclick = async () => {
     const res = await fetch(`/getUser/${id}`);
     const user = await res.json();
     if(user.error) return alert("Não encontrado");
-    if(contacts.some(c => c.id == id)) return alert("Já é seu contato");
-    
-    contacts.unshift(user);
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
+    if(!contacts.some(c => c.id == id)) {
+        contacts.unshift(user);
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+    }
     document.getElementById("addUserId").value = "";
 };
