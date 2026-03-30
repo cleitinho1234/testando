@@ -68,8 +68,11 @@ atualizarContatos().then(renderContacts);
 // --- ATUALIZAÇÃO EM TEMPO REAL ---
 setInterval(() => {
   loadMessages();
-  enviarSinalOnline(); // Avisa o servidor que estou aqui
-  atualizarContatos().then(renderContacts); // Atualiza os status na tela
+  enviarSinalOnline(); 
+  atualizarContatos().then(() => {
+      renderContacts();
+      atualizarStatusHeader(); // <-- NOVIDADE: Atualiza o status no topo do chat aberto
+  });
 }, 1500);
 
 });
@@ -141,8 +144,6 @@ let html = "";
 
 for (let user of contacts){
 const count = unreadCounts[user.id] || 0;
-
-// CALCULA SE ESTÁ ONLINE (Sinal nos últimos 30 segundos)
 const isOnline = user.lastSeen && (Date.now() - user.lastSeen < 30000);
 const statusLabel = isOnline ? 
   `<span style="color:#2ecc71; font-size:10px; font-weight:bold;">online</span>` : 
@@ -173,7 +174,54 @@ el.onclick = () => abrirChat(contacts.find(c => c.id == el.dataset.id));
 }
 
 // =========================
-// MODAL EXCLUIR, CHAT, ENVIAR, LOAD, MENSAGEM
+// CHAT (MODIFICADO PARA STATUS NO TOPO)
+
+function abrirChat(user){
+currentChat = user;
+unreadCounts[user.id] = 0;
+localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+
+renderContacts();
+atualizarStatusHeader(); // <-- Chama a atualização do topo imediatamente
+
+document.getElementById("messages").innerHTML = "";
+document.getElementById("home").style.display = "none";
+document.getElementById("chatScreen").style.display = "flex";
+
+loadMessages();
+}
+
+// NOVA FUNÇÃO: Atualiza o nome e o status no topo da conversa
+function atualizarStatusHeader() {
+  if (!currentChat) return;
+
+  // Busca os dados atualizados do contato que está na lista de contatos
+  const user = contacts.find(c => c.id === currentChat.id);
+  if (!user) return;
+
+  const isOnline = user.lastSeen && (Date.now() - user.lastSeen < 30000);
+  const statusHtml = isOnline ? 
+    `<span style="color:#2ecc71; font-size:12px; font-weight:bold;">online</span>` : 
+    `<span style="color:#aaa; font-size:12px;">visto por último há pouco</span>`;
+
+  // Aqui eu assumo que você tem um elemento para o nome e talvez queira um para o status
+  // Se o seu HTML só tiver o id="chatName", vamos colocar tudo lá:
+  document.getElementById("chatName").innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center;">
+        <span>${user.username}</span>
+        ${statusHtml}
+    </div>
+  `;
+}
+
+function voltar(){
+document.getElementById("chatScreen").style.display = "none";
+document.getElementById("home").style.display = "block";
+currentChat = null;
+}
+
+// =========================
+// MODAL EXCLUIR, ENVIAR, LOAD, MENSAGEM (RESTANTE DO CÓDIGO)
 
 function deletarContato(id){
   contatoParaExcluir = id;
@@ -195,24 +243,6 @@ document.getElementById("confirmNo").onclick = () => {
 contatoParaExcluir = null;
 document.getElementById("confirmModal").style.display = "none";
 };
-
-function abrirChat(user){
-currentChat = user;
-unreadCounts[user.id] = 0;
-localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-renderContacts();
-document.getElementById("messages").innerHTML = "";
-document.getElementById("home").style.display = "none";
-document.getElementById("chatScreen").style.display = "flex";
-document.getElementById("chatName").textContent = user.username;
-loadMessages();
-}
-
-function voltar(){
-document.getElementById("chatScreen").style.display = "none";
-document.getElementById("home").style.display = "block";
-currentChat = null;
-}
 
 document.getElementById("sendMessageBtn").onclick = () => {
 const input = document.getElementById("messageText");
