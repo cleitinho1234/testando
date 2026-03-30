@@ -33,13 +33,13 @@ if (!currentUser) {
   localStorage.setItem("userId", currentUser.id);
 }
 
-// nome fixo
+// nome
 const savedName = localStorage.getItem("username");
 if(savedName){
   currentUser.username = savedName;
 }
 
-// 🔥 carregar foto salva
+// 🔥 carregar foto local
 const savedPhoto = localStorage.getItem("userPhoto");
 if(savedPhoto){
   currentUser.photo = savedPhoto;
@@ -79,7 +79,7 @@ document.getElementById("addUserId").value = "";
 renderContacts();
 atualizarContatos().then(renderContacts);
 
-// 🔥 importante: atualiza contatos também
+// 🔥 sincroniza geral
 setInterval(() => {
   loadMessages();
   atualizarContatos().then(renderContacts);
@@ -112,17 +112,15 @@ if(file){
 
 });
 
-// 🔥 FUNÇÃO CORRIGIDA
 async function salvarPerfil(username, photo){
 
 currentUser.username = username;
 currentUser.photo = photo;
 
-// salvar local (ESSENCIAL)
 localStorage.setItem("username", username);
 localStorage.setItem("userPhoto", photo);
 
-// preview imediato
+// preview
 if(photo){
   document.getElementById("profilePreview").src = photo;
 }
@@ -139,7 +137,7 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 
 renderContacts();
 
-// 🔥 salvar no servidor (AGORA ESPERA)
+// 🔥 salvar no servidor
 const res = await fetch("/saveProfile", {
   method: "POST",
   headers: {"Content-Type":"application/json"},
@@ -219,4 +217,4 @@ el.onclick = () => {
 
 });
 
-  }
+                                                         }
