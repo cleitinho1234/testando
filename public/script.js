@@ -42,8 +42,9 @@ if(savedName){
 document.getElementById("username").value = currentUser.username || "";
 document.getElementById("userIdDisplay").textContent = currentUser.id;
 
+// 🔥 corrigido (cache bust)
 if(currentUser.photo){
-  document.getElementById("profilePreview").src = currentUser.photo;
+  document.getElementById("profilePreview").src = currentUser.photo + "?t=" + Date.now();
 }
 
 // ADD CONTATO
@@ -73,7 +74,11 @@ document.getElementById("addUserId").value = "";
 renderContacts();
 atualizarContatos().then(renderContacts);
 
-setInterval(loadMessages, 1500);
+// 🔥 atualizado para sincronizar fotos também
+setInterval(() => {
+  loadMessages();
+  atualizarContatos().then(renderContacts);
+}, 1500);
 
 });
 
@@ -102,6 +107,7 @@ if(file){
 
 });
 
+// 🔥 FUNÇÃO CORRIGIDA
 async function salvarPerfil(username, photo){
 
 currentUser.username = username;
@@ -109,9 +115,18 @@ currentUser.photo = photo;
 
 localStorage.setItem("username", username);
 
+// 🔥 resolver cache
+const photoComCache = photo ? photo + "?t=" + Date.now() : "";
+
+// atualizar preview na hora
+if(photoComCache){
+  document.getElementById("profilePreview").src = photoComCache;
+}
+
+// atualizar contatos
 contacts = contacts.map(c => {
   if(c.id === currentUser.id){
-    return {...c, username, photo};
+    return {...c, username, photo: photoComCache};
   }
   return c;
 });
@@ -120,7 +135,8 @@ localStorage.setItem("contacts", JSON.stringify(contacts));
 
 renderContacts();
 
-fetch("/saveProfile", {
+// salvar no servidor
+await fetch("/saveProfile", {
   method: "POST",
   headers: {"Content-Type":"application/json"},
   body: JSON.stringify({
@@ -162,7 +178,7 @@ const count = unreadCounts[user.id] || 0;
 
 html += `
 <div class="contact" data-id="${user.id}" style="display:flex;align-items:center;">
-<img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
+<img src="${user.photo ? user.photo + '?t=' + Date.now() : 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}"
 style="width:30px;height:30px;border-radius:50%;margin-right:10px;">
 <span style="flex:1;">${user.username}</span>
 ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:5px 10px;font-size:12px;margin-left:auto;">${count}</span>` : ""}
@@ -176,7 +192,6 @@ document.querySelectorAll(".contact").forEach(el => {
 
 let pressTimer;
 
-// SEGURAR MAIS TEMPO
 el.addEventListener("mousedown", () => {
   pressTimer = setTimeout(() => deletarContato(el.dataset.id), 1200);
 });
@@ -187,7 +202,6 @@ el.addEventListener("touchstart", () => {
 });
 el.addEventListener("touchend", () => clearTimeout(pressTimer));
 
-// clique normal
 el.onclick = () => {
   const user = contacts.find(c => c.id == el.dataset.id);
   abrirChat(user);
@@ -388,4 +402,4 @@ bubble.appendChild(time);
 div.appendChild(bubble);
 container.appendChild(div);
 
-  }
+}
