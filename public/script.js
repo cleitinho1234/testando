@@ -1,6 +1,7 @@
 let currentUser = null;
 let currentChat = null;
 let contatoSelecionadoId = null; 
+let mensagemSelecionadaId = null; // NOVA: Controle de exclusão de mensagens
 let fotoParaEnviar = null; 
 const socket = io(); 
 
@@ -9,7 +10,7 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
-// --- 1. NOTIFICAÇÕES E BADGE (NÚMERO NO ÍCONE) ---
+// --- 1. NOTIFICAÇÕES E BADGE --- (Igual ao seu)
 function atualizarBadgeIcone() {
     const counts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
     const totalNaoLidas = Object.values(counts).reduce((a, b) => a + b, 0);
@@ -30,7 +31,7 @@ function atualizarBadgeIcone() {
     }
 }
 
-// --- 2. LÓGICA DE INSTALAÇÃO (PWA) ---
+// --- 2. LÓGICA DE INSTALAÇÃO (PWA) --- (Igual ao seu)
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
     const jaInstalou = localStorage.getItem("appInstalado");
@@ -58,7 +59,7 @@ function recusarInstalacao() {
     document.getElementById('installBanner').style.display = 'none';
 }
 
-// --- 3. CARREGAMENTO, TRAVAS E SERVICE WORKER ---
+// --- 3. CARREGAMENTO E SERVICE WORKER --- (Igual ao seu)
 function aplicarTrava(elementId) {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -112,7 +113,7 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- 4. GESTÃO DE FOTOS ---
+// --- 4. GESTÃO DE FOTOS --- (Igual ao seu)
 document.getElementById("sendPhoto").onchange = function(e) {
     const file = e.target.files[0];
     if (!file || !currentChat) return;
@@ -150,7 +151,7 @@ function fecharFullScreen() {
     document.getElementById("fullScreenViewer").style.display = "none";
 }
 
-// --- 5. MENSAGENS E ENVIO ---
+// --- 5. MENSAGENS E ENVIO (COM EXCLUSÃO) ---
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
@@ -202,11 +203,8 @@ async function loadMessages() {
                     remetenteNome = contatoMovido.username;
                 }
 
-                // LÓGICA DE NOTIFICAÇÃO ESTILO WHATSAPP
                 if (currentChat?.id !== m.fromId) {
                     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
-
-                    // Envia para o Service Worker mostrar a notificação na aba do celular
                     if (navigator.serviceWorker.controller && Notification.permission === "granted") {
                         const corpoTexto = m.text.startsWith("data:image") ? "📷 Foto" : m.text;
                         navigator.serviceWorker.controller.postMessage({
@@ -250,15 +248,87 @@ function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+    div.id = `msg-${m.id}`; // Identificador para a seleção visual
+
     let conteudo = m.text.startsWith("data:image") ? `<img src="${m.text}" onclick="abrirFullScreen('${m.text}')">` : m.text;
     const date = new Date(m.timestamp);
     const hora = date.getHours().toString().padStart(2, '0');
     const min = date.getMinutes().toString().padStart(2, '0');
+    
     div.innerHTML = `<div class="bubble">${conteudo}<span class="time">${hora}:${min}</span></div>`;
+
+    // LÓGICA DE SEGURAR (LONG PRESS) NA MENSAGEM
+    let pressTimer;
+    const startPress = () => {
+        pressTimer = setTimeout(() => {
+            ativarSelecaoMensagem(m.id);
+        }, 800);
+    };
+    const endPress = () => clearTimeout(pressTimer);
+
+    div.addEventListener("touchstart", startPress);
+    div.addEventListener("touchend", endPress);
+    div.addEventListener("mousedown", startPress); // PC
+    div.addEventListener("mouseup", endPress);     // PC
+
     container.appendChild(div);
 }
 
-// --- 6. SOCKETS E PERFIL ---
+// --- NOVAS FUNÇÕES DE SELEÇÃO E EXCLUSÃO DE MENSAGENS ---
+function ativarSelecaoMensagem(id) {
+    if (contatoSelecionadoId) return; // Evita conflito se estiver selecionando contato
+    mensagemSelecionadaId = id;
+    
+    // Marca visualmente
+    const msgEl = document.getElementById(`msg-${id}`);
+    if (msgEl) msgEl.classList.add("selected_msg");
+    
+    document.getElementById("headerMsgSelecao").style.display = "flex";
+}
+
+function cancelarSelecaoMensagem() {
+    if (mensagemSelecionadaId) {
+        const msgEl = document.getElementById(`msg-${mensagemSelecionadaId}`);
+        if (msgEl) msgEl.classList.remove("selected_msg");
+    }
+    mensagemSelecionadaId = null;
+    document.getElementById("headerMsgSelecao").style.display = "none";
+}
+
+function abrirMsgModal() { 
+    document.getElementById("msgDeleteModal").style.display = "flex"; 
+}
+
+function fecharMsgModal() { 
+    document.getElementById("msgDeleteModal").style.display = "none";
+    cancelarSelecaoMensagem();
+}
+
+async function confirmarExclusaoMensagem() {
+    if (!mensagemSelecionadaId) return;
+
+    try {
+        const res = await fetch(`/deleteMessage/${mensagemSelecionadaId}`, { 
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" }
+        });
+
+        if (res.ok) {
+            fecharMsgModal();
+            loadMessages(); // Recarrega o chat para sumir a mensagem
+        } else {
+            alert("Erro ao excluir mensagem no servidor.");
+        }
+    } catch (err) {
+        console.error("Erro na exclusão:", err);
+    }
+}
+
+// Vincula o botão "Sim" do modal de mensagens
+document.getElementById("confirmarBtnMsg").onclick = confirmarExclusaoMensagem;
+
+
+// --- 6. SOCKETS E PERFIL --- (Igual ao seu)
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -303,6 +373,7 @@ function voltar() {
     currentChat = null;
     localStorage.removeItem("activeChatId");
     cancelarEnvioFoto();
+    cancelarSelecaoMensagem(); // Limpa seleções ao sair
     renderContacts();
 }
 
