@@ -24,7 +24,10 @@ window.addEventListener("load", async () => {
         currentUser = await res.json();
         localStorage.setItem("userId", currentUser.id);
     }
+    
+    // 🔥 Registra e entra online imediatamente
     socket.emit("register", currentUser.id);
+    
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
     
@@ -41,12 +44,25 @@ socket.on("userUpdated", (dados) => {
         contacts[index].photo = dados.photo;
         localStorage.setItem("contacts", JSON.stringify(contacts));
         renderContacts();
+        
+        // Se estiver com o chat aberto da pessoa que mudou a foto/nome, atualiza o topo
+        if (currentChat && currentChat.id === dados.id) {
+            document.getElementById("chatName").textContent = dados.username;
+            document.getElementById("chatAvatar").src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+        }
     }
 });
 
+// 🔥 RECEBE O STATUS ONLINE EM TEMPO REAL
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts();
+    
+    // Se estiver com um chat aberto, atualiza o texto de "Online" ou "offline" na hora
+    if (currentChat) {
+        const estaOnline = listaOnlineGlobal.includes(currentChat.id);
+        document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
+    }
 });
 
 function ativarSelecao(id) {
@@ -73,6 +89,7 @@ function confirmarExclusao() {
 
 function renderContacts() {
     const div = document.getElementById("contacts");
+    if (!div) return;
     div.innerHTML = "";
     contacts.forEach(user => {
         const count = unreadCounts[user.id] || 0;
@@ -175,8 +192,11 @@ function abrirChat(user) {
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    
+    // 🔥 Atualiza status ao entrar no chat
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
+    
     loadMessages();
 }
 
@@ -231,7 +251,10 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             currentUser.username = nome; 
             currentUser.photo = fotoFinal;
             if (fotoFinal) document.getElementById("profilePreview").src = fotoFinal;
+            
+            // Avisa o servidor para notificar os amigos da mudança visual
             socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
+            
             alert("Perfil Salvo!");
             renderContacts();
         }
@@ -243,7 +266,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement("canvas");
-                const MAX_WIDTH = 300; // Define um tamanho máximo para evitar erro de limite
+                const MAX_WIDTH = 300; 
                 const scaleSize = MAX_WIDTH / img.width;
                 canvas.width = MAX_WIDTH;
                 canvas.height = img.height * scaleSize;
