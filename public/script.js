@@ -340,7 +340,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- BLOQUEIO DE PULL-TO-REFRESH ---
+// --- BLOQUEIO DE PULL-TO-REFRESH FINAL ---
 let touchStartPageY = 0;
 
 window.addEventListener('touchstart', (e) => {
@@ -352,13 +352,14 @@ window.addEventListener('touchmove', (e) => {
     const container = document.getElementById("messages");
     const homeContainer = document.getElementById("home");
     
-    // Identifica qual container está visível
+    // Identifica qual container está visível no momento
     const activeContainer = (document.getElementById("chatScreen").style.display === "flex") 
         ? container 
         : homeContainer;
 
-    // Se estiver no topo e tentar puxar para baixo, bloqueia o gesto do navegador
+    // Se estiver no topo e tentar puxar para baixo (touchMove > touchStart)
     if (touchMovePageY > touchStartPageY && activeContainer.scrollTop <= 0) {
+        // Bloqueia apenas se o navegador tentar disparar o refresh
         if (e.cancelable) e.preventDefault();
     }
 }, { passive: false });
