@@ -17,14 +17,16 @@
     overflow: hidden; /* Impede que a página principal role e ative o refresh */
     position: fixed; 
     width: 100%;
+    margin: 0;
+    padding: 0;
+    touch-action: none; /* Bloqueia gestos padrão no fundo da página */
   }
 
   body { 
     font-family: Arial, sans-serif; 
     background: #e5ddd5; 
-    margin: 0; 
     user-select: none; 
-    overscroll-behavior-y: none; /* Desativa o "puxar para atualizar" */
+    overscroll-behavior-y: none; /* Desativa o "puxar para atualizar" em navegadores modernos */
   }
   
   /* Area de scroll da Home (Contatos) */
@@ -36,6 +38,8 @@
     overflow-y: auto; /* Permite rolar apenas aqui dentro */
     box-sizing: border-box;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y; /* Permite apenas scroll vertical aqui */
+    overscroll-behavior-y: contain;
   }
 
   /* --- Estilo do Card de Perfil --- */
@@ -108,6 +112,7 @@
     background: #efeae2; 
     flex-direction: column; 
     z-index: 50;
+    touch-action: none;
   }
   
   #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; }
@@ -120,6 +125,7 @@
     padding: 10px; 
     overscroll-behavior-y: contain; /* Isola o scroll para não vazar para o navegador */
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   
   /* --- Estilo do Botão de Anexo e Menu --- */
@@ -238,5 +244,29 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="script.js"></script>
+
+<script>
+  // --- BLOQUEIO TOTAL E AGRESSIVO DE PULL-TO-REFRESH ---
+  let touchStartPageY = 0;
+
+  window.addEventListener('touchstart', (e) => {
+      touchStartPageY = e.touches[0].pageY;
+  }, { passive: false });
+
+  window.addEventListener('touchmove', (e) => {
+      const touchMovePageY = e.touches[0].pageY;
+      const isChatVisible = document.getElementById("chatScreen").style.display === "flex";
+      const scrollTarget = isChatVisible ? document.getElementById("messages") : document.getElementById("home");
+
+      // Se o usuário está puxando para baixo
+      if (touchMovePageY > touchStartPageY) {
+          // Se estiver no topo da div de scroll, bloqueia o movimento do navegador
+          if (scrollTarget.scrollTop <= 0) {
+              if (e.cancelable) e.preventDefault();
+          }
+      }
+  }, { passive: false });
+</script>
+
 </body>
 </html>
