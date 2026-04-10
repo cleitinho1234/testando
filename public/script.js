@@ -14,7 +14,6 @@ function atualizarBadgeIcone() {
     const counts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
     const totalNaoLidas = Object.values(counts).reduce((a, b) => a + b, 0);
 
-    // Atualiza o número no ícone (Badge API)
     if (navigator.setAppBadge) {
         if (totalNaoLidas > 0) {
             navigator.setAppBadge(totalNaoLidas).catch(console.error);
@@ -23,7 +22,6 @@ function atualizarBadgeIcone() {
         }
     }
 
-    // Avisa o Service Worker sobre a contagem (para rodar em background)
     if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
             type: 'UPDATE_BADGE',
@@ -69,14 +67,12 @@ function aplicarTrava(elementId) {
 }
 
 window.addEventListener("load", async () => {
-    // Registro do Service Worker
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
             .then(() => console.log("Service Worker ativo!"))
             .catch(err => console.log("Erro SW:", err));
     }
 
-    // Pede permissão para notificações
     if (Notification.permission !== 'granted') {
         Notification.requestPermission();
     }
@@ -191,15 +187,35 @@ async function loadMessages() {
             novaMensagem = true;
             if (m.toId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.fromId);
+                let remetenteNome = "Alguém";
+
                 if (index === -1) {
                     const resUser = await fetch(`/getUser/${m.fromId}`);
                     const newUser = await resUser.json();
-                    if (!newUser.error) contacts.unshift(newUser); 
+                    if (!newUser.error) {
+                        contacts.unshift(newUser);
+                        remetenteNome = newUser.username;
+                    }
                 } else {
                     const contatoMovido = contacts.splice(index, 1)[0];
                     contacts.unshift(contatoMovido);
+                    remetenteNome = contatoMovido.username;
                 }
-                if (currentChat?.id !== m.fromId) unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
+
+                // LÓGICA DE NOTIFICAÇÃO ESTILO WHATSAPP
+                if (currentChat?.id !== m.fromId) {
+                    unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
+
+                    // Envia para o Service Worker mostrar a notificação na aba do celular
+                    if (navigator.serviceWorker.controller && Notification.permission === "granted") {
+                        const corpoTexto = m.text.startsWith("data:image") ? "📷 Foto" : m.text;
+                        navigator.serviceWorker.controller.postMessage({
+                            type: 'SHOW_NOTIFICATION',
+                            title: remetenteNome,
+                            body: corpoTexto
+                        });
+                    }
+                }
             } else if (m.fromId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.toId);
                 if (index !== -1) {
