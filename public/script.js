@@ -200,6 +200,7 @@ function addMessage(m) {
     container.appendChild(div);
 }
 
+// --- FUNÇÃO CORRIGIDA PARA EVITAR REFRESH AO SUBIR ---
 function abrirChat(user) {
     currentChat = user;
     localStorage.setItem("activeChatId", user.id);
@@ -215,10 +216,19 @@ function abrirChat(user) {
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
     loadMessages();
+    
+    const container = document.getElementById("messages");
     setTimeout(() => {
-        const container = document.getElementById("messages");
         container.scrollTop = container.scrollHeight;
-    }, 100);
+        
+        // Se o usuário tentar subir até o topo absoluto, a gente mantém em 1px
+        // Isso "engana" o navegador e impede o refresh
+        container.addEventListener('scroll', () => {
+            if (container.scrollTop <= 0) {
+                container.scrollTop = 1;
+            }
+        });
+    }, 200);
 }
 
 function voltar() {
@@ -340,26 +350,28 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- BLOQUEIO DE PULL-TO-REFRESH FINAL ---
-let touchStartPageY = 0;
+// --- BLOQUEIO FINAL DE PULL-TO-REFRESH (TRAVA TUDO) ---
+let touchY = 0;
+const messagesDiv = document.getElementById("messages");
 
-window.addEventListener('touchstart', (e) => {
-    touchStartPageY = e.touches[0].pageY;
+messagesDiv.addEventListener('touchstart', (e) => {
+    touchY = e.touches[0].clientY;
 }, { passive: false });
 
-window.addEventListener('touchmove', (e) => {
-    const touchMovePageY = e.touches[0].pageY;
-    const container = document.getElementById("messages");
-    const homeContainer = document.getElementById("home");
+messagesDiv.addEventListener('touchmove', (e) => {
+    const currentY = e.touches[0].clientY;
     
-    // Identifica qual container está visível no momento
-    const activeContainer = (document.getElementById("chatScreen").style.display === "flex") 
-        ? container 
-        : homeContainer;
+    // Se estiver tentando puxar para baixo e estiver no topo das mensagens
+    if (currentY > touchY && messagesDiv.scrollTop <= 1) {
+        if (e.cancelable) e.preventDefault();
+    }
+    touchY = currentY;
+}, { passive: false });
 
-    // Se estiver no topo e tentar puxar para baixo (touchMove > touchStart)
-    if (touchMovePageY > touchStartPageY && activeContainer.scrollTop <= 0) {
-        // Bloqueia apenas se o navegador tentar disparar o refresh
+// Bloqueio também para a tela inicial
+const homeDiv = document.getElementById("home");
+homeDiv.addEventListener('touchmove', (e) => {
+    if (homeDiv.scrollTop <= 0 && e.touches[0].clientY > touchY) {
         if (e.cancelable) e.preventDefault();
     }
 }, { passive: false });
