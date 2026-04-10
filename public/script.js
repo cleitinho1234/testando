@@ -25,7 +25,7 @@ window.addEventListener("load", async () => {
         localStorage.setItem("userId", currentUser.id);
     }
     
-    // 🔥 Registra e entra online imediatamente
+    // Registra a entrada no servidor
     socket.emit("register", currentUser.id);
     
     document.getElementById("username").value = currentUser.username || "";
@@ -37,6 +37,7 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
+// Atualiza dados visuais (foto/nome) quando um contato muda o perfil
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -45,7 +46,6 @@ socket.on("userUpdated", (dados) => {
         localStorage.setItem("contacts", JSON.stringify(contacts));
         renderContacts();
         
-        // Se estiver com o chat aberto da pessoa que mudou a foto/nome, atualiza o topo
         if (currentChat && currentChat.id === dados.id) {
             document.getElementById("chatName").textContent = dados.username;
             document.getElementById("chatAvatar").src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
@@ -53,12 +53,12 @@ socket.on("userUpdated", (dados) => {
     }
 });
 
-// 🔥 RECEBE O STATUS ONLINE EM TEMPO REAL
+// 🔥 ATUALIZA ONLINE E OFFLINE EM TEMPO REAL
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts();
     
-    // Se estiver com um chat aberto, atualiza o texto de "Online" ou "offline" na hora
+    // Se estiver com o chat aberto, atualiza o status no topo na hora (Online/offline)
     if (currentChat) {
         const estaOnline = listaOnlineGlobal.includes(currentChat.id);
         document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
@@ -89,7 +89,6 @@ function confirmarExclusao() {
 
 function renderContacts() {
     const div = document.getElementById("contacts");
-    if (!div) return;
     div.innerHTML = "";
     contacts.forEach(user => {
         const count = unreadCounts[user.id] || 0;
@@ -193,7 +192,7 @@ function abrirChat(user) {
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     
-    // 🔥 Atualiza status ao entrar no chat
+    // Atualiza o status (Online/offline) ao entrar no chat
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
@@ -251,10 +250,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             currentUser.username = nome; 
             currentUser.photo = fotoFinal;
             if (fotoFinal) document.getElementById("profilePreview").src = fotoFinal;
-            
-            // Avisa o servidor para notificar os amigos da mudança visual
             socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
-            
             alert("Perfil Salvo!");
             renderContacts();
         }
