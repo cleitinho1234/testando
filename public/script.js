@@ -42,7 +42,7 @@ window.addEventListener("load", async () => {
 
     setInterval(loadMessages, 1500);
 
-    // ATIVA A TRAVA ULTRA LOGO NO INÍCIO
+    // Inicializa as travas de scroll
     bloquearRefresh("messages");
     bloquearRefresh("home");
 });
@@ -219,7 +219,6 @@ function abrirChat(user) {
     setTimeout(() => {
         const container = document.getElementById("messages");
         container.scrollTop = container.scrollHeight;
-        if (container.scrollTop <= 0) container.scrollTop = 1;
     }, 150);
 }
 
@@ -342,28 +341,33 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- TRAVA DE REFRESH "ULTRA" ---
-let startY = 0;
-const bloquearRefresh = (id) => {
+// --- NOVA TRAVA DE REFRESH REFORÇADA ---
+function bloquearRefresh(id) {
     const el = document.getElementById(id);
     if (!el) return;
 
+    let startY = 0;
+
     el.addEventListener('touchstart', (e) => {
         startY = e.touches[0].pageY;
-        if (el.scrollTop <= 0) el.scrollTop = 1;
-        if (el.scrollTop + el.offsetHeight >= el.scrollHeight) el.scrollTop = el.scrollHeight - el.offsetHeight - 1;
+        // Se estiver no topo real (0), força para 1px para enganar o navegador
+        if (el.scrollTop <= 0) {
+            el.scrollTop = 1;
+        }
     }, { passive: false });
 
     el.addEventListener('touchmove', (e) => {
         const moveY = e.touches[0].pageY;
-        // Se estiver no topo puxando pra baixo OU no fundo puxando pra cima
-        if ((el.scrollTop <= 1 && moveY > startY) || (el.scrollTop + el.offsetHeight >= el.scrollHeight - 1 && moveY < startY)) {
+        const diff = moveY - startY;
+
+        // Se o usuário está puxando para baixo (diff > 0) e está no topo (scrollTop <= 1)
+        if (el.scrollTop <= 1 && diff > 0) {
             if (e.cancelable) e.preventDefault();
         }
-        e.stopPropagation();
     }, { passive: false });
-};
+}
 
+// Bloqueio Global
 document.addEventListener('touchmove', (e) => {
     if (!e.target.closest('#messages') && !e.target.closest('#home')) {
         if (e.cancelable) e.preventDefault();
