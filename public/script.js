@@ -38,32 +38,27 @@ window.addEventListener("load", async () => {
         if (contatoSalvo) abrirChat(contatoSalvo);
     }
 
-    setInterval(loadMessages, 1500);
+    // --- ATIVA AS TRAVAS ANTI-REFRESH ---
+    bloquearRefreshNativo("messages");
+    bloquearRefreshNativo("home");
 
-    // ATIVA A ROLAGEM LATERAL
-    setupCustomScroll("messages", "scrollHandle");
-    setupCustomScroll("home", "scrollHandleHome");
+    setInterval(loadMessages, 1500);
 });
 
-// Lógica de Rolagem Lateral (Engana o Android)
-function setupCustomScroll(containerId, handleId) {
-    const container = document.getElementById(containerId);
-    const handle = document.getElementById(handleId);
-    if(!container || !handle) return;
-    let startY, startScroll;
+// Função que impede o sistema de puxar para atualizar
+function bloquearRefreshNativo(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
 
-    handle.addEventListener('touchstart', (e) => {
-        startY = e.touches[0].pageY;
-        startScroll = container.scrollTop;
-        e.preventDefault(); 
-    }, { passive: false });
+    // Quando o usuário encosta o dedo, se estiver no topo (0), joga para 1px
+    el.addEventListener('touchstart', () => {
+        if (el.scrollTop <= 0) el.scrollTop = 1;
+    }, { passive: true });
 
-    handle.addEventListener('touchmove', (e) => {
-        const currentY = e.touches[0].pageY;
-        const delta = startY - currentY;
-        container.scrollTop = startScroll + (delta * 3); // Velocidade x3
-        e.preventDefault();
-    }, { passive: false });
+    // Se o usuário rolar e chegar no topo, joga para 1px de novo
+    el.addEventListener('scroll', () => {
+        if (el.scrollTop <= 0) el.scrollTop = 1;
+    }, { passive: true });
 }
 
 socket.on("userUpdated", (dados) => {
@@ -121,6 +116,8 @@ function renderContacts() {
 
         const contactEl = document.createElement("div");
         contactEl.className = `contact ${isSelected ? 'selected' : ''}`;
+        contactEl.style.display = "flex";
+        contactEl.style.alignItems = "center";
         contactEl.innerHTML = `
             <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
             <div style="flex:1;">
@@ -131,7 +128,9 @@ function renderContacts() {
         `;
 
         let pressTimer;
-        contactEl.ontouchstart = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
+        contactEl.ontouchstart = (e) => {
+            pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
+        };
         contactEl.ontouchend = () => clearTimeout(pressTimer);
         contactEl.onclick = () => {
             if (contatoSelecionadoId) cancelarSelecao();
@@ -209,6 +208,7 @@ function abrirChat(user) {
     setTimeout(() => {
         const container = document.getElementById("messages");
         container.scrollTop = container.scrollHeight;
+        if (container.scrollTop <= 0) container.scrollTop = 1;
     }, 150);
 }
 
@@ -247,17 +247,14 @@ document.getElementById("sendPhoto").onchange = function(e) {
         const img = new Image();
         img.onload = async () => {
             const canvas = document.createElement("canvas");
-            const MAX_WIDTH = 500; 
-            const scale = MAX_WIDTH / img.width;
-            canvas.width = MAX_WIDTH;
-            canvas.height = img.height * scale;
+            canvas.width = 500; 
+            canvas.height = img.height * (500 / img.width);
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const base64 = canvas.toDataURL("image/jpeg", 0.7);
             await fetch("/sendMessage", {
                 method: "POST",
                 headers: {"Content-Type":"application/json"},
-                body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: base64 })
+                body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: canvas.toDataURL("image/jpeg", 0.7) })
             });
             document.getElementById("attachmentMenu").classList.add("hidden");
             await loadMessages();
