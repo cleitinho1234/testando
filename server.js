@@ -72,6 +72,8 @@ io.on("connection", (socket) => {
 
 // ==========================
 // Rotas API
+
+// Rota para criar usuário
 app.post("/user", async (req, res) => {
     try {
         const { username, photo } = req.body;
@@ -79,7 +81,7 @@ app.post("/user", async (req, res) => {
         while (true) {
             id = Math.floor(1000 + Math.random() * 9000).toString();
             const existe = await User.findOne({ id });
-            if (!existe) break;
+            if (!exists) break;
         }
         const user = new User({ id, username, photo });
         await user.save();
@@ -87,29 +89,52 @@ app.post("/user", async (req, res) => {
     } catch (e) { res.status(500).send(e); }
 });
 
+// Rota para salvar perfil
 app.post("/saveProfile", async (req, res) => {
     const { id, username, photo } = req.body;
     await User.findOneAndUpdate({ id }, { username, photo }, { upsert: true });
     res.json({ success: true });
 });
 
+// Rota para pegar usuário por ID
 app.get("/getUser/:id", async (req, res) => {
     const user = await User.findOne({ id: req.params.id });
     if (user) res.send(user);
     else res.status(404).send({ error: "Não encontrado" });
 });
 
+// Rota para enviar mensagem
 app.post("/sendMessage", async (req, res) => {
     const { fromId, toId, text } = req.body;
     const msg = await Message.create({ fromId, toId, text, timestamp: Date.now() });
     res.json({ success: true, msg });
 });
 
+// Rota para buscar mensagens
 app.get("/getMessages/:id", async (req, res) => {
     const msgs = await Message.find({
         $or: [{ fromId: req.params.id }, { toId: req.params.id }]
     }).sort({ timestamp: 1 });
     res.send(msgs);
+});
+
+// 🔥 NOVA ROTA: EXCLUIR MENSAGEM ESPECÍFICA
+app.delete("/deleteMessage/:id", async (req, res) => {
+    try {
+        const msgId = req.params.id;
+        // Tenta remover pelo _id do MongoDB
+        const result = await Message.findByIdAndDelete(msgId);
+        
+        if (result) {
+            console.log(`Mensagem ${msgId} removida.`);
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: "Mensagem não encontrada" });
+        }
+    } catch (e) {
+        console.error("Erro ao deletar:", e);
+        res.status(500).json({ error: "Erro interno no servidor" });
+    }
 });
 
 const PORT = process.env.PORT || 3000;
