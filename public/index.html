@@ -97,13 +97,14 @@
   #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 8px; outline: none; }
   #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
   
-  .message { display: flex; margin: 5px 0; width: 100%; }
+  .message { display: flex; margin: 5px 0; width: 100%; transition: background 0.3s; border-radius: 8px; }
   .me { justify-content: flex-end; }
-  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; position: relative; transition: background 0.3s; }
+  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; position: relative; }
   .me .bubble { background: #dcf8c6; }
   
-  /* ESTILO DA MENSAGEM SELECIONADA */
-  .message.selected_msg .bubble { background-color: #97d8b2 !important; transform: scale(0.98); }
+  /* --- ESTILO DA MENSAGEM SELECIONADA --- */
+  .message.selected_msg { background-color: rgba(37, 211, 102, 0.2) !important; }
+  .message.selected_msg .bubble { transform: scale(0.98); }
 
   .bubble img { max-width: 100%; border-radius: 8px; display: block; margin-top: 5px; cursor: pointer; }
   .time { font-size: 10px; color: #888; float: right; margin: 5px 0 0 10px; }
@@ -234,9 +235,9 @@
 <div id="msgDeleteModal">
   <div class="modal-box">
     <p style="font-weight:bold;">Excluir esta mensagem?</p>
-    <p style="font-size: 12px; color: #666;">Isso removerá a mensagem apenas para você.</p>
+    <p style="font-size: 12px; color: #666;">A mensagem será removida permanentemente para você.</p>
     <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
-        <button id="confirmarBtnMsg" style="background:#d9534f; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Excluir</button>
+        <button id="confirmarBtnMsg" onclick="confirmarExclusaoMensagem()" style="background:#d9534f; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Excluir</button>
         <button onclick="fecharMsgModal()" style="background:#eee; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Cancelar</button>
     </div>
   </div>
