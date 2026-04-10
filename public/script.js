@@ -40,14 +40,16 @@ window.addEventListener("load", async () => {
 
     setInterval(loadMessages, 1500);
 
-    // Ativa a barra de rolagem lateral
+    // ATIVA A ROLAGEM LATERAL
     setupCustomScroll("messages", "scrollHandle");
+    setupCustomScroll("home", "scrollHandleHome");
 });
 
-// --- LÓGICA DA BARRA DE ROLAGEM LATERAL ---
+// Lógica de Rolagem Lateral (Engana o Android)
 function setupCustomScroll(containerId, handleId) {
     const container = document.getElementById(containerId);
     const handle = document.getElementById(handleId);
+    if(!container || !handle) return;
     let startY, startScroll;
 
     handle.addEventListener('touchstart', (e) => {
@@ -59,15 +61,11 @@ function setupCustomScroll(containerId, handleId) {
     handle.addEventListener('touchmove', (e) => {
         const currentY = e.touches[0].pageY;
         const delta = startY - currentY;
-        
-        // Multiplicamos por 2 ou 3 para a rolagem ser mais rápida que o dedo
-        container.scrollTop = startScroll + (delta * 2.5);
-        
+        container.scrollTop = startScroll + (delta * 3); // Velocidade x3
         e.preventDefault();
     }, { passive: false });
 }
 
-// O restante das suas funções (socket, render, loadMessages, etc) permanecem iguais
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -237,4 +235,87 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     container.scrollTop = container.scrollHeight;
 };
 
-// ... Resto do código de anexo e perfil permanecem iguais ...
+document.getElementById("attachmentBtn").onclick = () => {
+    document.getElementById("attachmentMenu").classList.toggle("hidden");
+};
+
+document.getElementById("sendPhoto").onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file || !currentChat) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = async () => {
+            const canvas = document.createElement("canvas");
+            const MAX_WIDTH = 500; 
+            const scale = MAX_WIDTH / img.width;
+            canvas.width = MAX_WIDTH;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const base64 = canvas.toDataURL("image/jpeg", 0.7);
+            await fetch("/sendMessage", {
+                method: "POST",
+                headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: base64 })
+            });
+            document.getElementById("attachmentMenu").classList.add("hidden");
+            await loadMessages();
+            document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+        };
+        img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+document.getElementById("addFriendBtn").onclick = async () => {
+    const id = document.getElementById("addUserId").value.trim();
+    if(!id || id == currentUser.id) return;
+    const res = await fetch(`/getUser/${id}`);
+    const user = await res.json();
+    if(user.error) return alert("Não encontrado");
+    if(!contacts.some(c => c.id == id)) {
+        contacts.unshift(user); 
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+    }
+    document.getElementById("addUserId").value = "";
+};
+
+document.getElementById("profileForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const nome = document.getElementById("username").value.trim();
+    const file = document.getElementById("profilePic").files[0];
+    if (!nome) return alert("Digite um nome!");
+    const salvar = async (fotoFinal) => {
+        const res = await fetch("/saveProfile", {
+            method: "POST", 
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoFinal })
+        });
+        if (res.ok) {
+            currentUser.username = nome; 
+            currentUser.photo = fotoFinal;
+            if (fotoFinal) document.getElementById("profilePreview").src = fotoFinal;
+            socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
+            alert("Perfil Salvo!");
+            renderContacts();
+        }
+    };
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 300; 
+                canvas.height = img.height * (300 / img.width);
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                salvar(canvas.toDataURL("image/jpeg", 0.7));
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    } else salvar(currentUser.photo);
+};
