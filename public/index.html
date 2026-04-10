@@ -4,65 +4,115 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Mini-Zap</title>
-
 <style>
-  /* --- ESTILO DA BARRA DE ROLAGEM CUSTOMIZADA --- */
-  #scrollHandle {
-    position: absolute;
-    right: 5px;
-    top: 20%;
-    width: 35px;
-    height: 60px;
-    background: rgba(7, 94, 84, 0.7); /* Cor do WhatsApp com transparência */
-    border-radius: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 20px;
-    z-index: 999;
-    touch-action: none; /* Importante: impede o navegador de agir */
-    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+  /* --- TRAVAS DE SISTEMA --- */
+  html, body { height: 100%; overflow: hidden; position: fixed; width: 100%; margin: 0; padding: 0; overscroll-behavior: none; }
+  body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; }
+
+  /* --- BARRA LATERAL (SCROLL HANDLE) --- */
+  .scroll-handle {
+    position: absolute; right: 8px; top: 25%; width: 35px; height: 100px;
+    background: rgba(7, 94, 84, 0.6); border-radius: 20px; z-index: 9999;
+    display: flex; align-items: center; justify-content: center; color: white;
+    font-size: 24px; touch-action: none; box-shadow: 0 0 10px rgba(0,0,0,0.3);
   }
+  .scroll-handle::after { content: "↕"; }
+
+  /* TELA HOME */
+  #home { 
+    max-width: 500px; margin: 0 auto; padding: 15px; height: 100%;
+    overflow-y: scroll; box-sizing: border-box; position: relative;
+  }
+  #home::-webkit-scrollbar { width: 0; }
+
+  .profile-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  #profilePreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; }
   
-  #scrollHandle::before { content: "↕"; } /* Ícone de setas */
+  /* CONTATOS */
+  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; }
+  .contact.selected { background: #d1e7dd !important; }
 
-  /* O resto do seu CSS */
-  html, body { height: 100%; overflow: hidden; position: fixed; width: 100%; margin: 0; }
-  body { font-family: Arial, sans-serif; background: #e5ddd5; }
-  #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; }
-  #messages { flex: 1; overflow-y: scroll; padding: 10px; -webkit-overflow-scrolling: auto; }
-  /* Removi o scrollbar padrão para não confundir */
-  #messages::-webkit-scrollbar { width: 0px; }
-
+  /* TELA CHAT */
+  #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; z-index: 50; }
   #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; }
-  #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; }
+  #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
+  
+  #messages { flex: 1; overflow-y: scroll; padding: 10px; position: relative; }
+  #messages::-webkit-scrollbar { width: 0; }
+
   #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; }
-  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; margin: 0 8px; }
-  #sendMessageBtn { width: 45px; height: 45px; border: none; background: #075e54; color: white; border-radius: 50%; cursor: pointer; }
+  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 8px; outline: none; }
+  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; }
+  
   .message { display: flex; margin: 5px 0; }
   .me { justify-content: flex-end; }
-  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; }
+  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; position: relative; }
   .me .bubble { background: #dcf8c6; }
+  .bubble img { max-width: 100%; border-radius: 8px; }
+  .time { font-size: 10px; color: #888; float: right; margin: 5px 0 0 10px; }
+
+  /* MODAL E OUTROS */
+  .hidden { display: none; }
+  #headerSelecao { display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; }
+  #confirmModal { display: none; position: fixed; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; }
+  .modal-box { background:white; padding:20px; border-radius:10px; text-align:center; }
 </style>
 </head>
 <body>
 
+<div id="headerSelecao">
+  <button onclick="cancelarSelecao()" style="background:none; border:none; color:white; font-size:20px;">✕</button>
+  <button onclick="abrirModal()" style="background:none; border:none; color:white; font-size:20px;">🗑️</button>
+</div>
+
+<div id="home">
+  <div id="scrollHandleHome" class="scroll-handle"></div>
+  <div class="profile-card">
+    <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
+    <form id="profileForm">
+      <input type="text" id="username" placeholder="Seu nome" style="width: 80%; padding: 10px; margin: 10px 0;">
+      <input type="file" id="profilePic" accept="image/*" style="font-size: 12px;">
+      <button type="submit" style="background:#25D366; color:white; border:none; padding:10px 20px; border-radius:5px; margin-top:10px;">SALVAR</button>
+    </form>
+    <p>ID: <span id="userIdDisplay"></span></p>
+  </div>
+  
+  <input type="text" id="addUserId" placeholder="ID do amigo" style="width:70%; padding:10px;">
+  <button id="addFriendBtn" style="padding:10px;">ADD</button>
+  
+  <div id="contacts"></div>
+</div>
+
 <div id="chatScreen">
   <div id="chatHeader">
-    <button onclick="voltar()" style="background:none; border:none; color:white; font-size:20px;">⬅</button>
+    <button onclick="voltar()" style="background:none; border:none; color:white; font-size:20px; margin-right:10px;">⬅</button>
     <img id="chatAvatar">
-    <div id="chatName" style="font-weight:bold;"></div>
+    <div>
+      <div id="chatName" style="font-weight:bold;"></div>
+      <div id="typingStatus" style="font-size:12px;">offline</div>
+    </div>
   </div>
 
-  <div style="position: relative; flex: 1; overflow: hidden;">
+  <div style="flex:1; position:relative; overflow:hidden;">
     <div id="messages"></div>
-    <div id="scrollHandle"></div>
+    <div id="scrollHandle" class="scroll-handle"></div>
   </div>
 
   <div id="chatInput">
+    <button id="attachmentBtn">+</button>
+    <div id="attachmentMenu" class="hidden" style="position:absolute; bottom:60px; background:white; padding:10px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.1);">
+        <label>📷 Foto <input type="file" id="sendPhoto" accept="image/*" style="display:none;"></label>
+    </div>
     <input type="text" id="messageText" placeholder="Mensagem">
     <button id="sendMessageBtn">➤</button>
+  </div>
+</div>
+
+<div id="confirmModal">
+  <div class="modal-box">
+    <p>Excluir contato?</p>
+    <button onclick="confirmarExclusao()" style="background:red; color:white; border:none; padding:10px; border-radius:5px;">Sim</button>
+    <button onclick="fecharModal()" style="padding:10px;">Não</button>
   </div>
 </div>
 
