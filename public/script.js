@@ -42,7 +42,7 @@ window.addEventListener("load", async () => {
 
     setInterval(loadMessages, 1500);
 
-    // Inicializa as travas de scroll
+    // INICIALIZA AS TRAVAS DE REFRESH PARA APK
     bloquearRefresh("messages");
     bloquearRefresh("home");
 });
@@ -219,6 +219,7 @@ function abrirChat(user) {
     setTimeout(() => {
         const container = document.getElementById("messages");
         container.scrollTop = container.scrollHeight;
+        if (container.scrollTop <= 0) container.scrollTop = 1;
     }, 150);
 }
 
@@ -341,35 +342,40 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- NOVA TRAVA DE REFRESH REFORÇADA ---
+// --- FUNÇÃO DE BLOQUEIO PARA WEBVIEW (APK) ---
 function bloquearRefresh(id) {
     const el = document.getElementById(id);
     if (!el) return;
 
-    let startY = 0;
+    let ts; 
+
+    // Garante que o elemento nunca esteja no topo 0 absoluto para enganar o Android
+    el.addEventListener('scroll', () => {
+        if (el.scrollTop <= 0) el.scrollTop = 1;
+    });
 
     el.addEventListener('touchstart', (e) => {
-        startY = e.touches[0].pageY;
-        // Se estiver no topo real (0), força para 1px para enganar o navegador
-        if (el.scrollTop <= 0) {
-            el.scrollTop = 1;
-        }
+        ts = e.touches[0].clientY;
+        if (el.scrollTop <= 0) el.scrollTop = 1;
     }, { passive: false });
 
     el.addEventListener('touchmove', (e) => {
-        const moveY = e.touches[0].pageY;
-        const diff = moveY - startY;
-
-        // Se o usuário está puxando para baixo (diff > 0) e está no topo (scrollTop <= 1)
-        if (el.scrollTop <= 1 && diff > 0) {
+        const te = e.touches[0].clientY;
+        // Bloqueia se tentar puxar para baixo estando no topo
+        if (el.scrollTop <= 1 && te > ts) {
             if (e.cancelable) e.preventDefault();
         }
+        e.stopPropagation();
     }, { passive: false });
 }
 
-// Bloqueio Global
-document.addEventListener('touchmove', (e) => {
+// Bloqueio Global no Body
+document.body.addEventListener('touchmove', (e) => {
     if (!e.target.closest('#messages') && !e.target.closest('#home')) {
         if (e.cancelable) e.preventDefault();
     }
 }, { passive: false });
+
+window.addEventListener('scroll', () => {
+    if (window.scrollY !== 0) window.scrollTo(0, 0);
+});
