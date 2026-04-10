@@ -1,0 +1,21 @@
+{
+  "short_name": "MiniZap",
+  "name": "Mini Zap Chat",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#25D366"
+}
