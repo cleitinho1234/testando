@@ -8,6 +8,28 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
+// --- TRAVA ANTI-REFRESH (Lógica solicitada) ---
+let startY = 0;
+document.addEventListener("touchstart", function(e) {
+    startY = e.touches[0].clientY;
+}, { passive: false });
+
+document.addEventListener("touchmove", function(e) {
+    const messages = document.getElementById("messages");
+    const home = document.getElementById("home");
+    
+    // Alvo atual: se o chat estiver aberto, checa o messages. Se não, checa o home.
+    const containerAtivo = (currentChat) ? messages : home;
+
+    if (containerAtivo && containerAtivo.scrollTop <= 0) {
+        let currentY = e.touches[0].clientY;
+        // Se estiver no topo e puxar para baixo (currentY > startY)
+        if (currentY > startY) {
+            if (e.cancelable) e.preventDefault(); // Bloqueia o refresh do Android
+        }
+    }
+}, { passive: false });
+
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
     if (savedId) {
@@ -38,28 +60,10 @@ window.addEventListener("load", async () => {
         if (contatoSalvo) abrirChat(contatoSalvo);
     }
 
-    // --- ATIVA AS TRAVAS ANTI-REFRESH ---
-    bloquearRefreshNativo("messages");
-    bloquearRefreshNativo("home");
-
     setInterval(loadMessages, 1500);
 });
 
-// Função que impede o sistema de puxar para atualizar
-function bloquearRefreshNativo(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-
-    // Quando o usuário encosta o dedo, se estiver no topo (0), joga para 1px
-    el.addEventListener('touchstart', () => {
-        if (el.scrollTop <= 0) el.scrollTop = 1;
-    }, { passive: true });
-
-    // Se o usuário rolar e chegar no topo, joga para 1px de novo
-    el.addEventListener('scroll', () => {
-        if (el.scrollTop <= 0) el.scrollTop = 1;
-    }, { passive: true });
-}
+// --- RESTANTE DAS FUNÇÕES (SOCKET, CHAT, PERFIL) ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -116,8 +120,6 @@ function renderContacts() {
 
         const contactEl = document.createElement("div");
         contactEl.className = `contact ${isSelected ? 'selected' : ''}`;
-        contactEl.style.display = "flex";
-        contactEl.style.alignItems = "center";
         contactEl.innerHTML = `
             <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
             <div style="flex:1;">
@@ -128,9 +130,7 @@ function renderContacts() {
         `;
 
         let pressTimer;
-        contactEl.ontouchstart = (e) => {
-            pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
-        };
+        contactEl.ontouchstart = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
         contactEl.ontouchend = () => clearTimeout(pressTimer);
         contactEl.onclick = () => {
             if (contatoSelecionadoId) cancelarSelecao();
@@ -208,7 +208,6 @@ function abrirChat(user) {
     setTimeout(() => {
         const container = document.getElementById("messages");
         container.scrollTop = container.scrollHeight;
-        if (container.scrollTop <= 0) container.scrollTop = 1;
     }, 150);
 }
 
@@ -258,7 +257,6 @@ document.getElementById("sendPhoto").onchange = function(e) {
             });
             document.getElementById("attachmentMenu").classList.add("hidden");
             await loadMessages();
-            document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
         };
         img.src = ev.target.result;
     };
