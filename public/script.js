@@ -34,7 +34,6 @@ window.addEventListener("load", async () => {
 
     renderContacts();
     
-    // --- NOVO: REABRIR CHAT APÓS ATUALIZAR ---
     const lastChatId = localStorage.getItem("activeChatId");
     if (lastChatId) {
         const contatoSalvo = contacts.find(c => c.id == lastChatId);
@@ -126,7 +125,6 @@ function renderContacts() {
     });
 }
 
-// 🔥 FUNÇÃO ATUALIZADA COM SCROLL INTELIGENTE
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
@@ -166,17 +164,14 @@ async function loadMessages() {
     if (!currentChat) return;
 
     const container = document.getElementById("messages");
-    // Verifica se o usuário está no fundo do chat (margem de 100px)
     const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
 
     const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
     
-    // Só reconstrói o HTML se houver mensagens novas
     if (container.childElementCount !== filtered.length) {
         container.innerHTML = "";
         filtered.forEach(addMessage);
         
-        // Só desce a tela se o usuário já estava no fundo
         if (isAtBottom) {
             container.scrollTop = container.scrollHeight;
         }
@@ -207,7 +202,6 @@ function addMessage(m) {
 
 function abrirChat(user) {
     currentChat = user;
-    // Salva o ID para caso a página atualize
     localStorage.setItem("activeChatId", user.id);
     
     unreadCounts[user.id] = 0;
@@ -221,7 +215,6 @@ function abrirChat(user) {
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
     loadMessages();
-    // Força o scroll para o fundo ao entrar no chat
     setTimeout(() => {
         const container = document.getElementById("messages");
         container.scrollTop = container.scrollHeight;
@@ -232,7 +225,7 @@ function voltar() {
     document.getElementById("chatScreen").style.display = "none";
     document.getElementById("home").style.display = "block";
     currentChat = null;
-    localStorage.removeItem("activeChatId"); // Remove o ID ao sair
+    localStorage.removeItem("activeChatId");
     renderContacts();
 }
 
@@ -247,7 +240,6 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
     });
     await loadMessages();
-    // Força o scroll após enviar
     const container = document.getElementById("messages");
     container.scrollTop = container.scrollHeight;
 };
@@ -280,7 +272,6 @@ document.getElementById("sendPhoto").onchange = function(e) {
             });
             document.getElementById("attachmentMenu").classList.add("hidden");
             await loadMessages();
-            // Força o scroll após enviar foto
             const container = document.getElementById("messages");
             container.scrollTop = container.scrollHeight;
         };
@@ -348,3 +339,26 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         salvar(currentUser.photo);
     }
 };
+
+// --- BLOQUEIO DE PULL-TO-REFRESH ---
+let touchStartPageY = 0;
+
+window.addEventListener('touchstart', (e) => {
+    touchStartPageY = e.touches[0].pageY;
+}, { passive: false });
+
+window.addEventListener('touchmove', (e) => {
+    const touchMovePageY = e.touches[0].pageY;
+    const container = document.getElementById("messages");
+    const homeContainer = document.getElementById("home");
+    
+    // Identifica qual container está visível
+    const activeContainer = (document.getElementById("chatScreen").style.display === "flex") 
+        ? container 
+        : homeContainer;
+
+    // Se estiver no topo e tentar puxar para baixo, bloqueia o gesto do navegador
+    if (touchMovePageY > touchStartPageY && activeContainer.scrollTop <= 0) {
+        if (e.cancelable) e.preventDefault();
+    }
+}, { passive: false });
