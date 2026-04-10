@@ -41,6 +41,10 @@ window.addEventListener("load", async () => {
     }
 
     setInterval(loadMessages, 1500);
+
+    // Ativa as travas de scroll logo no carregamento
+    travarScrollArea(document.getElementById("messages"));
+    travarScrollArea(document.getElementById("home"));
 });
 
 socket.on("userUpdated", (dados) => {
@@ -171,10 +175,7 @@ async function loadMessages() {
     if (container.childElementCount !== filtered.length) {
         container.innerHTML = "";
         filtered.forEach(addMessage);
-        
-        if (isAtBottom) {
-            container.scrollTop = container.scrollHeight;
-        }
+        if (isAtBottom) container.scrollTop = container.scrollHeight;
     }
 }
 
@@ -200,13 +201,12 @@ function addMessage(m) {
     container.appendChild(div);
 }
 
-// --- FUNÇÃO ABRIR CHAT ATUALIZADA COM TRAVA TOTAL ---
 function abrirChat(user) {
     currentChat = user;
     localStorage.setItem("activeChatId", user.id);
-    
     unreadCounts[user.id] = 0;
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
@@ -215,15 +215,12 @@ function abrirChat(user) {
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
-    // TRAVA MESTRE: Quando o chat abre, proibimos o navegador de atualizar puxando pra baixo
-    document.body.style.overscrollBehaviorY = "none";
-    document.documentElement.style.overscrollBehaviorY = "none";
-
     loadMessages();
     setTimeout(() => {
         const container = document.getElementById("messages");
         container.scrollTop = container.scrollHeight;
-    }, 100);
+        if(container.scrollTop === 0) container.scrollTop = 1; // Força 1px de scroll
+    }, 150);
 }
 
 function voltar() {
@@ -231,14 +228,10 @@ function voltar() {
     document.getElementById("home").style.display = "block";
     currentChat = null;
     localStorage.removeItem("activeChatId");
-    
-    // Libera o comportamento normal quando volta para a home (opcional)
-    document.body.style.overscrollBehaviorY = "auto";
-    document.documentElement.style.overscrollBehaviorY = "auto";
-
     renderContacts();
 }
 
+// --- LOGICA DE MENSAGENS E PERFIL ---
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
@@ -350,21 +343,19 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- BLOQUEIO DE TOQUE REFORÇADO PARA O CHAT ---
-let startY = 0;
-document.addEventListener('touchstart', (e) => {
-    startY = e.touches[0].pageY;
-}, {passive: false});
+// --- TRAVA DE REFRESH DEFINITIVA (MÉTODO DO 1 PIXEL) ---
+function travarScrollArea(el) {
+    if(!el) return;
+    el.addEventListener('touchstart', () => {
+        if (el.scrollTop <= 0) el.scrollTop = 1;
+        if (el.scrollTop + el.offsetHeight >= el.scrollHeight) el.scrollTop = el.scrollHeight - el.offsetHeight - 1;
+    }, {passive: false});
+}
 
+// Bloqueia o arrasto no fundo do site (onde não tem scroll)
 document.addEventListener('touchmove', (e) => {
-    const messages = document.getElementById("messages");
-    const isChatOpen = document.getElementById("chatScreen").style.display === "flex";
-    
-    if (isChatOpen && messages.contains(e.target)) {
-        const moveY = e.touches[0].pageY;
-        // Se estiver no topo e tentar puxar pra baixo
-        if (moveY > startY && messages.scrollTop <= 0) {
-            if (e.cancelable) e.preventDefault();
-        }
+    const isScrollable = e.target.closest('#messages') || e.target.closest('#home');
+    if (!isScrollable && e.cancelable) {
+        e.preventDefault();
     }
 }, {passive: false});
