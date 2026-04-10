@@ -200,7 +200,6 @@ function addMessage(m) {
     container.appendChild(div);
 }
 
-// --- FUNÇÃO CORRIGIDA PARA EVITAR REFRESH AO SUBIR ---
 function abrirChat(user) {
     currentChat = user;
     localStorage.setItem("activeChatId", user.id);
@@ -216,19 +215,10 @@ function abrirChat(user) {
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
     loadMessages();
-    
-    const container = document.getElementById("messages");
     setTimeout(() => {
+        const container = document.getElementById("messages");
         container.scrollTop = container.scrollHeight;
-        
-        // Se o usuário tentar subir até o topo absoluto, a gente mantém em 1px
-        // Isso "engana" o navegador e impede o refresh
-        container.addEventListener('scroll', () => {
-            if (container.scrollTop <= 0) {
-                container.scrollTop = 1;
-            }
-        });
-    }, 200);
+    }, 100);
 }
 
 function voltar() {
@@ -350,28 +340,33 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- BLOQUEIO FINAL DE PULL-TO-REFRESH (TRAVA TUDO) ---
-let touchY = 0;
-const messagesDiv = document.getElementById("messages");
+// --- SOLUÇÃO DE SCROLL SEM REFRESH (LIVRE PARA SUBIR MENSAGENS) ---
+const lockScroll = (el) => {
+    el.addEventListener('touchstart', (e) => {
+        // Truque do 1px para enganar o navegador e não disparar o refresh
+        if (el.scrollTop <= 0) {
+            el.scrollTop = 1;
+        }
+        if (el.scrollTop + el.offsetHeight >= el.scrollHeight) {
+            el.scrollTop = el.scrollHeight - el.offsetHeight - 1;
+        }
+    }, { passive: false });
 
-messagesDiv.addEventListener('touchstart', (e) => {
-    touchY = e.touches[0].clientY;
-}, { passive: false });
+    el.addEventListener('touchmove', (e) => {
+        // Se a área for rolável, impede que o navegador tente tomar o controle
+        if (el.scrollHeight > el.offsetHeight) {
+            e.stopPropagation();
+        }
+    }, { passive: false });
+};
 
-messagesDiv.addEventListener('touchmove', (e) => {
-    const currentY = e.touches[0].clientY;
-    
-    // Se estiver tentando puxar para baixo e estiver no topo das mensagens
-    if (currentY > touchY && messagesDiv.scrollTop <= 1) {
-        if (e.cancelable) e.preventDefault();
-    }
-    touchY = currentY;
-}, { passive: false });
+// Aplica a lógica nas duas telas roláveis
+lockScroll(document.getElementById("messages"));
+lockScroll(document.getElementById("home"));
 
-// Bloqueio também para a tela inicial
-const homeDiv = document.getElementById("home");
-homeDiv.addEventListener('touchmove', (e) => {
-    if (homeDiv.scrollTop <= 0 && e.touches[0].clientY > touchY) {
+// Bloqueia refresh se o toque for fora das áreas de chat/contatos
+window.addEventListener('touchmove', (e) => {
+    if (!e.target.closest('#messages') && !e.target.closest('#home')) {
         if (e.cancelable) e.preventDefault();
     }
 }, { passive: false });
