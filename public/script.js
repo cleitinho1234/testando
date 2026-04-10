@@ -1,6 +1,7 @@
 let currentUser = null;
 let currentChat = null;
 let contatoSelecionadoId = null; 
+let fotoParaEnviar = null; // Variável para controlar a foto no preview
 const socket = io(); 
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
@@ -12,20 +13,14 @@ let listaOnlineGlobal = [];
 let deferredPrompt;
 
 window.addEventListener('beforeinstallprompt', (e) => {
-    // Verifica se o usuário já instalou ou fechou o aviso antes
     const jaInstalou = localStorage.getItem("appInstalado");
     if (jaInstalou === "true") return;
-
-    // Impede o banner padrão e guarda o evento
     e.preventDefault();
     deferredPrompt = e;
-    
-    // Mostra o banner customizado que você criou no HTML
     const banner = document.getElementById('installBanner');
     if (banner) banner.style.display = 'block';
 });
 
-// Função para o botão BAIXAR
 document.getElementById('btnInstall').onclick = async () => {
     if (deferredPrompt) {
         deferredPrompt.prompt();
@@ -38,9 +33,8 @@ document.getElementById('btnInstall').onclick = async () => {
     }
 };
 
-// Função para o botão DEPOIS (chamada via onclick no HTML)
 function recusarInstalacao() {
-    localStorage.setItem("appInstalado", "true"); // Salva para não incomodar mais
+    localStorage.setItem("appInstalado", "true"); 
     document.getElementById('installBanner').style.display = 'none';
 }
 
@@ -49,15 +43,13 @@ window.addEventListener('appinstalled', () => {
     document.getElementById('installBanner').style.display = 'none';
 });
 
-// --- TRAVA ANTI-REFRESH DEFINITIVA ---
+// --- TRAVA ANTI-REFRESH ---
 function aplicarTrava(elementId) {
     const el = document.getElementById(elementId);
     if (!el) return;
-
     el.addEventListener("touchstart", function() {
         if (el.scrollTop <= 0) el.scrollTop = 1;
     }, { passive: true });
-
     el.addEventListener("scroll", function() {
         if (el.scrollTop <= 0) el.scrollTop = 1;
     }, { passive: true });
@@ -95,11 +87,149 @@ window.addEventListener("load", async () => {
 
     aplicarTrava("messages");
     aplicarTrava("home");
-
     setInterval(loadMessages, 1500);
 });
 
-// --- FUNÇÕES DE SOCKET E PERFIL ---
+// --- LÓGICA DE FOTOS E VISUALIZAÇÃO ---
+
+// Quando seleciona a foto: Redimensiona e mostra o Preview
+document.getElementById("sendPhoto").onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file || !currentChat) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = 600; 
+            canvas.height = img.height * (600 / img.width);
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            fotoParaEnviar = canvas.toDataURL("image/jpeg", 0.8);
+            document.getElementById("imagePreviewTarget").src = fotoParaEnviar;
+            document.getElementById("photoPreviewContainer").style.display = "flex";
+            document.getElementById("attachmentMenu").classList.add("hidden");
+        };
+        img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+function cancelarEnvioFoto() {
+    fotoParaEnviar = null;
+    document.getElementById("photoPreviewContainer").style.display = "none";
+    document.getElementById("sendPhoto").value = ""; 
+}
+
+function abrirFullScreen(src) {
+    const viewer = document.getElementById("fullScreenViewer");
+    const img = document.getElementById("fullScreenImage");
+    img.src = src;
+    viewer.style.display = "flex";
+}
+
+function fecharFullScreen() {
+    document.getElementById("fullScreenViewer").style.display = "none";
+}
+
+// --- MENSAGENS E CHAT ---
+
+document.getElementById("sendMessageBtn").onclick = async () => {
+    const input = document.getElementById("messageText");
+    const text = input.value.trim();
+    
+    if ((!text && !fotoParaEnviar) || !currentChat) return;
+
+    // Se tiver foto no preview, envia primeiro
+    if (fotoParaEnviar) {
+        await fetch("/sendMessage", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: fotoParaEnviar })
+        });
+        cancelarEnvioFoto();
+    }
+
+    // Se tiver texto, envia
+    if (text) {
+        await fetch("/sendMessage", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
+        });
+        input.value = "";
+    }
+
+    await loadMessages();
+    const container = document.getElementById("messages");
+    container.scrollTop = container.scrollHeight;
+};
+
+async function loadMessages() {
+    const res = await fetch(`/getMessages/${currentUser.id}`);
+    const msgs = await res.json();
+    for (let m of msgs) {
+        if (m.timestamp > lastTimestamp) {
+            lastTimestamp = m.timestamp;
+            if (m.toId == currentUser.id) {
+                const index = contacts.findIndex(c => c.id == m.fromId);
+                if (index === -1) {
+                    const resUser = await fetch(`/getUser/${m.fromId}`);
+                    const newUser = await resUser.json();
+                    if (!newUser.error) contacts.unshift(newUser); 
+                } else {
+                    const contatoMovido = contacts.splice(index, 1)[0];
+                    contacts.unshift(contatoMovido);
+                }
+                if (currentChat?.id !== m.fromId) unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
+            } else if (m.fromId == currentUser.id) {
+                const index = contacts.findIndex(c => c.id == m.toId);
+                if (index !== -1) {
+                    const contatoMovido = contacts.splice(index, 1)[0];
+                    contacts.unshift(contatoMovido);
+                }
+            }
+        }
+    }
+    localStorage.setItem("lastTimestamp", lastTimestamp);
+    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+    renderContacts();
+
+    if (!currentChat) return;
+    const container = document.getElementById("messages");
+    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
+    
+    if (container.childElementCount !== filtered.length) {
+        container.innerHTML = "";
+        filtered.forEach(addMessage);
+        if (isAtBottom) container.scrollTop = container.scrollHeight;
+    }
+}
+
+function addMessage(m) {
+    const container = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+    
+    let conteudo;
+    if (m.text.startsWith("data:image")) {
+        conteudo = `<img src="${m.text}" onclick="abrirFullScreen('${m.text}')">`;
+    } else {
+        conteudo = m.text;
+    }
+
+    const date = new Date(m.timestamp);
+    const hora = date.getHours().toString().padStart(2, '0');
+    const min = date.getMinutes().toString().padStart(2, '0');
+    div.innerHTML = `<div class="bubble">${conteudo}<span class="time">${hora}:${min}</span></div>`;
+    container.appendChild(div);
+}
+
+// --- SOCKETS E CONTATOS ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -123,6 +253,32 @@ socket.on("updateStatus", (listaOnline) => {
         document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     }
 });
+
+function abrirChat(user) {
+    currentChat = user;
+    localStorage.setItem("activeChatId", user.id);
+    unreadCounts[user.id] = 0;
+    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    document.getElementById("home").style.display = "none";
+    document.getElementById("chatScreen").style.display = "flex";
+    document.getElementById("chatName").textContent = user.username;
+    document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    cancelarEnvioFoto(); // Limpa fotos pendentes de outro chat
+    loadMessages();
+    setTimeout(() => {
+        const container = document.getElementById("messages");
+        container.scrollTop = container.scrollHeight;
+    }, 150);
+}
+
+function voltar() {
+    document.getElementById("chatScreen").style.display = "none";
+    document.getElementById("home").style.display = "block";
+    currentChat = null;
+    localStorage.removeItem("activeChatId");
+    cancelarEnvioFoto();
+    renderContacts();
+}
 
 function ativarSelecao(id) {
     contatoSelecionadoId = id;
@@ -176,127 +332,8 @@ function renderContacts() {
     });
 }
 
-async function loadMessages() {
-    const res = await fetch(`/getMessages/${currentUser.id}`);
-    const msgs = await res.json();
-    for (let m of msgs) {
-        if (m.timestamp > lastTimestamp) {
-            lastTimestamp = m.timestamp;
-            if (m.toId == currentUser.id) {
-                const index = contacts.findIndex(c => c.id == m.fromId);
-                if (index === -1) {
-                    const resUser = await fetch(`/getUser/${m.fromId}`);
-                    const newUser = await resUser.json();
-                    if (!newUser.error) contacts.unshift(newUser); 
-                } else {
-                    const contatoMovido = contacts.splice(index, 1)[0];
-                    contacts.unshift(contatoMovido);
-                }
-                if (currentChat?.id !== m.fromId) unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
-            } else if (m.fromId == currentUser.id) {
-                const index = contacts.findIndex(c => c.id == m.toId);
-                if (index !== -1) {
-                    const contatoMovido = contacts.splice(index, 1)[0];
-                    contacts.unshift(contatoMovido);
-                }
-            }
-        }
-    }
-    localStorage.setItem("lastTimestamp", lastTimestamp);
-    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
-
-    if (!currentChat) return;
-    const container = document.getElementById("messages");
-    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
-    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
-    
-    if (container.childElementCount !== filtered.length) {
-        container.innerHTML = "";
-        filtered.forEach(addMessage);
-        if (isAtBottom) container.scrollTop = container.scrollHeight;
-    }
-}
-
-function addMessage(m) {
-    const container = document.getElementById("messages");
-    const div = document.createElement("div");
-    div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    const conteudo = m.text.startsWith("data:image") ? `<img src="${m.text}">` : m.text;
-    const date = new Date(m.timestamp);
-    const hora = date.getHours().toString().padStart(2, '0');
-    const min = date.getMinutes().toString().padStart(2, '0');
-    div.innerHTML = `<div class="bubble">${conteudo}<span class="time">${hora}:${min}</span></div>`;
-    container.appendChild(div);
-}
-
-function abrirChat(user) {
-    currentChat = user;
-    localStorage.setItem("activeChatId", user.id);
-    unreadCounts[user.id] = 0;
-    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    document.getElementById("home").style.display = "none";
-    document.getElementById("chatScreen").style.display = "flex";
-    document.getElementById("chatName").textContent = user.username;
-    document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    loadMessages();
-    setTimeout(() => {
-        const container = document.getElementById("messages");
-        container.scrollTop = container.scrollHeight;
-    }, 150);
-}
-
-function voltar() {
-    document.getElementById("chatScreen").style.display = "none";
-    document.getElementById("home").style.display = "block";
-    currentChat = null;
-    localStorage.removeItem("activeChatId");
-    renderContacts();
-}
-
-document.getElementById("sendMessageBtn").onclick = async () => {
-    const input = document.getElementById("messageText");
-    const text = input.value.trim();
-    if(!text || !currentChat) return;
-    input.value = "";
-    await fetch("/sendMessage", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
-    });
-    await loadMessages();
-    const container = document.getElementById("messages");
-    container.scrollTop = container.scrollHeight;
-};
-
 document.getElementById("attachmentBtn").onclick = () => {
     document.getElementById("attachmentMenu").classList.toggle("hidden");
-};
-
-document.getElementById("sendPhoto").onchange = function(e) {
-    const file = e.target.files[0];
-    if (!file || !currentChat) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = async () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = 500; 
-            canvas.height = img.height * (500 / img.width);
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            await fetch("/sendMessage", {
-                method: "POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: canvas.toDataURL("image/jpeg", 0.7) })
-            });
-            document.getElementById("attachmentMenu").classList.add("hidden");
-            await loadMessages();
-        };
-        img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
