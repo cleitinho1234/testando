@@ -1,7 +1,7 @@
 let currentUser = null;
 let currentChat = null;
 let contatoSelecionadoId = null; 
-let fotoParaEnviar = null; // Variável para controlar a foto no preview
+let fotoParaEnviar = null; // Variável para o preview da foto
 const socket = io(); 
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
@@ -9,9 +9,20 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
-// --- LÓGICA DE INSTALAÇÃO (PWA) ---
-let deferredPrompt;
+// --- 1. LÓGICA DE NOTIFICAÇÃO NO ÍCONE (BADGE API) ---
+function atualizarBadgeIcone() {
+    const totalNaoLidas = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+    if (navigator.setAppBadge) {
+        if (totalNaoLidas > 0) {
+            navigator.setAppBadge(totalNaoLidas).catch(console.error);
+        } else {
+            navigator.clearAppBadge().catch(console.error);
+        }
+    }
+}
 
+// --- 2. LÓGICA DE INSTALAÇÃO (PWA) ---
+let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
     const jaInstalou = localStorage.getItem("appInstalado");
     if (jaInstalou === "true") return;
@@ -38,21 +49,12 @@ function recusarInstalacao() {
     document.getElementById('installBanner').style.display = 'none';
 }
 
-window.addEventListener('appinstalled', () => {
-    localStorage.setItem("appInstalado", "true");
-    document.getElementById('installBanner').style.display = 'none';
-});
-
-// --- TRAVA ANTI-REFRESH ---
+// --- 3. TRAVA ANTI-REFRESH E LOAD INICIAL ---
 function aplicarTrava(elementId) {
     const el = document.getElementById(elementId);
     if (!el) return;
-    el.addEventListener("touchstart", function() {
-        if (el.scrollTop <= 0) el.scrollTop = 1;
-    }, { passive: true });
-    el.addEventListener("scroll", function() {
-        if (el.scrollTop <= 0) el.scrollTop = 1;
-    }, { passive: true });
+    el.addEventListener("touchstart", function() { if (el.scrollTop <= 0) el.scrollTop = 1; }, { passive: true });
+    el.addEventListener("scroll", function() { if (el.scrollTop <= 0) el.scrollTop = 1; }, { passive: true });
 }
 
 window.addEventListener("load", async () => {
@@ -78,6 +80,7 @@ window.addEventListener("load", async () => {
     if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
 
     renderContacts();
+    atualizarBadgeIcone();
     
     const lastChatId = localStorage.getItem("activeChatId");
     if (lastChatId) {
@@ -90,13 +93,10 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- LÓGICA DE FOTOS E VISUALIZAÇÃO ---
-
-// Quando seleciona a foto: Redimensiona e mostra o Preview
+// --- 4. GESTÃO DE FOTOS (PREVIEW E FULLSCREEN) ---
 document.getElementById("sendPhoto").onchange = function(e) {
     const file = e.target.files[0];
     if (!file || !currentChat) return;
-
     const reader = new FileReader();
     reader.onload = (ev) => {
         const img = new Image();
@@ -106,7 +106,6 @@ document.getElementById("sendPhoto").onchange = function(e) {
             canvas.height = img.height * (600 / img.width);
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
             fotoParaEnviar = canvas.toDataURL("image/jpeg", 0.8);
             document.getElementById("imagePreviewTarget").src = fotoParaEnviar;
             document.getElementById("photoPreviewContainer").style.display = "flex";
@@ -125,8 +124,7 @@ function cancelarEnvioFoto() {
 
 function abrirFullScreen(src) {
     const viewer = document.getElementById("fullScreenViewer");
-    const img = document.getElementById("fullScreenImage");
-    img.src = src;
+    document.getElementById("fullScreenImage").src = src;
     viewer.style.display = "flex";
 }
 
@@ -134,15 +132,12 @@ function fecharFullScreen() {
     document.getElementById("fullScreenViewer").style.display = "none";
 }
 
-// --- MENSAGENS E CHAT ---
-
+// --- 5. ENVIO E CARREGAMENTO DE MENSAGENS ---
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
-    
     if ((!text && !fotoParaEnviar) || !currentChat) return;
 
-    // Se tiver foto no preview, envia primeiro
     if (fotoParaEnviar) {
         await fetch("/sendMessage", {
             method: "POST",
@@ -151,8 +146,6 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         });
         cancelarEnvioFoto();
     }
-
-    // Se tiver texto, envia
     if (text) {
         await fetch("/sendMessage", {
             method: "POST",
@@ -161,7 +154,6 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         });
         input.value = "";
     }
-
     await loadMessages();
     const container = document.getElementById("messages");
     container.scrollTop = container.scrollHeight;
@@ -170,9 +162,12 @@ document.getElementById("sendMessageBtn").onclick = async () => {
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
+    let novaMensagemChegou = false;
+
     for (let m of msgs) {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
+            novaMensagemChegou = true;
             if (m.toId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.fromId);
                 if (index === -1) {
@@ -193,10 +188,14 @@ async function loadMessages() {
             }
         }
     }
-    localStorage.setItem("lastTimestamp", lastTimestamp);
-    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
+
+    if (novaMensagemChegou) {
+        localStorage.setItem("lastTimestamp", lastTimestamp);
+        localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+        atualizarBadgeIcone();
+    }
 
     if (!currentChat) return;
     const container = document.getElementById("messages");
@@ -215,12 +214,9 @@ function addMessage(m) {
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
     
-    let conteudo;
-    if (m.text.startsWith("data:image")) {
-        conteudo = `<img src="${m.text}" onclick="abrirFullScreen('${m.text}')">`;
-    } else {
-        conteudo = m.text;
-    }
+    let conteudo = m.text.startsWith("data:image") 
+        ? `<img src="${m.text}" onclick="abrirFullScreen('${m.text}')">` 
+        : m.text;
 
     const date = new Date(m.timestamp);
     const hora = date.getHours().toString().padStart(2, '0');
@@ -229,8 +225,7 @@ function addMessage(m) {
     container.appendChild(div);
 }
 
-// --- SOCKETS E CONTATOS ---
-
+// --- 6. SOCKETS, CONTATOS E PERFIL ---
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -263,12 +258,10 @@ function abrirChat(user) {
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    cancelarEnvioFoto(); // Limpa fotos pendentes de outro chat
+    cancelarEnvioFoto();
     loadMessages();
-    setTimeout(() => {
-        const container = document.getElementById("messages");
-        container.scrollTop = container.scrollHeight;
-    }, 150);
+    atualizarBadgeIcone();
+    setTimeout(() => { document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight; }, 150);
 }
 
 function voltar() {
@@ -298,8 +291,7 @@ function fecharModal() { document.getElementById("confirmModal").style.display =
 function confirmarExclusao() {
     contacts = contacts.filter(c => c.id !== contatoSelecionadoId);
     localStorage.setItem("contacts", JSON.stringify(contacts));
-    fecharModal();
-    cancelarSelecao();
+    fecharModal(); cancelarSelecao();
 }
 
 function renderContacts() {
@@ -309,7 +301,6 @@ function renderContacts() {
         const count = unreadCounts[user.id] || 0;
         const isOnline = listaOnlineGlobal.includes(user.id);
         const isSelected = contatoSelecionadoId === user.id;
-
         const contactEl = document.createElement("div");
         contactEl.className = `contact ${isSelected ? 'selected' : ''}`;
         contactEl.innerHTML = `
@@ -320,21 +311,15 @@ function renderContacts() {
             </div>
             ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:2px 8px;font-size:12px;">${count}</span>` : ""}
         `;
-
         let pressTimer;
         contactEl.ontouchstart = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
         contactEl.ontouchend = () => clearTimeout(pressTimer);
-        contactEl.onclick = () => {
-            if (contatoSelecionadoId) cancelarSelecao();
-            else abrirChat(user);
-        };
+        contactEl.onclick = () => { if (contatoSelecionadoId) cancelarSelecao(); else abrirChat(user); };
         div.appendChild(contactEl);
     });
 }
 
-document.getElementById("attachmentBtn").onclick = () => {
-    document.getElementById("attachmentMenu").classList.toggle("hidden");
-};
+document.getElementById("attachmentBtn").onclick = () => document.getElementById("attachmentMenu").classList.toggle("hidden");
 
 document.getElementById("addFriendBtn").onclick = async () => {
     const id = document.getElementById("addUserId").value.trim();
@@ -357,17 +342,14 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     if (!nome) return alert("Digite um nome!");
     const salvar = async (fotoFinal) => {
         const res = await fetch("/saveProfile", {
-            method: "POST", 
-            headers: {"Content-Type":"application/json"},
+            method: "POST", headers: {"Content-Type":"application/json"},
             body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoFinal })
         });
         if (res.ok) {
-            currentUser.username = nome; 
-            currentUser.photo = fotoFinal;
+            currentUser.username = nome; currentUser.photo = fotoFinal;
             if (fotoFinal) document.getElementById("profilePreview").src = fotoFinal;
             socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
-            alert("Perfil Salvo!");
-            renderContacts();
+            alert("Perfil Salvo!"); renderContacts();
         }
     };
     if (file) {
@@ -376,8 +358,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement("canvas");
-                canvas.width = 300; 
-                canvas.height = img.height * (300 / img.width);
+                canvas.width = 300; canvas.height = img.height * (300 / img.width);
                 const ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 salvar(canvas.toDataURL("image/jpeg", 0.7));
