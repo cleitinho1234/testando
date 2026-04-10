@@ -111,7 +111,6 @@ window.addEventListener("load", async () => {
     aplicarTrava("messages");
     aplicarTrava("home");
     
-    // Intervalo de atualização de mensagens
     setInterval(loadMessages, 1500);
 });
 
@@ -180,7 +179,7 @@ document.getElementById("sendMessageBtn").onclick = async () => {
 };
 
 async function loadMessages() {
-    // PAUSA: Se estiver selecionando uma mensagem, não atualiza a lista para não perder o foco
+    // CORREÇÃO: Se estiver selecionando, não limpa a tela para não perder o foco da mensagem
     if (mensagemSelecionadaId) return;
 
     const res = await fetch(`/getMessages/${currentUser.id}`);
@@ -241,6 +240,7 @@ async function loadMessages() {
     const container = document.getElementById("messages");
     const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
     
+    // Só reconstrói o HTML se o número de mensagens mudou
     if (container.childElementCount !== filtered.length) {
         const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
         container.innerHTML = "";
@@ -253,8 +253,7 @@ function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    div.id = `msg-${m.id}`;
-    div.setAttribute("data-id", m.id);
+    div.id = `msg-${m.id}`; // Define ID único para cada balão
 
     let conteudo = m.text.startsWith("data:image") ? `<img src="${m.text}" onclick="abrirFullScreen('${m.text}')">` : m.text;
     const date = new Date(m.timestamp);
@@ -263,10 +262,11 @@ function addMessage(m) {
     
     div.innerHTML = `<div class="bubble">${conteudo}<span class="time">${hora}:${min}</span></div>`;
 
-    // TOQUE LONGO PARA SELECIONAR MENSAGEM
     let pressTimer;
+    // Captura o ID específico desta mensagem m.id no momento da criação
     const startPress = () => {
-        pressTimer = setTimeout(() => ativarSelecaoMensagem(m.id), 700);
+        const idEspecifico = m.id;
+        pressTimer = setTimeout(() => ativarSelecaoMensagem(idEspecifico), 700);
     };
     const endPress = () => clearTimeout(pressTimer);
 
@@ -283,7 +283,6 @@ function ativarSelecaoMensagem(id) {
     if (contatoSelecionadoId) return; 
     mensagemSelecionadaId = id;
     
-    // Marca visualmente a mensagem
     document.querySelectorAll(".message").forEach(el => el.classList.remove("selected_msg"));
     const msgEl = document.getElementById(`msg-${id}`);
     if (msgEl) msgEl.classList.add("selected_msg");
@@ -306,23 +305,23 @@ function abrirMsgModal() {
 
 function fecharMsgModal() { 
     document.getElementById("msgDeleteModal").style.display = "none";
-    cancelarSelecaoMensagem();
 }
 
 async function confirmarExclusaoMensagem() {
     if (!mensagemSelecionadaId) return;
+    const idParaApagar = mensagemSelecionadaId;
 
     try {
-        const res = await fetch(`/deleteMessage/${mensagemSelecionadaId}`, { 
-            method: "DELETE" 
-        });
+        const res = await fetch(`/deleteMessage/${idParaApagar}`, { method: "DELETE" });
 
         if (res.ok) {
-            const msgEl = document.getElementById(`msg-${mensagemSelecionadaId}`);
+            const msgEl = document.getElementById(`msg-${idParaApagar}`);
             if (msgEl) msgEl.remove();
+            
+            cancelarSelecaoMensagem();
             fecharMsgModal();
         } else {
-            alert("Erro ao excluir mensagem no servidor.");
+            alert("Erro ao excluir no servidor.");
         }
     } catch (err) {
         console.error("Erro:", err);
