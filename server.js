@@ -45,10 +45,13 @@ io.on("connection", (socket) => {
     socket.on("register", (userId) => {
         socket.userId = userId;
         usuariosOnline[userId] = socket.id;
+        
+        // 🔥 Avisa TODO MUNDO (inclusive quem entrou) sobre a lista atualizada
         io.emit("updateStatus", Object.keys(usuariosOnline));
+        console.log(`Usuário ${userId} entrou.`);
     });
 
-    // 🔥 NOVIDADE: Quando alguém muda o perfil, avisa todos os outros
+    // 🔥 Quando alguém muda o perfil, avisa todos os outros
     socket.on("updateProfileVisual", (dados) => {
         socket.broadcast.emit("userUpdated", dados);
     });
@@ -57,7 +60,9 @@ io.on("connection", (socket) => {
     socket.on("disconnect", () => {
         if (socket.userId) {
             delete usuariosOnline[socket.userId];
+            // 🔥 Avisa todos que alguém saiu
             io.emit("updateStatus", Object.keys(usuariosOnline));
+            console.log(`Usuário ${socket.userId} saiu.`);
         }
     });
 });
