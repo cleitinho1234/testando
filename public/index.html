@@ -24,7 +24,7 @@
     overscroll-behavior-y: none !important;
   }
   
-  body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; }
+  body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; -webkit-tap-highlight-color: transparent; }
 
   /* BANNER DE INSTALAÇÃO */
   #installBanner {
@@ -42,7 +42,7 @@
     box-sizing: border-box;
   }
 
-  /* PREVIEW DA FOTO (NOVO) */
+  /* PREVIEW DA FOTO */
   #photoPreviewContainer {
     display: none;
     position: absolute;
@@ -58,7 +58,7 @@
     box-sizing: border-box;
   }
 
-  /* VISUALIZADOR TELA CHEIA (NOVO) */
+  /* VISUALIZADOR TELA CHEIA */
   #fullScreenViewer {
     display: none;
     position: fixed;
@@ -85,29 +85,59 @@
   #home { max-width: 500px; margin: 0 auto; padding: 15px; height: 100%; display: flex; flex-direction: column; }
   .profile-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
   #profilePreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; }
-  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-  .contact.selected { background: #d1e7dd !important; }
+  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.2s; }
+  .contact.selected { background: #d1e7dd !important; border: 1px solid #25D366; }
 
   /* TELA CHAT */
   #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; z-index: 50; }
-  #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; }
+  #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; position: relative; }
   #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
-  #messages { padding: 10px; }
+  #messages { padding: 10px; display: flex; flex-direction: column; }
   #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; flex-shrink: 0; position: relative; }
   #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 8px; outline: none; }
-  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; }
+  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
   
-  .message { display: flex; margin: 5px 0; }
+  .message { display: flex; margin: 5px 0; width: 100%; }
   .me { justify-content: flex-end; }
-  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; }
+  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; position: relative; transition: background 0.3s; }
   .me .bubble { background: #dcf8c6; }
+  
+  /* ESTILO DA MENSAGEM SELECIONADA */
+  .message.selected_msg .bubble { background-color: #97d8b2 !important; transform: scale(0.98); }
+
   .bubble img { max-width: 100%; border-radius: 8px; display: block; margin-top: 5px; cursor: pointer; }
   .time { font-size: 10px; color: #888; float: right; margin: 5px 0 0 10px; }
 
   .hidden { display: none; }
-  #headerSelecao { display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; }
-  #confirmModal { display: none; position: fixed; top:0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; }
-  .modal-box { background:white; padding:20px; border-radius:10px; text-align:center; width: 80%; }
+  
+  /* HEADER DE SELEÇÃO (CONTATOS E MENSAGENS) */
+  #headerSelecao, #headerMsgSelecao { 
+    display: none; 
+    position: fixed; 
+    top: 0; 
+    width: 100%; 
+    background: #075e54; 
+    color: white; 
+    padding: 15px; 
+    z-index: 1000; 
+    justify-content: space-between; 
+    box-sizing: border-box; 
+    align-items: center; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  }
+
+  /* MODAIS */
+  #confirmModal, #msgDeleteModal { 
+    display: none; 
+    position: fixed; 
+    top:0; left: 0; 
+    width:100%; height:100%; 
+    background:rgba(0,0,0,0.5); 
+    z-index:2000; 
+    align-items:center; 
+    justify-content:center; 
+  }
+  .modal-box { background:white; padding:20px; border-radius:10px; text-align:center; width: 80%; max-width: 300px; }
 </style>
 </head>
 <body>
@@ -128,9 +158,17 @@
 <div id="headerSelecao">
   <div style="display:flex; align-items:center;">
     <button onclick="cancelarSelecao()" style="background:none; border:none; color:white; font-size:20px; margin-right:20px;">✕</button>
-    <span style="font-weight:bold;">Selecionado</span>
+    <span style="font-weight:bold;">Contato Selecionado</span>
   </div>
   <button onclick="abrirModal()" style="background:none; border:none; color:white; font-size:20px;">🗑️</button>
+</div>
+
+<div id="headerMsgSelecao">
+  <div style="display:flex; align-items:center;">
+    <button onclick="cancelarSelecaoMensagem()" style="background:none; border:none; color:white; font-size:20px; margin-right:20px;">✕</button>
+    <span style="font-weight:bold;">Mensagem Selecionada</span>
+  </div>
+  <button onclick="abrirMsgModal()" style="background:none; border:none; color:white; font-size:20px;">🗑️</button>
 </div>
 
 <div id="home">
@@ -189,6 +227,17 @@
     <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
         <button onclick="confirmarExclusao()" style="background:#d9534f; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Excluir</button>
         <button onclick="fecharModal()" style="background:#eee; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="msgDeleteModal">
+  <div class="modal-box">
+    <p style="font-weight:bold;">Excluir esta mensagem?</p>
+    <p style="font-size: 12px; color: #666;">Isso removerá a mensagem apenas para você.</p>
+    <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
+        <button id="confirmarBtnMsg" style="background:#d9534f; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Excluir</button>
+        <button onclick="fecharMsgModal()" style="background:#eee; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Cancelar</button>
     </div>
   </div>
 </div>
