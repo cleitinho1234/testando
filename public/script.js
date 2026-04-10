@@ -1,7 +1,7 @@
 let currentUser = null;
 let currentChat = null;
 let contatoSelecionadoId = null; 
-let fotoParaEnviar = null; // Variável para o preview da foto
+let fotoParaEnviar = null; 
 const socket = io(); 
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
@@ -9,9 +9,12 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
-// --- 1. LÓGICA DE NOTIFICAÇÃO NO ÍCONE (BADGE API) ---
+// --- 1. NOTIFICAÇÕES E BADGE (NÚMERO NO ÍCONE) ---
 function atualizarBadgeIcone() {
-    const totalNaoLidas = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+    // Busca os dados atualizados para garantir a precisão
+    const counts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
+    const totalNaoLidas = Object.values(counts).reduce((a, b) => a + b, 0);
+
     if (navigator.setAppBadge) {
         if (totalNaoLidas > 0) {
             navigator.setAppBadge(totalNaoLidas).catch(console.error);
@@ -49,7 +52,7 @@ function recusarInstalacao() {
     document.getElementById('installBanner').style.display = 'none';
 }
 
-// --- 3. TRAVA ANTI-REFRESH E LOAD INICIAL ---
+// --- 3. CARREGAMENTO E TRAVAS ---
 function aplicarTrava(elementId) {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -58,6 +61,11 @@ function aplicarTrava(elementId) {
 }
 
 window.addEventListener("load", async () => {
+    // Pede permissão para notificações (necessário para o Badge funcionar)
+    if (Notification.permission !== 'granted') {
+        Notification.requestPermission();
+    }
+
     let savedId = localStorage.getItem("userId");
     if (savedId) {
         const res = await fetch(`/getUser/${savedId}`);
@@ -93,7 +101,7 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- 4. GESTÃO DE FOTOS (PREVIEW E FULLSCREEN) ---
+// --- 4. GESTÃO DE FOTOS ---
 document.getElementById("sendPhoto").onchange = function(e) {
     const file = e.target.files[0];
     if (!file || !currentChat) return;
@@ -123,16 +131,15 @@ function cancelarEnvioFoto() {
 }
 
 function abrirFullScreen(src) {
-    const viewer = document.getElementById("fullScreenViewer");
     document.getElementById("fullScreenImage").src = src;
-    viewer.style.display = "flex";
+    document.getElementById("fullScreenViewer").style.display = "flex";
 }
 
 function fecharFullScreen() {
     document.getElementById("fullScreenViewer").style.display = "none";
 }
 
-// --- 5. ENVIO E CARREGAMENTO DE MENSAGENS ---
+// --- 5. MENSAGENS E ENVIO ---
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
@@ -155,19 +162,18 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         input.value = "";
     }
     await loadMessages();
-    const container = document.getElementById("messages");
-    container.scrollTop = container.scrollHeight;
+    document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
 };
 
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
-    let novaMensagemChegou = false;
+    let novaMensagem = false;
 
     for (let m of msgs) {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
-            novaMensagemChegou = true;
+            novaMensagem = true;
             if (m.toId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.fromId);
                 if (index === -1) {
@@ -189,7 +195,7 @@ async function loadMessages() {
         }
     }
 
-    if (novaMensagemChegou) {
+    if (novaMensagem) {
         localStorage.setItem("lastTimestamp", lastTimestamp);
         localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
         localStorage.setItem("contacts", JSON.stringify(contacts));
@@ -199,10 +205,10 @@ async function loadMessages() {
 
     if (!currentChat) return;
     const container = document.getElementById("messages");
-    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
     const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
     
     if (container.childElementCount !== filtered.length) {
+        const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
         container.innerHTML = "";
         filtered.forEach(addMessage);
         if (isAtBottom) container.scrollTop = container.scrollHeight;
@@ -213,11 +219,7 @@ function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    
-    let conteudo = m.text.startsWith("data:image") 
-        ? `<img src="${m.text}" onclick="abrirFullScreen('${m.text}')">` 
-        : m.text;
-
+    let conteudo = m.text.startsWith("data:image") ? `<img src="${m.text}" onclick="abrirFullScreen('${m.text}')">` : m.text;
     const date = new Date(m.timestamp);
     const hora = date.getHours().toString().padStart(2, '0');
     const min = date.getMinutes().toString().padStart(2, '0');
@@ -225,7 +227,7 @@ function addMessage(m) {
     container.appendChild(div);
 }
 
-// --- 6. SOCKETS, CONTATOS E PERFIL ---
+// --- 6. SOCKETS E PERFIL ---
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -273,6 +275,7 @@ function voltar() {
     renderContacts();
 }
 
+// Funções de Seleção de Contato e Perfil seguem o padrão original...
 function ativarSelecao(id) {
     contatoSelecionadoId = id;
     document.getElementById("headerSelecao").style.display = "flex";
