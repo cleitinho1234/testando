@@ -200,6 +200,7 @@ function addMessage(m) {
     container.appendChild(div);
 }
 
+// --- FUNÇÃO ABRIR CHAT ATUALIZADA COM TRAVA TOTAL ---
 function abrirChat(user) {
     currentChat = user;
     localStorage.setItem("activeChatId", user.id);
@@ -214,6 +215,10 @@ function abrirChat(user) {
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
+    // TRAVA MESTRE: Quando o chat abre, proibimos o navegador de atualizar puxando pra baixo
+    document.body.style.overscrollBehaviorY = "none";
+    document.documentElement.style.overscrollBehaviorY = "none";
+
     loadMessages();
     setTimeout(() => {
         const container = document.getElementById("messages");
@@ -226,6 +231,11 @@ function voltar() {
     document.getElementById("home").style.display = "block";
     currentChat = null;
     localStorage.removeItem("activeChatId");
+    
+    // Libera o comportamento normal quando volta para a home (opcional)
+    document.body.style.overscrollBehaviorY = "auto";
+    document.documentElement.style.overscrollBehaviorY = "auto";
+
     renderContacts();
 }
 
@@ -340,33 +350,21 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- SOLUÇÃO DE SCROLL SEM REFRESH (LIVRE PARA SUBIR MENSAGENS) ---
-const lockScroll = (el) => {
-    el.addEventListener('touchstart', (e) => {
-        // Truque do 1px para enganar o navegador e não disparar o refresh
-        if (el.scrollTop <= 0) {
-            el.scrollTop = 1;
-        }
-        if (el.scrollTop + el.offsetHeight >= el.scrollHeight) {
-            el.scrollTop = el.scrollHeight - el.offsetHeight - 1;
-        }
-    }, { passive: false });
+// --- BLOQUEIO DE TOQUE REFORÇADO PARA O CHAT ---
+let startY = 0;
+document.addEventListener('touchstart', (e) => {
+    startY = e.touches[0].pageY;
+}, {passive: false});
 
-    el.addEventListener('touchmove', (e) => {
-        // Se a área for rolável, impede que o navegador tente tomar o controle
-        if (el.scrollHeight > el.offsetHeight) {
-            e.stopPropagation();
+document.addEventListener('touchmove', (e) => {
+    const messages = document.getElementById("messages");
+    const isChatOpen = document.getElementById("chatScreen").style.display === "flex";
+    
+    if (isChatOpen && messages.contains(e.target)) {
+        const moveY = e.touches[0].pageY;
+        // Se estiver no topo e tentar puxar pra baixo
+        if (moveY > startY && messages.scrollTop <= 0) {
+            if (e.cancelable) e.preventDefault();
         }
-    }, { passive: false });
-};
-
-// Aplica a lógica nas duas telas roláveis
-lockScroll(document.getElementById("messages"));
-lockScroll(document.getElementById("home"));
-
-// Bloqueia refresh se o toque for fora das áreas de chat/contatos
-window.addEventListener('touchmove', (e) => {
-    if (!e.target.closest('#messages') && !e.target.closest('#home')) {
-        if (e.cancelable) e.preventDefault();
     }
-}, { passive: false });
+}, {passive: false});
