@@ -6,9 +6,9 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-// 🔥 CONFIGURAÇÃO PARA ACEITAR FOTOS (Aumenta o limite de tamanho do JSON)
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ limit: '5mb', extended: true }));
+// 🔥 CONFIGURAÇÃO PARA ACEITAR FOTOS PESADAS DO CELULAR (LIMITE DE 10MB)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 const server = http.createServer(app);
 const io = new Server(server);
@@ -80,11 +80,9 @@ app.post("/user", async (req, res) => {
 });
 
 app.post("/saveProfile", async (req, res) => {
-    try {
-        const { id, username, photo } = req.body;
-        await User.findOneAndUpdate({ id }, { username, photo }, { upsert: true });
-        res.json({ success: true });
-    } catch (e) { res.status(500).send(e); }
+    const { id, username, photo } = req.body;
+    await User.findOneAndUpdate({ id }, { username, photo }, { upsert: true });
+    res.json({ success: true });
 });
 
 app.get("/getUser/:id", async (req, res) => {
