@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Mini-Zap</title>
+
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/logo.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/logo.png">
+<link rel="apple-touch-icon" href="/logo.png">
+<meta name="theme-color" content="#075e54">
+<meta name="mobile-web-app-capable" content="yes">
+
 <style>
   /* --- TRAVA GERAL DO APP (Essencial para APK) --- */
   html, body { 
@@ -14,10 +22,26 @@
     margin: 0; 
     padding: 0;
     /* Impede o "puxar para atualizar" nativo */
-    overscroll-behavior-y: contain !important;
+    overscroll-behavior-y: none !important;
   }
   
   body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; }
+
+  /* BANNER DE INSTALAÇÃO */
+  #installBanner {
+    display: none; 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    background: #075e54; 
+    color: white; 
+    padding: 15px; 
+    z-index: 9999; 
+    text-align: center; 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    box-sizing: border-box;
+  }
 
   /* TELA HOME E MENSAGENS - Rolagem Independente */
   #home, #messages { 
@@ -26,7 +50,6 @@
     box-sizing: border-box; 
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-    /* Força a div a segurar o scroll e não passar para o navegador */
     overscroll-behavior-y: contain !important;
   }
 
@@ -64,6 +87,14 @@
 </style>
 </head>
 <body>
+
+<div id="installBanner">
+    <p style="margin:0 0 10px 0; font-weight:bold; font-size: 14px;">Instalar Mini-Zap na tela inicial?</p>
+    <div style="display: flex; justify-content: center; gap: 10px;">
+        <button id="btnInstall" style="background:#25D366; color:white; border:none; padding:8px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">BAIXAR APP</button>
+        <button onclick="recusarInstalacao()" style="background:transparent; color:white; border:1px solid white; padding:8px 15px; border-radius:5px;">DEPOIS</button>
+    </div>
+</div>
 
 <div id="headerSelecao">
   <div style="display:flex; align-items:center;">
