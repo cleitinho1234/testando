@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Mini-Zap</title>
 <style>
-  /* --- TRAVA GERAL DO APP --- */
+  /* --- TRAVA GERAL DO APP (Muito importante para o APK) --- */
   html, body { 
     height: 100%; 
     overflow: hidden !important; 
@@ -13,7 +13,8 @@
     width: 100%; 
     margin: 0; 
     padding: 0;
-    overscroll-behavior: none !important;
+    /* Essa linha abaixo mata o puxar para atualizar na maioria dos Androids modernos */
+    overscroll-behavior-y: contain !important;
   }
   
   body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; }
@@ -23,7 +24,6 @@
     max-width: 500px; margin: 0 auto; padding: 15px; height: 100%;
     overflow-y: auto !important; box-sizing: border-box; 
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain !important;
   }
 
   .profile-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -40,7 +40,6 @@
   #messages { 
     flex: 1; overflow-y: auto !important; padding: 10px; 
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain !important;
   }
 
   #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; flex-shrink: 0; }
