@@ -1,15 +1,18 @@
-// Este arquivo fica rodando em segundo plano
-const CACHE_NAME = 'minizap-v1';
-
-self.addEventListener('install', (e) => {
-    console.log('Service Worker: Instalado');
+// sw.js - Versão Atualizada
+self.addEventListener('install', (event) => {
+    self.skipWaiting();
 });
 
-// Listener para mensagens (Opcional para o futuro)
-self.addEventListener('push', (event) => {
-    const data = event.data.json();
-    self.registration.showNotification(data.title, {
-        body: data.body,
-        icon: '/logo.png'
-    });
+self.addEventListener('activate', (event) => {
+    event.waitUntil(clients.claim());
+});
+
+// Isso aqui é o que faz o ícone reagir
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'UPDATE_BADGE') {
+        const count = event.data.count;
+        if (navigator.setAppBadge) {
+            navigator.setAppBadge(count);
+        }
+    }
 });
