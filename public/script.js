@@ -1,7 +1,7 @@
 let currentUser = null;
 let currentChat = null;
 let contatoSelecionadoId = null; 
-let mensagemSelecionadaId = null; // NOVA: Controle de exclusão de mensagens
+let mensagemSelecionadaId = null; // Controle para exclusão de mensagens
 let fotoParaEnviar = null; 
 const socket = io(); 
 
@@ -10,7 +10,7 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
-// --- 1. NOTIFICAÇÕES E BADGE --- (Igual ao seu)
+// --- 1. NOTIFICAÇÕES E BADGE ---
 function atualizarBadgeIcone() {
     const counts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
     const totalNaoLidas = Object.values(counts).reduce((a, b) => a + b, 0);
@@ -31,7 +31,7 @@ function atualizarBadgeIcone() {
     }
 }
 
-// --- 2. LÓGICA DE INSTALAÇÃO (PWA) --- (Igual ao seu)
+// --- 2. LÓGICA DE INSTALAÇÃO (PWA) ---
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
     const jaInstalou = localStorage.getItem("appInstalado");
@@ -59,7 +59,7 @@ function recusarInstalacao() {
     document.getElementById('installBanner').style.display = 'none';
 }
 
-// --- 3. CARREGAMENTO E SERVICE WORKER --- (Igual ao seu)
+// --- 3. CARREGAMENTO E INICIALIZAÇÃO ---
 function aplicarTrava(elementId) {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -110,10 +110,12 @@ window.addEventListener("load", async () => {
 
     aplicarTrava("messages");
     aplicarTrava("home");
+    
+    // Intervalo de atualização de mensagens
     setInterval(loadMessages, 1500);
 });
 
-// --- 4. GESTÃO DE FOTOS --- (Igual ao seu)
+// --- 4. GESTÃO DE FOTOS ---
 document.getElementById("sendPhoto").onchange = function(e) {
     const file = e.target.files[0];
     if (!file || !currentChat) return;
@@ -151,7 +153,7 @@ function fecharFullScreen() {
     document.getElementById("fullScreenViewer").style.display = "none";
 }
 
-// --- 5. MENSAGENS E ENVIO (COM EXCLUSÃO) ---
+// --- 5. MENSAGENS E ENVIO ---
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
@@ -178,6 +180,9 @@ document.getElementById("sendMessageBtn").onclick = async () => {
 };
 
 async function loadMessages() {
+    // PAUSA: Se estiver selecionando uma mensagem, não atualiza a lista para não perder o foco
+    if (mensagemSelecionadaId) return;
+
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
     let novaMensagem = false;
@@ -248,7 +253,8 @@ function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    div.id = `msg-${m.id}`; // Identificador para a seleção visual
+    div.id = `msg-${m.id}`;
+    div.setAttribute("data-id", m.id);
 
     let conteudo = m.text.startsWith("data:image") ? `<img src="${m.text}" onclick="abrirFullScreen('${m.text}')">` : m.text;
     const date = new Date(m.timestamp);
@@ -257,29 +263,28 @@ function addMessage(m) {
     
     div.innerHTML = `<div class="bubble">${conteudo}<span class="time">${hora}:${min}</span></div>`;
 
-    // LÓGICA DE SEGURAR (LONG PRESS) NA MENSAGEM
+    // TOQUE LONGO PARA SELECIONAR MENSAGEM
     let pressTimer;
     const startPress = () => {
-        pressTimer = setTimeout(() => {
-            ativarSelecaoMensagem(m.id);
-        }, 800);
+        pressTimer = setTimeout(() => ativarSelecaoMensagem(m.id), 700);
     };
     const endPress = () => clearTimeout(pressTimer);
 
-    div.addEventListener("touchstart", startPress);
+    div.addEventListener("touchstart", startPress, { passive: true });
     div.addEventListener("touchend", endPress);
-    div.addEventListener("mousedown", startPress); // PC
-    div.addEventListener("mouseup", endPress);     // PC
+    div.addEventListener("mousedown", startPress);
+    div.addEventListener("mouseup", endPress);
 
     container.appendChild(div);
 }
 
-// --- NOVAS FUNÇÕES DE SELEÇÃO E EXCLUSÃO DE MENSAGENS ---
+// --- FUNÇÕES DE EXCLUSÃO DE MENSAGENS ---
 function ativarSelecaoMensagem(id) {
-    if (contatoSelecionadoId) return; // Evita conflito se estiver selecionando contato
+    if (contatoSelecionadoId) return; 
     mensagemSelecionadaId = id;
     
-    // Marca visualmente
+    // Marca visualmente a mensagem
+    document.querySelectorAll(".message").forEach(el => el.classList.remove("selected_msg"));
     const msgEl = document.getElementById(`msg-${id}`);
     if (msgEl) msgEl.classList.add("selected_msg");
     
@@ -309,26 +314,22 @@ async function confirmarExclusaoMensagem() {
 
     try {
         const res = await fetch(`/deleteMessage/${mensagemSelecionadaId}`, { 
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" }
+            method: "DELETE" 
         });
 
         if (res.ok) {
+            const msgEl = document.getElementById(`msg-${mensagemSelecionadaId}`);
+            if (msgEl) msgEl.remove();
             fecharMsgModal();
-            loadMessages(); // Recarrega o chat para sumir a mensagem
         } else {
             alert("Erro ao excluir mensagem no servidor.");
         }
     } catch (err) {
-        console.error("Erro na exclusão:", err);
+        console.error("Erro:", err);
     }
 }
 
-// Vincula o botão "Sim" do modal de mensagens
-document.getElementById("confirmarBtnMsg").onclick = confirmarExclusaoMensagem;
-
-
-// --- 6. SOCKETS E PERFIL --- (Igual ao seu)
+// --- 6. SOCKETS E PERFIL ---
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -364,7 +365,10 @@ function abrirChat(user) {
     cancelarEnvioFoto();
     loadMessages();
     atualizarBadgeIcone();
-    setTimeout(() => { document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight; }, 150);
+    setTimeout(() => { 
+        const container = document.getElementById("messages");
+        container.scrollTop = container.scrollHeight; 
+    }, 150);
 }
 
 function voltar() {
@@ -373,7 +377,7 @@ function voltar() {
     currentChat = null;
     localStorage.removeItem("activeChatId");
     cancelarEnvioFoto();
-    cancelarSelecaoMensagem(); // Limpa seleções ao sair
+    cancelarSelecaoMensagem();
     renderContacts();
 }
 
