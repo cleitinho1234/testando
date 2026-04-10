@@ -28,14 +28,12 @@ window.addEventListener("load", async () => {
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
     
-    // Mostra sua foto ao carregar a página
     if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
 
     renderContacts();
     setInterval(loadMessages, 1500);
 });
 
-// ATUALIZAÇÃO DE PERFIL EM TEMPO REAL
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -51,7 +49,6 @@ socket.on("updateStatus", (listaOnline) => {
     renderContacts();
 });
 
-// FUNÇÕES DE EXCLUSÃO
 function ativarSelecao(id) {
     contatoSelecionadoId = id;
     document.getElementById("headerSelecao").style.display = "flex";
@@ -74,7 +71,6 @@ function confirmarExclusao() {
     cancelarSelecao();
 }
 
-// RENDERIZAR LISTA DE CONTATOS
 function renderContacts() {
     const div = document.getElementById("contacts");
     div.innerHTML = "";
@@ -110,7 +106,6 @@ function renderContacts() {
     });
 }
 
-// CARREGAR MENSAGENS
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
@@ -219,27 +214,24 @@ document.getElementById("addFriendBtn").onclick = async () => {
     document.getElementById("addUserId").value = "";
 };
 
-// FUNÇÃO DE PERFIL COM ATUALIZAÇÃO DE PREVIEW LOCAL
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
     const file = document.getElementById("profilePic").files[0];
     if (!nome) return alert("Digite um nome!");
     
-    const salvar = async (f) => {
+    const salvar = async (fotoFinal) => {
         const res = await fetch("/saveProfile", {
-            method: "POST", headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ id: currentUser.id, username: nome, photo: f })
+            method: "POST", 
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoFinal })
         });
         
         if (res.ok) {
             currentUser.username = nome; 
-            currentUser.photo = f;
-            
-            // Atualiza a foto no seu círculo de perfil imediatamente
-            if (f) document.getElementById("profilePreview").src = f;
-            
-            socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: f });
+            currentUser.photo = fotoFinal;
+            if (fotoFinal) document.getElementById("profilePreview").src = fotoFinal;
+            socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
             alert("Perfil Salvo!");
             renderContacts();
         }
@@ -247,7 +239,23 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     
     if (file) {
         const reader = new FileReader();
-        reader.onload = (ev) => salvar(ev.target.result);
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const MAX_WIDTH = 300; // Define um tamanho máximo para evitar erro de limite
+                const scaleSize = MAX_WIDTH / img.width;
+                canvas.width = MAX_WIDTH;
+                canvas.height = img.height * scaleSize;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+                salvar(compressedBase64);
+            };
+            img.src = ev.target.result;
+        };
         reader.readAsDataURL(file);
-    } else salvar(currentUser.photo);
+    } else {
+        salvar(currentUser.photo);
+    }
 };
