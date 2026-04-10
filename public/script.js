@@ -8,6 +8,18 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
+// --- FUNÇÃO PARA ATUALIZAR O NÚMERO NO ÍCONE (BADGE) ---
+function atualizarBadgeApp() {
+    if ('setAppBadge' in navigator) {
+        const totalNaoLidas = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+        if (totalNaoLidas > 0) {
+            navigator.setAppBadge(totalNaoLidas).catch((err) => console.log("Erro Badge:", err));
+        } else {
+            navigator.clearAppBadge().catch((err) => console.log("Erro limpar Badge:", err));
+        }
+    }
+}
+
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
     if (savedId) {
@@ -30,6 +42,7 @@ window.addEventListener("load", async () => {
     if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
 
     renderContacts();
+    atualizarBadgeApp();
     setInterval(loadMessages, 1500);
 });
 
@@ -108,14 +121,16 @@ function renderContacts() {
     });
 }
 
-// 🔥 CARREGAR MENSAGENS + MOVER PARA O TOPO
+// 🔥 CARREGAR MENSAGENS + MOVER PARA O TOPO + ATUALIZAR BADGE
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
+    let novaMensagemChegou = false;
     
     for (let m of msgs) {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
+            novaMensagemChegou = true;
             
             if (m.toId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.fromId);
@@ -141,10 +156,13 @@ async function loadMessages() {
         }
     }
 
-    localStorage.setItem("lastTimestamp", lastTimestamp);
-    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
+    if (novaMensagemChegou) {
+        localStorage.setItem("lastTimestamp", lastTimestamp);
+        localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+        atualizarBadgeApp();
+    }
 
     if (!currentChat) return;
     const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
@@ -154,22 +172,17 @@ async function loadMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
-// 🔥 NOVA FUNÇÃO ADDMESSAGE COM HORÁRIO
 function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    
-    // Formata o horário (Ex: 14:30)
     const date = new Date(m.timestamp);
     const hora = date.getHours().toString().padStart(2, '0');
     const min = date.getMinutes().toString().padStart(2, '0');
-    const horarioFormatado = `${hora}:${min}`;
-
     div.innerHTML = `
         <div class="bubble">
             ${m.text}
-            <span class="time">${horarioFormatado}</span>
+            <span class="time">${hora}:${min}</span>
         </div>
     `;
     container.appendChild(div);
@@ -179,6 +192,7 @@ function abrirChat(user) {
     currentChat = user;
     unreadCounts[user.id] = 0;
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    atualizarBadgeApp();
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
@@ -222,23 +236,54 @@ document.getElementById("addFriendBtn").onclick = async () => {
     document.getElementById("addUserId").value = "";
 };
 
+// 🔥 FUNÇÃO DE SALVAR PERFIL ATUALIZADA (COM COMPRESSÃO DE FOTO)
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
     const file = document.getElementById("profilePic").files[0];
     if (!nome) return alert("Digite um nome!");
-    const salvar = async (f) => {
-        await fetch("/saveProfile", {
-            method: "POST", headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ id: currentUser.id, username: nome, photo: f })
+
+    const salvarNoBanco = async (fotoString) => {
+        const res = await fetch("/saveProfile", {
+            method: "POST", 
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoString })
         });
-        currentUser.username = nome; currentUser.photo = f;
-        socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: f });
-        alert("Perfil Salvo!");
+        if (res.ok) {
+            currentUser.username = nome; 
+            currentUser.photo = fotoString;
+            document.getElementById("profilePreview").src = fotoString;
+            socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoString });
+            alert("Perfil Salvo!");
+        }
     };
+
     if (file) {
         const reader = new FileReader();
-        reader.onload = (ev) => salvar(ev.target.result);
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const MAX_SIZE = 150; // Tamanho máximo da largura/altura
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+                } else {
+                    if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, width, height);
+                const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7); // 70% de qualidade
+                salvarNoBanco(compressedBase64);
+            };
+            img.src = ev.target.result;
+        };
         reader.readAsDataURL(file);
-    } else salvar(currentUser.photo);
+    } else {
+        salvarNoBanco(currentUser.photo);
+    }
 };
