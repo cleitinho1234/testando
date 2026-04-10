@@ -3,19 +3,21 @@
   "name": "Mini Zap Chat",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+      "src": "/logo.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+      "src": "/logo.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": "/",
   "background_color": "#ffffff",
   "display": "standalone",
   "scope": "/",
-  "theme_color": "#25D366"
+  "theme_color": "#075e54"
 }
