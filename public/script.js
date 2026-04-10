@@ -8,24 +8,26 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
-// --- LOGICA DE BLOQUEIO DE REFRESH (GPT + REFORÇO) ---
-let startY = 0;
-
+// --- TRAVA ANTI-REFRESH DEFINITIVA (Técnica do 1px) ---
 function aplicarTrava(elementId) {
     const el = document.getElementById(elementId);
     if (!el) return;
 
-    el.addEventListener("touchstart", function(e) {
-        startY = e.touches[0].clientY;
-    }, { passive: false });
-
-    el.addEventListener("touchmove", function(e) {
-        const currentY = e.touches[0].clientY;
-        // Se estiver no topo da div e tentar puxar para baixo
-        if (el.scrollTop <= 0 && currentY > startY) {
-            if (e.cancelable) e.preventDefault(); // Mata o comando de refresh do Android
+    // Quando encostar o dedo, se estiver no topo absoluto (0), empurra 1px pra baixo
+    // Isso desativa o "Pull-to-Refresh" nativo do Android
+    el.addEventListener("touchstart", function() {
+        if (el.scrollTop <= 0) {
+            el.scrollTop = 1;
         }
-    }, { passive: false });
+    }, { passive: true });
+
+    el.addEventListener("scroll", function() {
+        // Se o usuário subir tudo para ver mensagens antigas e bater no 0,
+        // a gente mantém no 1 para o navegador não entender como refresh.
+        if (el.scrollTop <= 0) {
+            el.scrollTop = 1;
+        }
+    }, { passive: true });
 }
 
 window.addEventListener("load", async () => {
@@ -58,7 +60,7 @@ window.addEventListener("load", async () => {
         if (contatoSalvo) abrirChat(contatoSalvo);
     }
 
-    // Ativa a trava nos dois containers principais
+    // Ativa a trava nos dois containers para permitir scroll infinito sem refresh
     aplicarTrava("messages");
     aplicarTrava("home");
 
