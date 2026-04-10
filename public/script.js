@@ -25,7 +25,6 @@ window.addEventListener("load", async () => {
         localStorage.setItem("userId", currentUser.id);
     }
     
-    // Registra a entrada no servidor
     socket.emit("register", currentUser.id);
     
     document.getElementById("username").value = currentUser.username || "";
@@ -37,7 +36,7 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// Atualiza dados visuais (foto/nome) quando um contato muda o perfil
+// Atualiza dados visuais quando um contato muda o perfil
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -53,12 +52,11 @@ socket.on("userUpdated", (dados) => {
     }
 });
 
-// 🔥 ATUALIZA ONLINE E OFFLINE EM TEMPO REAL
+// Atualiza status online/offline
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts();
     
-    // Se estiver com o chat aberto, atualiza o status no topo na hora (Online/offline)
     if (currentChat) {
         const estaOnline = listaOnlineGlobal.includes(currentChat.id);
         document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
@@ -167,16 +165,24 @@ async function loadMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
+// 🔥 ADICIONADO: Suporte para mostrar imagens no chat
 function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+    
+    // Verifica se o texto é uma imagem em Base64
+    const conteudo = m.text.startsWith("data:image") 
+        ? `<img src="${m.text}">` 
+        : m.text;
+
     const date = new Date(m.timestamp);
     const hora = date.getHours().toString().padStart(2, '0');
     const min = date.getMinutes().toString().padStart(2, '0');
+    
     div.innerHTML = `
         <div class="bubble">
-            ${m.text}
+            ${conteudo}
             <span class="time">${hora}:${min}</span>
         </div>
     `;
@@ -192,7 +198,6 @@ function abrirChat(user) {
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     
-    // Atualiza o status (Online/offline) ao entrar no chat
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
@@ -206,6 +211,7 @@ function voltar() {
     renderContacts();
 }
 
+// Botão Enviar Texto
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
@@ -217,6 +223,43 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
     });
     loadMessages(); 
+};
+
+// 🔥 ADICIONADO: Lógica do Menu de Anexos
+document.getElementById("attachmentBtn").onclick = () => {
+    document.getElementById("attachmentMenu").classList.toggle("hidden");
+};
+
+// 🔥 ADICIONADO: Enviar Foto no Chat
+document.getElementById("sendPhoto").onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file || !currentChat) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = async () => {
+            const canvas = document.createElement("canvas");
+            const MAX_WIDTH = 500; 
+            const scale = MAX_WIDTH / img.width;
+            canvas.width = MAX_WIDTH;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            const base64 = canvas.toDataURL("image/jpeg", 0.7);
+            
+            await fetch("/sendMessage", {
+                method: "POST",
+                headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: base64 })
+            });
+            document.getElementById("attachmentMenu").classList.add("hidden");
+            loadMessages();
+        };
+        img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
