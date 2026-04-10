@@ -8,27 +8,25 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
-// --- TRAVA ANTI-REFRESH (Lógica solicitada) ---
+// --- LOGICA DE BLOQUEIO DE REFRESH (GPT + REFORÇO) ---
 let startY = 0;
-document.addEventListener("touchstart", function(e) {
-    startY = e.touches[0].clientY;
-}, { passive: false });
 
-document.addEventListener("touchmove", function(e) {
-    const messages = document.getElementById("messages");
-    const home = document.getElementById("home");
-    
-    // Alvo atual: se o chat estiver aberto, checa o messages. Se não, checa o home.
-    const containerAtivo = (currentChat) ? messages : home;
+function aplicarTrava(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
 
-    if (containerAtivo && containerAtivo.scrollTop <= 0) {
-        let currentY = e.touches[0].clientY;
-        // Se estiver no topo e puxar para baixo (currentY > startY)
-        if (currentY > startY) {
-            if (e.cancelable) e.preventDefault(); // Bloqueia o refresh do Android
+    el.addEventListener("touchstart", function(e) {
+        startY = e.touches[0].clientY;
+    }, { passive: false });
+
+    el.addEventListener("touchmove", function(e) {
+        const currentY = e.touches[0].clientY;
+        // Se estiver no topo da div e tentar puxar para baixo
+        if (el.scrollTop <= 0 && currentY > startY) {
+            if (e.cancelable) e.preventDefault(); // Mata o comando de refresh do Android
         }
-    }
-}, { passive: false });
+    }, { passive: false });
+}
 
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
@@ -60,10 +58,14 @@ window.addEventListener("load", async () => {
         if (contatoSalvo) abrirChat(contatoSalvo);
     }
 
+    // Ativa a trava nos dois containers principais
+    aplicarTrava("messages");
+    aplicarTrava("home");
+
     setInterval(loadMessages, 1500);
 });
 
-// --- RESTANTE DAS FUNÇÕES (SOCKET, CHAT, PERFIL) ---
+// --- FUNÇÕES DE SOCKET E PERFIL ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
