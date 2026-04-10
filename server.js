@@ -46,23 +46,26 @@ io.on("connection", (socket) => {
         socket.userId = userId;
         usuariosOnline[userId] = socket.id;
         
-        // 🔥 Avisa TODO MUNDO (inclusive quem entrou) sobre a lista atualizada
+        // Avisa todos que você entrou (fica online)
         io.emit("updateStatus", Object.keys(usuariosOnline));
-        console.log(`Usuário ${userId} entrou.`);
+        console.log(`Usuário ${userId} conectou.`);
     });
 
-    // 🔥 Quando alguém muda o perfil, avisa todos os outros
+    // Quando alguém muda o perfil, avisa todos os outros
     socket.on("updateProfileVisual", (dados) => {
         socket.broadcast.emit("userUpdated", dados);
     });
 
-    // Registro de saída
+    // 🔥 REGISTRO DE SAÍDA (OFFLINE EM TEMPO REAL)
     socket.on("disconnect", () => {
         if (socket.userId) {
+            console.log(`Usuário ${socket.userId} desconectou.`);
+            
+            // Remove o usuário da lista de online
             delete usuariosOnline[socket.userId];
-            // 🔥 Avisa todos que alguém saiu
+            
+            // Avisa IMEDIATAMENTE todos os outros que ele saiu
             io.emit("updateStatus", Object.keys(usuariosOnline));
-            console.log(`Usuário ${socket.userId} saiu.`);
         }
     });
 });
