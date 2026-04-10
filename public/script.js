@@ -42,9 +42,9 @@ window.addEventListener("load", async () => {
 
     setInterval(loadMessages, 1500);
 
-    // Ativa as travas de scroll logo no carregamento
-    travarScrollArea(document.getElementById("messages"));
-    travarScrollArea(document.getElementById("home"));
+    // ATIVA A TRAVA ULTRA LOGO NO INÍCIO
+    bloquearRefresh("messages");
+    bloquearRefresh("home");
 });
 
 socket.on("userUpdated", (dados) => {
@@ -219,7 +219,7 @@ function abrirChat(user) {
     setTimeout(() => {
         const container = document.getElementById("messages");
         container.scrollTop = container.scrollHeight;
-        if(container.scrollTop === 0) container.scrollTop = 1; // Força 1px de scroll
+        if (container.scrollTop <= 0) container.scrollTop = 1;
     }, 150);
 }
 
@@ -231,7 +231,6 @@ function voltar() {
     renderContacts();
 }
 
-// --- LOGICA DE MENSAGENS E PERFIL ---
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
@@ -343,19 +342,30 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- TRAVA DE REFRESH DEFINITIVA (MÉTODO DO 1 PIXEL) ---
-function travarScrollArea(el) {
-    if(!el) return;
-    el.addEventListener('touchstart', () => {
+// --- TRAVA DE REFRESH "ULTRA" ---
+let startY = 0;
+const bloquearRefresh = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    el.addEventListener('touchstart', (e) => {
+        startY = e.touches[0].pageY;
         if (el.scrollTop <= 0) el.scrollTop = 1;
         if (el.scrollTop + el.offsetHeight >= el.scrollHeight) el.scrollTop = el.scrollHeight - el.offsetHeight - 1;
-    }, {passive: false});
-}
+    }, { passive: false });
 
-// Bloqueia o arrasto no fundo do site (onde não tem scroll)
+    el.addEventListener('touchmove', (e) => {
+        const moveY = e.touches[0].pageY;
+        // Se estiver no topo puxando pra baixo OU no fundo puxando pra cima
+        if ((el.scrollTop <= 1 && moveY > startY) || (el.scrollTop + el.offsetHeight >= el.scrollHeight - 1 && moveY < startY)) {
+            if (e.cancelable) e.preventDefault();
+        }
+        e.stopPropagation();
+    }, { passive: false });
+};
+
 document.addEventListener('touchmove', (e) => {
-    const isScrollable = e.target.closest('#messages') || e.target.closest('#home');
-    if (!isScrollable && e.cancelable) {
-        e.preventDefault();
+    if (!e.target.closest('#messages') && !e.target.closest('#home')) {
+        if (e.cancelable) e.preventDefault();
     }
-}, {passive: false});
+}, { passive: false });
