@@ -33,10 +33,17 @@ window.addEventListener("load", async () => {
     if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
 
     renderContacts();
+    
+    // --- NOVO: REABRIR CHAT APÓS ATUALIZAR ---
+    const lastChatId = localStorage.getItem("activeChatId");
+    if (lastChatId) {
+        const contatoSalvo = contacts.find(c => c.id == lastChatId);
+        if (contatoSalvo) abrirChat(contatoSalvo);
+    }
+
     setInterval(loadMessages, 1500);
 });
 
-// Atualiza dados visuais quando um contato muda o perfil
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -52,7 +59,6 @@ socket.on("userUpdated", (dados) => {
     }
 });
 
-// Atualiza status online/offline
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts();
@@ -120,6 +126,7 @@ function renderContacts() {
     });
 }
 
+// 🔥 FUNÇÃO ATUALIZADA COM SCROLL INTELIGENTE
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
@@ -127,7 +134,6 @@ async function loadMessages() {
     for (let m of msgs) {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
-            
             if (m.toId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.fromId);
                 if (index === -1) {
@@ -158,20 +164,30 @@ async function loadMessages() {
     renderContacts();
 
     if (!currentChat) return;
-    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
+
     const container = document.getElementById("messages");
-    container.innerHTML = "";
-    filtered.forEach(addMessage);
-    container.scrollTop = container.scrollHeight;
+    // Verifica se o usuário está no fundo do chat (margem de 100px)
+    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+
+    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
+    
+    // Só reconstrói o HTML se houver mensagens novas
+    if (container.childElementCount !== filtered.length) {
+        container.innerHTML = "";
+        filtered.forEach(addMessage);
+        
+        // Só desce a tela se o usuário já estava no fundo
+        if (isAtBottom) {
+            container.scrollTop = container.scrollHeight;
+        }
+    }
 }
 
-// 🔥 ADICIONADO: Suporte para mostrar imagens no chat
 function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
     
-    // Verifica se o texto é uma imagem em Base64
     const conteudo = m.text.startsWith("data:image") 
         ? `<img src="${m.text}">` 
         : m.text;
@@ -191,6 +207,9 @@ function addMessage(m) {
 
 function abrirChat(user) {
     currentChat = user;
+    // Salva o ID para caso a página atualize
+    localStorage.setItem("activeChatId", user.id);
+    
     unreadCounts[user.id] = 0;
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     document.getElementById("home").style.display = "none";
@@ -202,16 +221,21 @@ function abrirChat(user) {
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
     loadMessages();
+    // Força o scroll para o fundo ao entrar no chat
+    setTimeout(() => {
+        const container = document.getElementById("messages");
+        container.scrollTop = container.scrollHeight;
+    }, 100);
 }
 
 function voltar() {
     document.getElementById("chatScreen").style.display = "none";
     document.getElementById("home").style.display = "block";
     currentChat = null;
+    localStorage.removeItem("activeChatId"); // Remove o ID ao sair
     renderContacts();
 }
 
-// Botão Enviar Texto
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
@@ -222,15 +246,16 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
     });
-    loadMessages(); 
+    await loadMessages();
+    // Força o scroll após enviar
+    const container = document.getElementById("messages");
+    container.scrollTop = container.scrollHeight;
 };
 
-// 🔥 ADICIONADO: Lógica do Menu de Anexos
 document.getElementById("attachmentBtn").onclick = () => {
     document.getElementById("attachmentMenu").classList.toggle("hidden");
 };
 
-// 🔥 ADICIONADO: Enviar Foto no Chat
 document.getElementById("sendPhoto").onchange = function(e) {
     const file = e.target.files[0];
     if (!file || !currentChat) return;
@@ -246,7 +271,6 @@ document.getElementById("sendPhoto").onchange = function(e) {
             canvas.height = img.height * scale;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
             const base64 = canvas.toDataURL("image/jpeg", 0.7);
             
             await fetch("/sendMessage", {
@@ -255,7 +279,10 @@ document.getElementById("sendPhoto").onchange = function(e) {
                 body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: base64 })
             });
             document.getElementById("attachmentMenu").classList.add("hidden");
-            loadMessages();
+            await loadMessages();
+            // Força o scroll após enviar foto
+            const container = document.getElementById("messages");
+            container.scrollTop = container.scrollHeight;
         };
         img.src = ev.target.result;
     };
