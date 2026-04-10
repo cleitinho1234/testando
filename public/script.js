@@ -11,16 +11,24 @@ let listaOnlineGlobal = [];
 
 // --- 1. NOTIFICAÇÕES E BADGE (NÚMERO NO ÍCONE) ---
 function atualizarBadgeIcone() {
-    // Busca os dados atualizados para garantir a precisão
     const counts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
     const totalNaoLidas = Object.values(counts).reduce((a, b) => a + b, 0);
 
+    // Atualiza o número no ícone (Badge API)
     if (navigator.setAppBadge) {
         if (totalNaoLidas > 0) {
             navigator.setAppBadge(totalNaoLidas).catch(console.error);
         } else {
             navigator.clearAppBadge().catch(console.error);
         }
+    }
+
+    // Avisa o Service Worker sobre a contagem (para rodar em background)
+    if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+            type: 'UPDATE_BADGE',
+            count: totalNaoLidas
+        });
     }
 }
 
@@ -52,7 +60,7 @@ function recusarInstalacao() {
     document.getElementById('installBanner').style.display = 'none';
 }
 
-// --- 3. CARREGAMENTO E TRAVAS ---
+// --- 3. CARREGAMENTO, TRAVAS E SERVICE WORKER ---
 function aplicarTrava(elementId) {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -61,7 +69,14 @@ function aplicarTrava(elementId) {
 }
 
 window.addEventListener("load", async () => {
-    // Pede permissão para notificações (necessário para o Badge funcionar)
+    // Registro do Service Worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(() => console.log("Service Worker ativo!"))
+            .catch(err => console.log("Erro SW:", err));
+    }
+
+    // Pede permissão para notificações
     if (Notification.permission !== 'granted') {
         Notification.requestPermission();
     }
@@ -275,7 +290,6 @@ function voltar() {
     renderContacts();
 }
 
-// Funções de Seleção de Contato e Perfil seguem o padrão original...
 function ativarSelecao(id) {
     contatoSelecionadoId = id;
     document.getElementById("headerSelecao").style.display = "flex";
