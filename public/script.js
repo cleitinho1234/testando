@@ -8,25 +8,58 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
-// --- TRAVA ANTI-REFRESH DEFINITIVA (Técnica do 1px) ---
+// --- LÓGICA DE INSTALAÇÃO (PWA) ---
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Verifica se o usuário já instalou ou fechou o aviso antes
+    const jaInstalou = localStorage.getItem("appInstalado");
+    if (jaInstalou === "true") return;
+
+    // Impede o banner padrão e guarda o evento
+    e.preventDefault();
+    deferredPrompt = e;
+    
+    // Mostra o banner customizado que você criou no HTML
+    const banner = document.getElementById('installBanner');
+    if (banner) banner.style.display = 'block';
+});
+
+// Função para o botão BAIXAR
+document.getElementById('btnInstall').onclick = async () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            localStorage.setItem("appInstalado", "true");
+            document.getElementById('installBanner').style.display = 'none';
+        }
+        deferredPrompt = null;
+    }
+};
+
+// Função para o botão DEPOIS (chamada via onclick no HTML)
+function recusarInstalacao() {
+    localStorage.setItem("appInstalado", "true"); // Salva para não incomodar mais
+    document.getElementById('installBanner').style.display = 'none';
+}
+
+window.addEventListener('appinstalled', () => {
+    localStorage.setItem("appInstalado", "true");
+    document.getElementById('installBanner').style.display = 'none';
+});
+
+// --- TRAVA ANTI-REFRESH DEFINITIVA ---
 function aplicarTrava(elementId) {
     const el = document.getElementById(elementId);
     if (!el) return;
 
-    // Quando encostar o dedo, se estiver no topo absoluto (0), empurra 1px pra baixo
-    // Isso desativa o "Pull-to-Refresh" nativo do Android
     el.addEventListener("touchstart", function() {
-        if (el.scrollTop <= 0) {
-            el.scrollTop = 1;
-        }
+        if (el.scrollTop <= 0) el.scrollTop = 1;
     }, { passive: true });
 
     el.addEventListener("scroll", function() {
-        // Se o usuário subir tudo para ver mensagens antigas e bater no 0,
-        // a gente mantém no 1 para o navegador não entender como refresh.
-        if (el.scrollTop <= 0) {
-            el.scrollTop = 1;
-        }
+        if (el.scrollTop <= 0) el.scrollTop = 1;
     }, { passive: true });
 }
 
@@ -60,7 +93,6 @@ window.addEventListener("load", async () => {
         if (contatoSalvo) abrirChat(contatoSalvo);
     }
 
-    // Ativa a trava nos dois containers para permitir scroll infinito sem refresh
     aplicarTrava("messages");
     aplicarTrava("home");
 
