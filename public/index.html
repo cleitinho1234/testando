@@ -1,318 +1,133 @@
-let currentUser = null;
-let currentChat = null;
-let contatoSelecionadoId = null; 
-const socket = io(); 
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mini-Zap</title>
+<style>
+  /* --- TRAVA GERAL DO APP (Essencial para APK) --- */
+  html, body { 
+    height: 100%; 
+    overflow: hidden !important; 
+    position: fixed; 
+    width: 100%; 
+    margin: 0; 
+    padding: 0;
+    /* Impede o "puxar para atualizar" nativo */
+    overscroll-behavior-y: contain !important;
+  }
+  
+  body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; }
 
-let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
-let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
-let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
-let listaOnlineGlobal = [];
+  /* TELA HOME E MENSAGENS - Rolagem Independente */
+  #home, #messages { 
+    flex: 1;
+    overflow-y: auto !important; 
+    box-sizing: border-box; 
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    /* Força a div a segurar o scroll e não passar para o navegador */
+    overscroll-behavior-y: contain !important;
+  }
 
-// --- FUNÇÃO DE TRAVA DEFINITIVA ANTI-REFRESH ---
-function aplicarTravaScroll(elementId) {
-    const el = document.getElementById(elementId);
-    if (!el) return;
+  #home { max-width: 500px; margin: 0 auto; padding: 15px; height: 100%; display: flex; flex-direction: column; }
 
-    // Quando o usuário encosta, garante que não está no 0
-    el.addEventListener("touchstart", () => {
-        if (el.scrollTop <= 0) el.scrollTop = 1;
-    }, { passive: true });
+  .profile-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
+  #profilePreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; }
+  
+  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .contact.selected { background: #d1e7dd !important; }
 
-    // Se rolar e bater no topo, empurra 1px pra baixo
-    el.addEventListener("scroll", () => {
-        if (el.scrollTop <= 0) el.scrollTop = 1;
-        // Se bater no fundo (opcional, mas bom para estabilidade)
-        if (el.scrollTop + el.offsetHeight >= el.scrollHeight) {
-            el.scrollTop = el.scrollHeight - el.offsetHeight - 1;
-        }
-    }, { passive: true });
-}
+  /* TELA CHAT */
+  #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; z-index: 50; }
+  #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; }
+  #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
+  
+  #messages { padding: 10px; }
 
-window.addEventListener("load", async () => {
-    let savedId = localStorage.getItem("userId");
-    if (savedId) {
-        const res = await fetch(`/getUser/${savedId}`);
-        const user = await res.json();
-        if (!user.error) currentUser = user;
-    }
-    if (!currentUser) {
-        const res = await fetch("/user", {
-            method: "POST", 
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ username: "Novo Usuário", photo: "" })
-        });
-        currentUser = await res.json();
-        localStorage.setItem("userId", currentUser.id);
-    }
-    
-    socket.emit("register", currentUser.id);
-    document.getElementById("username").value = currentUser.username || "";
-    document.getElementById("userIdDisplay").textContent = currentUser.id;
-    if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
+  #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; flex-shrink: 0; }
+  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 8px; outline: none; }
+  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; }
+  
+  .message { display: flex; margin: 5px 0; }
+  .me { justify-content: flex-end; }
+  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; }
+  .me .bubble { background: #dcf8c6; }
+  .bubble img { max-width: 100%; border-radius: 8px; display: block; margin-top: 5px; }
+  .time { font-size: 10px; color: #888; float: right; margin: 5px 0 0 10px; }
 
-    renderContacts();
-    
-    const lastChatId = localStorage.getItem("activeChatId");
-    if (lastChatId) {
-        const contatoSalvo = contacts.find(c => c.id == lastChatId);
-        if (contatoSalvo) abrirChat(contatoSalvo);
-    }
+  /* MODAL E CABEÇALHO DE SELEÇÃO */
+  .hidden { display: none; }
+  #headerSelecao { display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; }
+  #confirmModal { display: none; position: fixed; top:0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; }
+  .modal-box { background:white; padding:20px; border-radius:10px; text-align:center; width: 80%; }
+</style>
+</head>
+<body>
 
-    // Ativa as travas
-    aplicarTravaScroll("messages");
-    aplicarTravaScroll("home");
+<div id="headerSelecao">
+  <div style="display:flex; align-items:center;">
+    <button onclick="cancelarSelecao()" style="background:none; border:none; color:white; font-size:20px; margin-right:20px;">✕</button>
+    <span style="font-weight:bold;">Selecionado</span>
+  </div>
+  <button onclick="abrirModal()" style="background:none; border:none; color:white; font-size:20px;">🗑️</button>
+</div>
 
-    setInterval(loadMessages, 1500);
-});
+<div id="home">
+  <div class="profile-card">
+    <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
+    <form id="profileForm">
+      <input type="text" id="username" placeholder="Seu nome" style="width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;">
+      <input type="file" id="profilePic" accept="image/*" style="font-size: 12px; margin-bottom: 10px;">
+      <button type="submit" style="background:#25D366; color:white; border:none; padding:12px 25px; border-radius:5px; font-weight:bold; cursor:pointer; width:100%;">SALVAR PERFIL</button>
+    </form>
+    <p style="font-size:12px; color:#666; margin-top:10px;">Seu ID: <span id="userIdDisplay" style="font-weight:bold;"></span></p>
+  </div>
+  
+  <div style="display:flex; gap:5px; flex-shrink: 0;">
+    <input type="text" id="addUserId" placeholder="ID do amigo" style="flex:1; padding:10px; border:1px solid #ccc; border-radius:5px;">
+    <button id="addFriendBtn" style="background:#075e54; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold;">ADD</button>
+  </div>
+  
+  <div id="contacts" style="margin-top:15px;"></div>
+</div>
 
-// --- LÓGICA DE MENSAGENS E CONTATOS ---
+<div id="chatScreen">
+  <div id="chatHeader">
+    <button onclick="voltar()" style="background:none; border:none; color:white; font-size:20px; margin-right:10px;">⬅</button>
+    <img id="chatAvatar">
+    <div>
+      <div id="chatName" style="font-weight:bold;"></div>
+      <div id="typingStatus" style="font-size:12px; opacity:0.8;">offline</div>
+    </div>
+  </div>
 
-socket.on("userUpdated", (dados) => {
-    const index = contacts.findIndex(c => c.id == dados.id);
-    if (index !== -1) {
-        contacts[index].username = dados.username;
-        contacts[index].photo = dados.photo;
-        localStorage.setItem("contacts", JSON.stringify(contacts));
-        renderContacts();
-        if (currentChat && currentChat.id === dados.id) {
-            document.getElementById("chatName").textContent = dados.username;
-            document.getElementById("chatAvatar").src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-        }
-    }
-});
+  <div id="messages"></div>
 
-socket.on("updateStatus", (listaOnline) => {
-    listaOnlineGlobal = listaOnline;
-    renderContacts();
-    if (currentChat) {
-        const estaOnline = listaOnlineGlobal.includes(currentChat.id);
-        document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
-    }
-});
+  <div id="chatInput">
+    <button id="attachmentBtn" style="font-size:24px;">+</button>
+    <div id="attachmentMenu" class="hidden" style="position:absolute; bottom:70px; left:10px; background:white; padding:15px; border-radius:12px; box-shadow:0 0 15px rgba(0,0,0,0.2); z-index:100;">
+        <label style="cursor:pointer; display:flex; align-items:center; gap:10px;">
+            📷 Enviar Foto
+            <input type="file" id="sendPhoto" accept="image/*" style="display:none;">
+        </label>
+    </div>
+    <input type="text" id="messageText" placeholder="Mensagem">
+    <button id="sendMessageBtn">➤</button>
+  </div>
+</div>
 
-function ativarSelecao(id) {
-    contatoSelecionadoId = id;
-    document.getElementById("headerSelecao").style.display = "flex";
-    renderContacts();
-}
+<div id="confirmModal">
+  <div class="modal-box">
+    <p style="font-weight:bold;">Excluir este contato?</p>
+    <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
+        <button onclick="confirmarExclusao()" style="background:#d9534f; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Excluir</button>
+        <button onclick="fecharModal()" style="background:#eee; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Cancelar</button>
+    </div>
+  </div>
+</div>
 
-function cancelarSelecao() {
-    contatoSelecionadoId = null;
-    document.getElementById("headerSelecao").style.display = "none";
-    renderContacts();
-}
-
-function abrirModal() { document.getElementById("confirmModal").style.display = "flex"; }
-function fecharModal() { document.getElementById("confirmModal").style.display = "none"; }
-
-function confirmarExclusao() {
-    contacts = contacts.filter(c => c.id !== contatoSelecionadoId);
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    fecharModal();
-    cancelarSelecao();
-}
-
-function renderContacts() {
-    const div = document.getElementById("contacts");
-    div.innerHTML = "";
-    contacts.forEach(user => {
-        const count = unreadCounts[user.id] || 0;
-        const isOnline = listaOnlineGlobal.includes(user.id);
-        const isSelected = contatoSelecionadoId === user.id;
-
-        const contactEl = document.createElement("div");
-        contactEl.className = `contact ${isSelected ? 'selected' : ''}`;
-        contactEl.innerHTML = `
-            <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
-            <div style="flex:1;">
-                <div style="font-weight:bold;">${user.username}</div>
-                <div style="font-size:11px; color:${isOnline ? '#25D366' : 'gray'}">${isOnline ? '● Online' : '● Offline'}</div>
-            </div>
-            ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:2px 8px;font-size:12px;">${count}</span>` : ""}
-        `;
-
-        let pressTimer;
-        contactEl.ontouchstart = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
-        contactEl.ontouchend = () => clearTimeout(pressTimer);
-        contactEl.onclick = () => {
-            if (contatoSelecionadoId) cancelarSelecao();
-            else abrirChat(user);
-        };
-        div.appendChild(contactEl);
-    });
-}
-
-async function loadMessages() {
-    const res = await fetch(`/getMessages/${currentUser.id}`);
-    const msgs = await res.json();
-    for (let m of msgs) {
-        if (m.timestamp > lastTimestamp) {
-            lastTimestamp = m.timestamp;
-            if (m.toId == currentUser.id) {
-                const index = contacts.findIndex(c => c.id == m.fromId);
-                if (index === -1) {
-                    const resUser = await fetch(`/getUser/${m.fromId}`);
-                    const newUser = await resUser.json();
-                    if (!newUser.error) contacts.unshift(newUser); 
-                } else {
-                    const contatoMovido = contacts.splice(index, 1)[0];
-                    contacts.unshift(contatoMovido);
-                }
-                if (currentChat?.id !== m.fromId) unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
-            } else if (m.fromId == currentUser.id) {
-                const index = contacts.findIndex(c => c.id == m.toId);
-                if (index !== -1) {
-                    const contatoMovido = contacts.splice(index, 1)[0];
-                    contacts.unshift(contatoMovido);
-                }
-            }
-        }
-    }
-    localStorage.setItem("lastTimestamp", lastTimestamp);
-    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
-
-    if (!currentChat) return;
-    const container = document.getElementById("messages");
-    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
-    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
-    
-    if (container.childElementCount !== filtered.length) {
-        container.innerHTML = "";
-        filtered.forEach(addMessage);
-        if (isAtBottom) container.scrollTop = container.scrollHeight;
-    }
-}
-
-function addMessage(m) {
-    const container = document.getElementById("messages");
-    const div = document.createElement("div");
-    div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    const conteudo = m.text.startsWith("data:image") ? `<img src="${m.text}">` : m.text;
-    const date = new Date(m.timestamp);
-    const hora = date.getHours().toString().padStart(2, '0');
-    const min = date.getMinutes().toString().padStart(2, '0');
-    div.innerHTML = `<div class="bubble">${conteudo}<span class="time">${hora}:${min}</span></div>`;
-    container.appendChild(div);
-}
-
-function abrirChat(user) {
-    currentChat = user;
-    localStorage.setItem("activeChatId", user.id);
-    unreadCounts[user.id] = 0;
-    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    document.getElementById("home").style.display = "none";
-    document.getElementById("chatScreen").style.display = "flex";
-    document.getElementById("chatName").textContent = user.username;
-    document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    loadMessages();
-    setTimeout(() => {
-        const container = document.getElementById("messages");
-        container.scrollTop = container.scrollHeight;
-    }, 150);
-}
-
-function voltar() {
-    document.getElementById("chatScreen").style.display = "none";
-    document.getElementById("home").style.display = "block";
-    currentChat = null;
-    localStorage.removeItem("activeChatId");
-    renderContacts();
-}
-
-document.getElementById("sendMessageBtn").onclick = async () => {
-    const input = document.getElementById("messageText");
-    const text = input.value.trim();
-    if(!text || !currentChat) return;
-    input.value = "";
-    await fetch("/sendMessage", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
-    });
-    await loadMessages();
-    const container = document.getElementById("messages");
-    container.scrollTop = container.scrollHeight;
-};
-
-document.getElementById("attachmentBtn").onclick = () => {
-    document.getElementById("attachmentMenu").classList.toggle("hidden");
-};
-
-document.getElementById("sendPhoto").onchange = function(e) {
-    const file = e.target.files[0];
-    if (!file || !currentChat) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = async () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = 500; 
-            canvas.height = img.height * (500 / img.width);
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            await fetch("/sendMessage", {
-                method: "POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: canvas.toDataURL("image/jpeg", 0.7) })
-            });
-            document.getElementById("attachmentMenu").classList.add("hidden");
-            await loadMessages();
-        };
-        img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-};
-
-document.getElementById("addFriendBtn").onclick = async () => {
-    const id = document.getElementById("addUserId").value.trim();
-    if(!id || id == currentUser.id) return;
-    const res = await fetch(`/getUser/${id}`);
-    const user = await res.json();
-    if(user.error) return alert("Não encontrado");
-    if(!contacts.some(c => c.id == id)) {
-        contacts.unshift(user); 
-        localStorage.setItem("contacts", JSON.stringify(contacts));
-        renderContacts();
-    }
-    document.getElementById("addUserId").value = "";
-};
-
-document.getElementById("profileForm").onsubmit = async (e) => {
-    e.preventDefault();
-    const nome = document.getElementById("username").value.trim();
-    const file = document.getElementById("profilePic").files[0];
-    if (!nome) return alert("Digite um nome!");
-    const salvar = async (fotoFinal) => {
-        const res = await fetch("/saveProfile", {
-            method: "POST", 
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoFinal })
-        });
-        if (res.ok) {
-            currentUser.username = nome; 
-            currentUser.photo = fotoFinal;
-            if (fotoFinal) document.getElementById("profilePreview").src = fotoFinal;
-            socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
-            alert("Perfil Salvo!");
-            renderContacts();
-        }
-    };
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement("canvas");
-                canvas.width = 300; 
-                canvas.height = img.height * (300 / img.width);
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                salvar(canvas.toDataURL("image/jpeg", 0.7));
-            };
-            img.src = ev.target.result;
-        };
-        reader.readAsDataURL(file);
-    } else salvar(currentUser.photo);
-};
+<script src="/socket.io/socket.io.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
