@@ -276,10 +276,10 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- LÓGICA DE INSTALAÇÃO (PWA) REVISADA ---
+// --- LÓGICA DE INSTALAÇÃO (PWA) COM BOTÃO SUPERIOR ---
 let deferredPrompt;
+const installBanner = document.getElementById("installBanner");
 
-// Registra o Service Worker
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
         .then(() => console.log("Service Worker OK"))
@@ -287,27 +287,37 @@ if ('serviceWorker' in navigator) {
 }
 
 window.addEventListener('beforeinstallprompt', (e) => {
-    // 1. Previne o banner padrão
+    // 1. Previne o banner automático do navegador
     e.preventDefault();
-    // 2. Guarda o evento para disparar quando o usuário clicar
-    deferredPrompt = e;
     
-    console.log("Evento de instalação capturado!");
+    // 2. Guarda o evento
+    deferredPrompt = e;
 
-    // 3. Verifica se não está instalado e chama o prompt
+    // 3. Só mostra o botão se NÃO estiver rodando já como app
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     if (!isStandalone) {
-        // Pequeno atraso para garantir que a página carregou tudo
-        setTimeout(() => {
-            if (confirm("Baixar Mini Zap como Aplicativo?")) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('Usuário instalou o app');
-                    }
-                    deferredPrompt = null;
-                });
-            }
-        }, 3000);
+        installBanner.style.display = "block";
     }
+});
+
+// 4. Ação ao clicar no banner verde
+installBanner.onclick = () => {
+    if (deferredPrompt) {
+        // Dispara o prompt oficial de instalação
+        deferredPrompt.prompt();
+
+        deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('Usuário aceitou instalar');
+                installBanner.style.display = "none";
+            }
+            deferredPrompt = null;
+        });
+    }
+};
+
+// 5. Esconde o banner se a pessoa instalar por outros meios
+window.addEventListener('appinstalled', () => {
+    installBanner.style.display = "none";
+    deferredPrompt = null;
 });
