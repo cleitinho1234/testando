@@ -1,10 +1,8 @@
 let currentUser = null;
 let currentChat = null;
-let fotoParaEnviar = null; 
 const socket = io(); 
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
-let listaOnlineGlobal = [];
 let tempoStatus; 
 let grupoDeMomentosAtual = [];
 let indiceMomentoAtual = 0;
@@ -30,77 +28,100 @@ window.addEventListener("load", async () => {
     atualizarUIUsuario();
     renderContacts();
     loadMomentos(); 
+
+    // 🔥 Tempo real: Quando alguém muda algo, todos atualizam
+    socket.on("refreshData", () => {
+        loadMomentos();
+        renderContacts();
+    });
+
     setInterval(loadMessages, 1500);
-    setInterval(loadMomentos, 15000); 
 });
 
 function atualizarUIUsuario() {
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
-    const foto = currentUser.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    document.getElementById("profilePreview").src = foto;
-    document.getElementById("minhaFotoMomento").src = foto;
+    const f = currentUser.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    document.getElementById("profilePreview").src = f;
+    document.getElementById("minhaFotoMomento").src = f;
 }
 
-// 🔥 FUNÇÃO PARA ESCOLHER FOTO DE PERFIL AO CLICAR NA IMAGEM
+// Escolher foto
 document.getElementById("profilePreview").onclick = () => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
     input.onchange = (e) => {
-        const file = e.target.files[0];
         const reader = new FileReader();
         reader.onload = (ev) => {
-            // Atualiza localmente para pré-visualização
             currentUser.photo = ev.target.result;
-            document.getElementById("profilePreview").src = currentUser.photo;
-            document.getElementById("minhaFotoMomento").src = currentUser.photo;
+            atualizarUIUsuario();
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(e.target.files[0]);
     };
     input.click();
 };
 
-// 🔥 SALVAR PERFIL (NOME E FOTO) PARA TODOS OS USUÁRIOS VEREM
+// Salvar perfil e avisar geral
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const res = await fetch("/updateUser", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ 
-            id: currentUser.id, 
-            username: document.getElementById("username").value, 
-            photo: currentUser.photo 
-        })
+        body: JSON.stringify({ id: currentUser.id, username: document.getElementById("username").value, photo: currentUser.photo })
     });
     const data = await res.json();
     if(data.success) {
-        alert("Perfil atualizado com sucesso!");
-        loadMomentos(); // Atualiza a barra de momentos com a foto nova
+        alert("Perfil salvo!");
+        socket.emit("profileUpdated"); // Avisa o socket
     }
 };
 
-// --- MOMENTOS ---
+// --- CONTATOS (COM FUNÇÃO DE APAGAR) ---
+function renderContacts() {
+    const div = document.getElementById("contacts");
+    div.innerHTML = "";
+    contacts.forEach((u, index) => {
+        const el = document.createElement("div");
+        el.className = "contact";
+        el.innerHTML = `
+            <div style="display:flex; align-items:center; flex:1" onclick='abrirChat(${JSON.stringify(u)})'>
+                <img src="${u.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img" style="width:40px; height:40px; margin-right:10px">
+                <strong>${u.username}</strong>
+            </div>
+            <button onclick="removerContato(${index})" style="background:none; border:none; color:red; font-size:18px; cursor:pointer; padding:10px;">&times;</button>
+        `;
+        div.appendChild(el);
+    });
+}
+
+function removerContato(index) {
+    if(confirm("Deseja apagar este contato?")) {
+        contacts.splice(index, 1);
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+    }
+}
+
+// --- RESTANTE DAS FUNÇÕES (MOMENTOS E CHAT) ---
 async function loadMomentos() {
     const res = await fetch("/getMomentos");
     const todos = await res.json();
     const container = document.getElementById("listaMomentos");
     container.innerHTML = "";
     const grupos = {};
-
     todos.forEach(m => {
         if (m.userId === currentUser.id || contacts.find(c => c.id === m.userId)) {
             if (!grupos[m.userId]) grupos[m.userId] = { username: m.userId === currentUser.id ? "Você" : m.username, userPhoto: m.userPhoto, posts: [] };
             grupos[m.userId].posts.unshift(m);
         }
     });
-
     Object.keys(grupos).forEach(uId => {
         const g = grupos[uId];
         const item = document.createElement("div");
         item.className = "momento-item";
         item.onclick = () => abrirVisualizadorSequencial(g.posts);
-        item.innerHTML = `<div class="momento-aro" style="border-color:${uId === currentUser.id ? '#075e54' : '#25D366'}"><img src="${g.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img"></div><div style="font-size:11px;margin-top:5px;">${g.username}</div>`;
+        item.innerHTML = `<div class="momento-aro" style="border-color:${uId === currentUser.id ? '#075e54' : '#25D366'}"><img src="${g.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img"></div><div style="font-size:11px">${g.username}</div>`;
         container.appendChild(item);
     });
 }
@@ -110,16 +131,13 @@ function abrirVisualizadorSequencial(posts) {
     const progress = document.getElementById("statusProgressBar");
     progress.innerHTML = "";
     posts.forEach(() => progress.innerHTML += '<div class="status-segment"><div class="status-filler"></div></div>');
-
     const mostrar = () => {
         clearTimeout(tempoStatus);
         if (indiceMomentoAtual >= posts.length) return fecharFullScreen();
         const m = posts[indiceMomentoAtual];
         document.getElementById("fullScreenImage").src = m.media;
         document.getElementById("fullScreenViewer").style.display = "flex";
-
-        if (m.userId !== currentUser.id) fetch("/visualizarMomento", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ momentoId: m.id, viewerId: currentUser.id }) });
-        
+        if (m.userId !== currentUser.id) fetch("/visualizarMomento", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ momentoId: m._id, viewerId: currentUser.id }) });
         atualizarUIStatus(m);
         const segs = progress.querySelectorAll(".status-segment");
         segs.forEach((s, i) => {
@@ -142,7 +160,7 @@ function atualizarUIStatus(m) {
 
 function toggleCurtir() {
     const m = grupoDeMomentosAtual[indiceMomentoAtual];
-    fetch("/curtirMomento", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ momentoId: m.id, userId: currentUser.id }) })
+    fetch("/curtirMomento", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ momentoId: m._id, userId: currentUser.id }) })
     .then(r => r.json()).then(data => { m.curtidas = data.curtidas; atualizarUIStatus(m); });
 }
 
@@ -150,40 +168,37 @@ function abrirListaQuemViu() {
     const m = grupoDeMomentosAtual[indiceMomentoAtual];
     if (m.userId !== currentUser.id) return;
     const modal = document.getElementById("viewerListModal");
+    modal.style.display = "flex";
     const lista = document.getElementById("listaDeQuemViu");
     lista.innerHTML = "";
-    modal.style.display = "flex";
     m.visualizacoes.forEach(vId => {
         const c = contacts.find(con => con.id === vId);
-        const nome = c ? c.username : (vId === currentUser.id ? "Você" : "Visitante");
-        lista.innerHTML += `<div class="viewer-item"><span>${nome}${m.curtidas.includes(vId) ? ' ❤️' : ''}</span></div>`;
+        lista.innerHTML += `<div class="viewer-item">${c ? c.username : 'Visitante'}${m.curtidas.includes(vId) ? ' ❤️' : ''}</div>`;
     });
 }
 
-function fecharFullScreen() { 
-    clearTimeout(tempoStatus);
-    document.getElementById("fullScreenViewer").style.display = "none"; 
-    document.getElementById("viewerListModal").style.display = "none";
-}
+function fecharFullScreen() { clearTimeout(tempoStatus); document.getElementById("fullScreenViewer").style.display = "none"; document.getElementById("viewerListModal").style.display = "none"; }
 
 async function postarNovoMomento(input) {
     const file = input.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = async (e) => {
         await fetch("/postarMomento", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ userId: currentUser.id, username: currentUser.username, userPhoto: currentUser.photo, media: e.target.result }) });
-        input.value = ""; loadMomentos(); 
+        input.value = ""; socket.emit("profileUpdated");
     };
     reader.readAsDataURL(file);
 }
 
-// --- CHAT ---
-document.getElementById("sendMessageBtn").onclick = async () => {
-    const input = document.getElementById("messageText");
-    const val = input.value.trim();
-    if (!val || !currentChat) return;
-    await fetch("/sendMessage", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: val }) });
-    input.value = ""; loadMessages();
-};
+function abrirChat(user) {
+    currentChat = user;
+    document.getElementById("home").style.display = "none";
+    document.getElementById("chatScreen").style.display = "flex";
+    document.getElementById("chatName").textContent = user.username;
+    document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    loadMessages();
+}
+
+function voltar() { document.getElementById("chatScreen").style.display = "none"; document.getElementById("home").style.display = "block"; currentChat = null; }
 
 async function loadMessages() {
     if (!currentChat) return;
@@ -198,33 +213,23 @@ async function loadMessages() {
     }
 }
 
-function renderContacts() {
-    const div = document.getElementById("contacts");
-    div.innerHTML = "";
-    contacts.forEach(u => {
-        const el = document.createElement("div"); el.className = "contact";
-        el.innerHTML = `<img src="${u.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;"><strong>${u.username}</strong>`;
-        el.onclick = () => { 
-            currentChat = u; 
-            document.getElementById("home").style.display = "none"; 
-            document.getElementById("chatScreen").style.display = "flex"; 
-            document.getElementById("chatName").textContent = u.username; 
-            document.getElementById("chatAvatar").src = u.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'; 
-            loadMessages(); 
-        };
-        div.appendChild(el);
-    });
-}
-
-function voltar() { 
-    document.getElementById("chatScreen").style.display = "none"; 
-    document.getElementById("home").style.display = "block"; 
-    currentChat = null; 
-}
+document.getElementById("sendMessageBtn").onclick = async () => {
+    const input = document.getElementById("messageText");
+    if (!input.value.trim() || !currentChat) return;
+    await fetch("/sendMessage", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: input.value }) });
+    input.value = ""; loadMessages();
+};
 
 document.getElementById("addFriendBtn").onclick = async () => {
     const id = document.getElementById("addUserId").value.trim();
-    if (!id || id === currentUser.id || contacts.find(c => c.id === id)) return alert("ID inválido ou já existente");
+    if (!id || id === currentUser.id) return;
+    const res = await fetch(`/getUser/${id}`);
+    const user = await res.json();
+    if(user.error) return alert("Não encontrado");
+    contacts.push(user); localStorage.setItem("contacts", JSON.stringify(contacts));
+    renderContacts();
+};
+    inválido ou já existente");
     const res = await fetch(`/getUser/${id}`);
     const user = await res.json();
     if(user.error) return alert("Não encontrado");
