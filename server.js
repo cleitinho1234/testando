@@ -5,6 +5,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
+// 🔥 Configuração para aceitar fotos pesadas (essencial para os Momentos)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -13,12 +14,38 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// ==========================
+// Conexão MongoDB
 mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZap?retryWrites=true&w=majority")
-  .then(() => console.log("Mongo conectado"));
+  .then(() => console.log("Mongo conectado"))
+  .catch(err => console.log("Erro ao conectar:", err));
 
-const User = mongoose.model("User", { id: String, username: String, photo: String });
-const Message = mongoose.model("Message", { fromId: String, toId: String, text: String, timestamp: Number });
+// ==========================
+// Modelos
+const User = mongoose.model("User", { 
+    id: String, 
+    username: String, 
+    photo: String 
+});
 
+const Message = mongoose.model("Message", { 
+    fromId: String, 
+    toId: String, 
+    text: String, 
+    timestamp: Number 
+});
+
+// Modelo de Momentos com expiração automática de 24 horas (86400 segundos)
+const Momento = mongoose.model("Momento", {
+    userId: String,
+    username: String,
+    userPhoto: String,
+    media: String,
+    timestamp: { type: Date, default: Date.now, expires: 86400 } 
+});
+
+// ==========================
+// Lógica de Status (Socket.io)
 let usuariosOnline = {}; 
 
 io.on("connection", (socket) => {
@@ -36,6 +63,10 @@ io.on("connection", (socket) => {
     });
 });
 
+// ==========================
+// Rotas da API
+
+// Criar novo usuário
 app.post("/user", async (req, res) => {
     const id = Math.floor(1000 + Math.random() * 9000).toString();
     const user = new User({ id, username: req.body.username, photo: req.body.photo });
@@ -43,19 +74,49 @@ app.post("/user", async (req, res) => {
     res.json(user);
 });
 
+// Buscar usuário por ID
 app.get("/getUser/:id", async (req, res) => {
     const user = await User.findOne({ id: req.params.id });
     res.send(user || { error: "Não encontrado" });
 });
 
+// Enviar mensagem
 app.post("/sendMessage", async (req, res) => {
     const msg = await Message.create({ ...req.body, timestamp: Date.now() });
     res.json(msg);
 });
 
+// Buscar histórico de mensagens
 app.get("/getMessages/:id", async (req, res) => {
     const msgs = await Message.find({ $or: [{ fromId: req.params.id }, { toId: req.params.id }] }).sort({ timestamp: 1 });
     res.send(msgs);
 });
 
-server.listen(3000, () => console.log("Rodando na 3000"));
+// --- NOVAS ROTAS PARA MOMENTOS ---
+
+// Postar um novo Momento
+app.post("/postarMomento", async (req, res) => {
+    try {
+        const { userId, username, userPhoto, media } = req.body;
+        const novoMomento = await Momento.create({ userId, username, userPhoto, media });
+        res.json(novoMomento);
+    } catch (err) {
+        res.status(500).send(err);
+    }
+});
+
+// Buscar todos os Momentos ativos
+app.get("/getMomentos", async (req, res) => {
+    try {
+        // Busca momentos e ordena pelo mais recente
+        const momentos = await Momento.find().sort({ timestamp: -1 });
+        res.send(momentos);
+    } catch (err) {
+        res.status(500).send(err);
+    }
+});
+
+// ==========================
+// Inicialização do Servidor
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
