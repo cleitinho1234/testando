@@ -13,6 +13,20 @@
 <style>
   body { font-family: Arial, sans-serif; background: #e5ddd5; margin: 0; user-select: none; }
   
+  /* --- Botão de Instalação Superior --- */
+  #installBanner {
+    display: none; 
+    background: #25D366; 
+    padding: 15px; 
+    text-align: center; 
+    color: white; 
+    font-weight: bold; 
+    cursor: pointer; 
+    border-bottom: 2px solid #128C7E;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+
   /* Container centralizado para não ficar exagerado no PC */
   #home { 
     max-width: 500px; 
@@ -30,7 +44,6 @@
     text-align: center;
   }
   
-  /* Adicionado cursor pointer para indicar que é clicável */
   #profilePreview { 
     width: 80px; 
     height: 80px; 
@@ -53,7 +66,7 @@
     outline: none;
   }
 
-  /* BOTÃO SALVAR (Tamanho equilibrado) */
+  /* BOTÃO SALVAR */
   #profileForm button {
     background: #25D366;
     color: white;
@@ -113,6 +126,10 @@
 </style>
 </head>
 <body>
+
+<div id="installBanner">
+  ✨ Clique aqui para instalar o Mini Zap no seu celular!
+</div>
 
 <div id="headerSelecao">
   <div style="display:flex; align-items:center;">
@@ -178,15 +195,15 @@
 <script src="script.js"></script>
 
 <script>
+  // Nota: A lógica do preview da imagem já está no seu script.js também, 
+  // mas deixei aqui por segurança conforme o seu código original.
   const preview = document.getElementById('profilePreview');
   const fileInput = document.getElementById('profilePic');
 
-  // Ao clicar na imagem, clica no input escondido
   preview.addEventListener('click', () => {
     fileInput.click();
   });
 
-  // Mostra o preview assim que escolher a imagem
   fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
