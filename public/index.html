@@ -36,57 +36,50 @@
     border-radius: 15px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     flex-shrink: 0;
-    scrollbar-width: none; /* Esconde scroll no Firefox */
+    scrollbar-width: none;
   }
-  #momentosContainer::-webkit-scrollbar { display: none; } /* Esconde scroll no Chrome */
+  #momentosContainer::-webkit-scrollbar { display: none; }
 
-  .momento-item {
-    flex-shrink: 0;
-    text-align: center;
-    width: 65px;
-    cursor: pointer;
-  }
+  .momento-item { flex-shrink: 0; text-align: center; width: 65px; cursor: pointer; }
+  .momento-aro { width: 55px; height: 55px; border-radius: 50%; border: 2px solid #25D366; padding: 2px; margin: 0 auto; }
+  .momento-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .add-momento { border: 2px dashed #ccc !important; display: flex; align-items: center; justify-content: center; position: relative; }
 
-  .momento-aro {
-    width: 55px;
-    height: 55px;
-    border-radius: 50%;
-    border: 2px solid #25D366;
-    padding: 2px;
-    margin: 0 auto;
-  }
-
-  .momento-img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-
-  .add-momento {
-    border: 2px dashed #ccc !important;
+  /* 🔥 CSS DAS BARRINHAS ESTILO WHATSAPP */
+  #statusProgressBar {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    gap: 5px;
+    z-index: 10001;
+  }
+  .status-segment {
+    flex: 1;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    overflow: hidden;
     position: relative;
   }
-
-  #installBanner {
-    display: none; position: fixed; top: 0; left: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 9999; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); box-sizing: border-box;
+  .status-filler {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: white;
+    width: 0%;
   }
+  .status-segment.seen .status-filler { width: 100% !important; }
+  .status-segment.active .status-filler { animation: fillStatus 4s linear forwards; }
+  @keyframes fillStatus { from { width: 0%; } to { width: 100%; } }
 
-  #photoPreviewContainer {
-    display: none; position: absolute; bottom: 65px; left: 0; width: 100%; background: #f0f0f0; padding: 10px; align-items: center; gap: 10px; border-top: 1px solid #ccc; z-index: 101; box-sizing: border-box;
-  }
+  #installBanner { display: none; position: fixed; top: 0; left: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 9999; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); box-sizing: border-box; }
+  #photoPreviewContainer { display: none; position: absolute; bottom: 65px; left: 0; width: 100%; background: #f0f0f0; padding: 10px; align-items: center; gap: 10px; border-top: 1px solid #ccc; z-index: 101; box-sizing: border-box; }
+  #fullScreenViewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; align-items: center; justify-content: center; }
 
-  #fullScreenViewer {
-    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; align-items: center; justify-content: center;
-  }
-
-  #home, #messages { 
-    flex: 1; overflow-y: auto !important; box-sizing: border-box; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior-y: contain !important;
-  }
-
+  #home, #messages { flex: 1; overflow-y: auto !important; box-sizing: border-box; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior-y: contain !important; }
   #home { max-width: 500px; margin: 0 auto; padding: 15px; height: 100%; display: flex; flex-direction: column; }
   .profile-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
   #profilePreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; }
@@ -109,22 +102,17 @@
   .time { font-size: 10px; color: #888; float: right; margin: 5px 0 0 10px; }
 
   .hidden { display: none; }
-  
-  #headerSelecao { 
-    display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  }
-
-  #confirmModal { 
-    display: none; position: fixed; top:0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; 
-  }
+  #headerSelecao { display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+  #confirmModal { display: none; position: fixed; top:0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; }
   .modal-box { background:white; padding:20px; border-radius:10px; text-align:center; width: 80%; max-width: 300px; }
 </style>
 </head>
 <body>
 
 <div id="fullScreenViewer">
-    <button onclick="fecharFullScreen()" style="position:absolute; top:20px; left:20px; background:rgba(255,255,255,0.2); border:none; color:white; font-size:30px; border-radius:50%; width:50px; height:50px; cursor:pointer; z-index: 10000;">⬅</button>
-    <img id="fullScreenImage" style="max-width:100%; max-height:100%; object-fit:contain;">
+    <button onclick="fecharFullScreen()" style="position:absolute; top:30px; left:15px; background:rgba(0,0,0,0.3); border:none; color:white; font-size:24px; border-radius:50%; width:40px; height:40px; cursor:pointer; z-index: 10002; display: flex; align-items: center; justify-content: center;">⬅</button>
+    <div id="statusProgressBar"></div>
+    <img id="fullScreenImage" style="max-width:100%; max-height:100%; object-fit:contain; cursor: pointer;">
 </div>
 
 <div id="installBanner">
@@ -219,4 +207,5 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="script.js"></script>
 </body>
-</html>
+          </html>
+          
