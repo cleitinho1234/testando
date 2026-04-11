@@ -9,7 +9,7 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
-// Variáveis para o controle dos Momentos (Status)
+// Controle de Timer dos Momentos
 let tempoStatus; 
 
 function atualizarBadgeIcone() {
@@ -78,7 +78,7 @@ window.addEventListener("load", async () => {
     aplicarTrava("messages");
 });
 
-// --- LÓGICA DE MOMENTOS (AGRUPADOS ESTILO WHATSAPP) ---
+// --- LÓGICA DE MOMENTOS (ESTILO WHATSAPP) ---
 
 async function loadMomentos() {
     try {
@@ -90,7 +90,7 @@ async function loadMomentos() {
         const idsContatos = contacts.map(c => c.id);
         const grupos = {};
 
-        // Agrupa as fotos por Usuário
+        // Agrupando mídias por Usuário
         todosMomentos.forEach(m => {
             const souEu = m.userId === currentUser.id;
             const ehMeuContato = idsContatos.includes(m.userId);
@@ -103,18 +103,15 @@ async function loadMomentos() {
                         midias: [] 
                     };
                 }
-                // Adiciona a foto na lista desse usuário (da mais antiga para a mais nova)
+                // Adiciona na lista (do mais antigo para o novo)
                 grupos[m.userId].midias.unshift(m.media);
             }
         });
 
-        // Renderiza apenas uma bolinha por pessoa
         Object.keys(grupos).forEach(userId => {
             const g = grupos[userId];
             const item = document.createElement("div");
             item.className = "momento-item";
-            
-            // Ao clicar, abre o visualizador com TODAS as fotos desse usuário
             item.onclick = () => abrirVisualizadorSequencial(g.midias);
             
             item.innerHTML = `
@@ -134,8 +131,24 @@ function abrirVisualizadorSequencial(listaFotos) {
     let indice = 0;
     const viewer = document.getElementById("fullScreenViewer");
     const img = document.getElementById("fullScreenImage");
+    const progressContainer = document.getElementById("statusProgressBar");
     
+    // Cria as barrinhas de progresso
+    progressContainer.innerHTML = "";
+    listaFotos.forEach(() => {
+        const segment = document.createElement("div");
+        segment.className = "status-segment";
+        const filler = document.createElement("div");
+        filler.className = "status-filler";
+        segment.appendChild(filler);
+        progressContainer.appendChild(segment);
+    });
+
+    const segmentosHtml = progressContainer.querySelectorAll(".status-segment");
+
     const mostrar = () => {
+        clearTimeout(tempoStatus);
+
         if (indice >= listaFotos.length) {
             fecharFullScreen();
             return;
@@ -143,18 +156,29 @@ function abrirVisualizadorSequencial(listaFotos) {
         
         img.src = listaFotos[indice];
         viewer.style.display = "flex";
+
+        // Gerencia as animações das barras
+        segmentosHtml.forEach((seg, i) => {
+            seg.classList.remove("active", "seen");
+            if (i < indice) {
+                seg.classList.add("seen");
+            } else if (i === indice) {
+                // Reinicia animação CSS
+                seg.style.display = 'none';
+                seg.offsetHeight; 
+                seg.style.display = 'flex';
+                seg.classList.add("active");
+            }
+        });
         
-        // Timer de 4 segundos para mudar de foto sozinho
-        clearTimeout(tempoStatus);
         tempoStatus = setTimeout(() => {
             indice++;
             mostrar();
-        }, 4000);
+        }, 4000); // 4 segundos por foto
     };
 
     mostrar();
 
-    // Clique na imagem pula para a próxima
     img.onclick = (e) => {
         e.stopPropagation();
         indice++;
@@ -215,7 +239,7 @@ function abrirFullScreen(src) {
 }
 
 function fecharFullScreen() { 
-    clearTimeout(tempoStatus); // Para o contador se fechar o visualizador
+    clearTimeout(tempoStatus);
     document.getElementById("fullScreenViewer").style.display = "none"; 
 }
 
@@ -337,3 +361,4 @@ document.getElementById("addFriendBtn").onclick = async () => {
     localStorage.setItem("contacts", JSON.stringify(contacts));
     renderContacts();
 };
+        
