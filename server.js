@@ -5,8 +5,8 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ limit: '15mb', extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 const server = http.createServer(app);
 const io = new Server(server);
@@ -14,25 +14,20 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, "public")));
 
 mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZap?retryWrites=true&w=majority")
-  .then(() => console.log("Mongo conectado"))
-  .catch(err => console.log("Erro Mongo:", err));
+  .then(() => console.log("Mongo conectado"));
 
 const User = mongoose.model("User", { id: String, username: String, photo: String });
 const Message = mongoose.model("Message", { fromId: String, toId: String, text: String, timestamp: Number });
-const Momento = mongoose.model("Momento", {
-    userId: String, username: String, userPhoto: String, media: String,
-    visualizacoes: { type: [String], default: [] },
-    curtidas: { type: [String], default: [] },
-    timestamp: { type: Date, default: Date.now, expires: 86400 } 
-});
 
 let usuariosOnline = {}; 
+
 io.on("connection", (socket) => {
     socket.on("register", (userId) => {
         socket.userId = userId;
         usuariosOnline[userId] = socket.id;
         io.emit("updateStatus", Object.keys(usuariosOnline));
     });
+
     socket.on("disconnect", () => {
         if (socket.userId) {
             delete usuariosOnline[socket.userId];
@@ -43,7 +38,7 @@ io.on("connection", (socket) => {
 
 app.post("/user", async (req, res) => {
     const id = Math.floor(1000 + Math.random() * 9000).toString();
-    const user = new User({ id, username: req.body.username, photo: req.body.photo || "" });
+    const user = new User({ id, username: req.body.username, photo: req.body.photo });
     await user.save();
     res.json(user);
 });
@@ -51,13 +46,6 @@ app.post("/user", async (req, res) => {
 app.get("/getUser/:id", async (req, res) => {
     const user = await User.findOne({ id: req.params.id });
     res.send(user || { error: "Não encontrado" });
-});
-
-app.post("/updateUser", async (req, res) => {
-    const { id, username, photo } = req.body;
-    await User.findOneAndUpdate({ id }, { username, photo });
-    await Momento.updateMany({ userId: id }, { username, userPhoto: photo });
-    res.json({ success: true });
 });
 
 app.post("/sendMessage", async (req, res) => {
@@ -70,20 +58,4 @@ app.get("/getMessages/:id", async (req, res) => {
     res.send(msgs);
 });
 
-app.post("/postarMomento", async (req, res) => {
-    const novo = await Momento.create(req.body);
-    res.json(novo);
-});
-
-app.get("/getMomentos", async (req, res) => {
-    const momentos = await Momento.find().sort({ timestamp: -1 });
-    res.send(momentos);
-});
-
-app.post("/visualizarMomento", async (req, res) => {
-    await Momento.findByIdAndUpdate(req.body.momentoId, { $addToSet: { visualizacoes: req.body.viewerId } });
-    res.sendStatus(200);
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
+server.listen(3000, () => console.log("Rodando na 3000"));
