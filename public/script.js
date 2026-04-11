@@ -90,7 +90,6 @@ async function loadMomentos() {
         const idsContatos = contacts.map(c => c.id);
         const grupos = {};
 
-        // Agrupando mídias por Usuário
         todosMomentos.forEach(m => {
             const souEu = m.userId === currentUser.id;
             const ehMeuContato = idsContatos.includes(m.userId);
@@ -103,7 +102,6 @@ async function loadMomentos() {
                         midias: [] 
                     };
                 }
-                // Adiciona na lista (do mais antigo para o novo)
                 grupos[m.userId].midias.unshift(m.media);
             }
         });
@@ -349,9 +347,10 @@ function renderContacts() {
     });
 }
 
-// 🔥 FUNÇÃO ATUALIZADA: Bloqueia auto-add e duplicatas
+// 🔥 ADICIONAR POR ID (FUNCIONAL)
 document.getElementById("addFriendBtn").onclick = async () => {
-    const id = document.getElementById("addUserId").value.trim();
+    const idInput = document.getElementById("addUserId");
+    const id = idInput.value.trim();
     
     if (!id) return;
 
@@ -366,16 +365,23 @@ document.getElementById("addFriendBtn").onclick = async () => {
         return;
     }
 
-    const res = await fetch(`/getUser/${id}`);
-    const user = await res.json();
-    
-    if(user.error) {
-        return alert("Usuário não encontrado.");
-    }
+    try {
+        const res = await fetch(`/getUser/${id}`);
+        const user = await res.json();
+        
+        if(user.error) {
+            alert("Usuário não encontrado.");
+            return;
+        }
 
-    contacts.push(user);
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
-    document.getElementById("addUserId").value = "";
+        contacts.push(user);
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+        idInput.value = "";
+        alert("Contato adicionado com sucesso!");
+    } catch (err) {
+        console.error("Erro ao adicionar amigo:", err);
+        alert("Erro ao buscar usuário.");
+    }
 };
-                
+                        
