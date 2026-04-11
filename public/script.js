@@ -278,7 +278,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- LÓGICA DE INSTALAÇÃO (PWA) ---
+// --- LÓGICA DE INSTALAÇÃO (PWA) MELHORADA ---
 let deferredPrompt;
 
 if ('serviceWorker' in navigator) {
@@ -290,20 +290,25 @@ window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
 
-    const jaPerguntou = sessionStorage.getItem('pwaPrompt');
+    // Checa se o usuário já está no modo "App" (instalado e aberto)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
 
-    if (!jaPerguntou) {
-        setTimeout(() => {
-            if (confirm("Deseja instalar o Mini Zap no seu celular?")) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('Usuário aceitou a instalação');
-                    }
-                    deferredPrompt = null;
-                });
-            }
-            sessionStorage.setItem('pwaPrompt', 'true');
-        }, 5000); 
+    if (!isStandalone) {
+        const jaPerguntou = sessionStorage.getItem('pwaPrompt');
+
+        if (!jaPerguntou) {
+            setTimeout(() => {
+                if (confirm("Deseja instalar o Mini Zap no seu celular para acesso rápido?")) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('Usuário aceitou a instalação');
+                        }
+                        deferredPrompt = null;
+                    });
+                }
+                sessionStorage.setItem('pwaPrompt', 'true');
+            }, 5000); 
+        }
     }
 });
