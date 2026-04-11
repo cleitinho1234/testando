@@ -1,23 +1,26 @@
 let currentUser = null;
 let currentChat = null;
+let contatoSelecionadoId = null; 
+let fotoParaEnviar = null; 
 const socket = io(); 
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
+let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
+let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
+let listaOnlineGlobal = [];
+
+// Variáveis para Momentos
 let tempoStatus; 
 let grupoDeMomentosAtual = [];
 let indiceMomentoAtual = 0;
 
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
-    
     if (savedId) {
         const res = await fetch(`/getUser/${savedId}`);
         const user = await res.json();
-        if (!user.error) {
-            currentUser = user;
-        }
+        if (!user.error) currentUser = user;
     }
-    
     if (!currentUser) {
         const res = await fetch("/user", {
             method: "POST",
@@ -29,100 +32,241 @@ window.addEventListener("load", async () => {
     }
     
     socket.emit("register", currentUser.id);
-    atualizarUIUsuario();
-    renderContacts();
-    loadMomentos(); 
-
-    // Atualização em tempo real via Socket
-    socket.on("refreshData", () => {
-        loadMomentos();
-        atualizarDadosContatos();
-    });
-
-    setInterval(loadMessages, 2000);
-});
-
-function atualizarUIUsuario() {
-    if(!currentUser) return;
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
-    const fotoPadrao = 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    const foto = currentUser.photo || fotoPadrao;
-    document.getElementById("profilePreview").src = foto;
-    document.getElementById("minhaFotoMomento").src = foto;
+    
+    renderContacts();
+    loadMomentos(); 
+    setInterval(loadMessages, 1500);
+    setInterval(loadMomentos, 15000); 
+});
+
+// --- LÓGICA DE MOMENTOS (CURTIDAS E VIEWS) ---
+
+async function loadMomentos() {
+    try {
+        const res = await fetch("/getMomentos");
+        const todosMomentos = await res.json();
+        const container = document.getElementById("listaMomentos");
+        container.innerHTML = "";
+
+        const idsContatos = contacts.map(c => c.id);
+        const grupos = {};
+
+        // Agrupando por usuário, mas mantendo o objeto completo da mídia
+        todosMomentos.forEach(m => {
+            const souEu = m.userId === currentUser.id;
+            const ehMeuContato = idsContatos.includes(m.userId);
+
+            if (souEu || ehMeuContato) {
+                if (!grupos[m.userId]) {
+                    grupos[m.userId] = {
+                        username: souEu ? "Você" : m.username,
+                        userPhoto: m.userPhoto,
+                        posts: [] 
+                    };
+                }
+                grupos[m.userId].posts.unshift(m); // Adiciona o objeto completo
+            }
+        });
+
+        Object.keys(grupos).forEach(userId => {
+            const g = grupos[userId];
+            const item = document.createElement("div");
+            item.className = "momento-item";
+            item.onclick = () => abrirVisualizadorSequencial(g.posts);
+            
+            item.innerHTML = `
+                <div class="momento-aro" style="border-color: ${userId === currentUser.id ? '#075e54' : '#25D366'}">
+                    <img src="${g.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img">
+                </div>
+                <div style="font-size: 11px; margin-top: 5px; color: #555;">${g.username}</div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (err) { console.error(err); }
 }
 
-// Mudar foto ao clicar
-document.getElementById("profilePreview").onclick = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.onchange = (e) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            currentUser.photo = ev.target.result;
-            atualizarUIUsuario();
-        };
-        reader.readAsDataURL(e.target.files[0]);
-    };
-    input.click();
-};
+function abrirVisualizadorSequencial(posts) {
+    grupoDeMomentosAtual = posts;
+    indiceMomentoAtual = 0;
+    
+    const viewer = document.getElementById("fullScreenViewer");
+    const img = document.getElementById("fullScreenImage");
+    const progressContainer = document.getElementById("statusProgressBar");
+    
+    progressContainer.innerHTML = "";
+    posts.forEach(() => {
+        const seg = document.createElement("div");
+        seg.className = "status-segment";
+        seg.innerHTML = '<div class="status-filler"></div>';
+        progressContainer.appendChild(seg);
+    });
 
-// Salvar Perfil
-document.getElementById("profileForm").onsubmit = async (e) => {
-    e.preventDefault();
-    currentUser.username = document.getElementById("username").value;
-    const res = await fetch("/updateUser", {
+    const segmentos = progressContainer.querySelectorAll(".status-segment");
+
+    const mostrar = () => {
+        clearTimeout(tempoStatus);
+        if (indiceMomentoAtual >= posts.length) { fecharFullScreen(); return; }
+        
+        const m = posts[indiceMomentoAtual];
+        img.src = m.media;
+        viewer.style.display = "flex";
+
+        // Registrar visualização (avisa o servidor)
+        if (m.userId !== currentUser.id) {
+            fetch("/visualizarMomento", {
+                method: "POST",
+                headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({ momentoId: m.id, viewerId: currentUser.id })
+            });
+        }
+
+        atualizarUIStatus(m);
+
+        segmentos.forEach((seg, i) => {
+            seg.classList.remove("active", "seen");
+            if (i < indiceMomentoAtual) seg.classList.add("seen");
+            else if (i === indiceMomentoAtual) {
+                seg.style.display = 'none'; seg.offsetHeight; seg.style.display = 'flex';
+                seg.classList.add("active");
+            }
+        });
+        
+        tempoStatus = setTimeout(() => { indiceMomentoAtual++; mostrar(); }, 4000);
+    };
+
+    mostrar();
+    img.onclick = () => { indiceMomentoAtual++; mostrar(); };
+}
+
+function atualizarUIStatus(m) {
+    const btnLike = document.getElementById("btnCurtir");
+    const numViews = document.getElementById("numViews");
+    const iconeOlhinho = document.getElementById("iconeOlhinho");
+
+    // Se o status é meu, mostro o olhinho e permito clicar para ver a lista
+    if (m.userId === currentUser.id) {
+        iconeOlhinho.style.display = "inline";
+        numViews.textContent = m.visualizacoes ? m.visualizacoes.length : 0;
+        document.getElementById("viewControl").style.pointerEvents = "auto";
+    } else {
+        // Se é de outro, escondo o olhinho (opcional) e mostro apenas o coração
+        iconeOlhinho.style.display = "none";
+        numViews.textContent = "";
+        document.getElementById("viewControl").style.pointerEvents = "none";
+    }
+
+    // Ativa o coração se eu já curti
+    const jaCurti = m.curtidas && m.curtidas.includes(currentUser.id);
+    btnLike.classList.toggle("active", jaCurti);
+}
+
+function toggleCurtir() {
+    const m = grupoDeMomentosAtual[indiceMomentoAtual];
+    fetch("/curtirMomento", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ id: currentUser.id, username: currentUser.username, photo: currentUser.photo })
+        body: JSON.stringify({ momentoId: m.id, userId: currentUser.id })
+    }).then(res => res.json()).then(data => {
+        m.curtidas = data.curtidas; // Atualiza localmente o objeto
+        atualizarUIStatus(m);
     });
-    const data = await res.json();
-    if(data.success) {
-        alert("Perfil atualizado!");
-        socket.emit("syncRequest");
+}
+
+function abrirListaQuemViu() {
+    const m = grupoDeMomentosAtual[indiceMomentoAtual];
+    if (m.userId !== currentUser.id) return;
+
+    const modal = document.getElementById("viewerListModal");
+    const lista = document.getElementById("listaDeQuemViu");
+    lista.innerHTML = "";
+    modal.style.display = "flex";
+
+    if (m.visualizacoes) {
+        m.visualizacoes.forEach(vId => {
+            // Tenta achar o nome nos contatos ou no próprio usuário
+            const contato = contacts.find(c => c.id === vId);
+            const nome = contato ? contato.username : (vId === currentUser.id ? "Você" : "Alguém");
+            const deuLike = m.curtidas && m.curtidas.includes(vId) ? " ❤️" : "";
+
+            const item = document.createElement("div");
+            item.className = "viewer-item";
+            item.innerHTML = `<span>${nome}${deuLike}</span>`;
+            lista.appendChild(item);
+        });
     }
+}
+
+function fecharFullScreen() { 
+    clearTimeout(tempoStatus);
+    document.getElementById("fullScreenViewer").style.display = "none"; 
+    document.getElementById("viewerListModal").style.display = "none";
+}
+
+// --- FUNÇÕES DE CHAT E CONTATOS (MANTIDAS) ---
+
+async function postarNovoMomento(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        await fetch("/postarMomento", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({
+                userId: currentUser.id, username: currentUser.username,
+                userPhoto: currentUser.photo, media: e.target.result
+            })
+        });
+        input.value = ""; loadMomentos(); 
+    };
+    reader.readAsDataURL(file);
+}
+
+document.getElementById("sendMessageBtn").onclick = async () => {
+    const input = document.getElementById("messageText");
+    const text = input.value.trim();
+    if (!text || !currentChat) return;
+    await fetch("/sendMessage", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: text })
+    });
+    input.value = ""; loadMessages();
 };
 
-// --- CONTATOS ---
+async function loadMessages() {
+    if (!currentChat) return;
+    const res = await fetch(`/getMessages/${currentUser.id}`);
+    const msgs = await res.json();
+    const container = document.getElementById("messages");
+    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
+    if (container.childElementCount !== filtered.length) {
+        container.innerHTML = "";
+        filtered.forEach(m => {
+            const div = document.createElement("div");
+            div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+            div.innerHTML = `<div class="bubble">${m.text}</div>`;
+            container.appendChild(div);
+        });
+        container.scrollTop = container.scrollHeight;
+    }
+}
+
 function renderContacts() {
     const div = document.getElementById("contacts");
     div.innerHTML = "";
-    contacts.forEach((u, index) => {
+    contacts.forEach(user => {
         const contactEl = document.createElement("div");
-        contactEl.className = "contact";
-        contactEl.style = "display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee;";
-        contactEl.innerHTML = `
-            <div style="display:flex; align-items:center; cursor:pointer; flex:1;" id="ct-${u.id}">
-                <img src="${u.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:45px; height:45px; border-radius:50%; object-fit:cover; margin-right:12px;">
-                <strong>${u.username}</strong>
-            </div>
-            <button onclick="removerContato(${index})" style="background:none; border:none; color:#ff5c5c; font-size:20px; cursor:pointer;">&times;</button>
-        `;
+        contactEl.className = `contact ${contatoSelecionadoId === user.id ? 'selected' : ''}`;
+        contactEl.innerHTML = `<img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
+                               <strong>${user.username}</strong>`;
+        contactEl.onclick = () => abrirChat(user);
         div.appendChild(contactEl);
-        document.getElementById(`ct-${u.id}`).onclick = () => abrirChat(u);
     });
 }
 
-function removerContato(index) {
-    if(confirm("Apagar este contato?")) {
-        contacts.splice(index, 1);
-        localStorage.setItem("contacts", JSON.stringify(contacts));
-        renderContacts();
-    }
-}
-
-async function atualizarDadosContatos() {
-    for (let i = 0; i < contacts.length; i++) {
-        const res = await fetch(`/getUser/${contacts[i].id}`);
-        const freshUser = await res.json();
-        if(!freshUser.error) contacts[i] = freshUser;
-    }
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
-}
-
-// --- CHAT ---
 function abrirChat(user) {
     currentChat = user;
     document.getElementById("home").style.display = "none";
@@ -138,167 +282,16 @@ function voltar() {
     currentChat = null;
 }
 
-async function loadMessages() {
-    if (!currentChat) return;
-    const res = await fetch(`/getMessages/${currentUser.id}`);
-    const msgs = await res.json();
-    const container = document.getElementById("messages");
-    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
-    
-    let html = "";
-    filtered.forEach(m => {
-        html += `<div class="message ${m.fromId == currentUser.id ? 'me' : 'other'}"><div class="bubble">${m.text}</div></div>`;
-    });
-    if(container.innerHTML !== html) {
-        container.innerHTML = html;
-        container.scrollTop = container.scrollHeight;
-    }
-}
-
-document.getElementById("sendMessageBtn").onclick = async () => {
-    const input = document.getElementById("messageText");
-    if (!input.value.trim() || !currentChat) return;
-    await fetch("/sendMessage", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text: input.value })
-    });
-    input.value = "";
-    loadMessages();
-};
-
 document.getElementById("addFriendBtn").onclick = async () => {
     const id = document.getElementById("addUserId").value.trim();
-    if (!id || id === currentUser.id) return;
+    if (!id || id === currentUser.id) return alert("ID inválido");
+    if (contacts.find(c => c.id === id)) return alert("Já adicionado");
     const res = await fetch(`/getUser/${id}`);
     const user = await res.json();
-    if(user.error) return alert("Usuário não encontrado");
-    if(contacts.find(c => c.id === id)) return alert("Já é seu amigo");
+    if(user.error) return alert("Não encontrado");
     contacts.push(user);
     localStorage.setItem("contacts", JSON.stringify(contacts));
     renderContacts();
     document.getElementById("addUserId").value = "";
 };
-
-// --- MOMENTOS ---
-async function loadMomentos() {
-    const res = await fetch("/getMomentos");
-    const todos = await res.json();
-    const container = document.getElementById("listaMomentos");
-    container.innerHTML = "";
-    const grupos = {};
-
-    todos.forEach(m => {
-        if (m.userId === currentUser.id || contacts.find(c => c.id === m.userId)) {
-            if (!grupos[m.userId]) grupos[m.userId] = { username: m.userId === currentUser.id ? "Você" : m.username, userPhoto: m.userPhoto, posts: [] };
-            grupos[m.userId].posts.unshift(m);
-        }
-    });
-
-    Object.keys(grupos).forEach(uId => {
-        const g = grupos[uId];
-        const item = document.createElement("div");
-        item.className = "momento-item";
-        item.onclick = () => abrirVisualizadorSequencial(g.posts);
-        item.innerHTML = `
-            <div class="momento-aro" style="border-color:${uId === currentUser.id ? '#075e54' : '#25D366'}">
-                <img src="${g.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img">
-            </div>
-            <div style="font-size:11px; margin-top:4px;">${g.username}</div>
-        `;
-        container.appendChild(item);
-    });
-}
-
-function abrirVisualizadorSequencial(posts) {
-    grupoDeMomentosAtual = posts; indiceMomentoAtual = 0;
-    const progress = document.getElementById("statusProgressBar");
-    progress.innerHTML = "";
-    posts.forEach(() => progress.innerHTML += '<div class="status-segment"><div class="status-filler"></div></div>');
-
-    const mostrar = () => {
-        clearTimeout(tempoStatus);
-        if (indiceMomentoAtual >= posts.length) return fecharFullScreen();
-        const m = posts[indiceMomentoAtual];
-        document.getElementById("fullScreenImage").src = m.media;
-        document.getElementById("fullScreenViewer").style.display = "flex";
-
-        if (m.userId !== currentUser.id) {
-            fetch("/visualizarMomento", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ momentoId: m._id, viewerId: currentUser.id }) });
-        }
-        
-        atualizarUIStatus(m);
-        const segs = progress.querySelectorAll(".status-segment");
-        segs.forEach((s, i) => {
-            s.classList.remove("active", "seen");
-            if (i < indiceMomentoAtual) s.classList.add("seen");
-            else if (i === indiceMomentoAtual) { s.style.display='none'; s.offsetHeight; s.style.display='flex'; s.classList.add("active"); }
-        });
-        tempoStatus = setTimeout(() => { indiceMomentoAtual++; mostrar(); }, 4000);
-    };
-    mostrar();
-    document.getElementById("fullScreenImage").onclick = () => { indiceMomentoAtual++; mostrar(); };
-}
-
-function atualizarUIStatus(m) {
-    const isMine = m.userId === currentUser.id;
-    document.getElementById("viewControl").style.display = isMine ? "flex" : "none";
-    document.getElementById("numViews").textContent = m.visualizacoes ? m.visualizacoes.length : 0;
-    document.getElementById("btnCurtir").classList.toggle("active", m.curtidas && m.curtidas.includes(currentUser.id));
-}
-
-function toggleCurtir() {
-    const m = grupoDeMomentosAtual[indiceMomentoAtual];
-    fetch("/curtirMomento", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ momentoId: m._id, userId: currentUser.id }) })
-    .then(r => r.json()).then(data => { m.curtidas = data.curtidas; atualizarUIStatus(m); });
-}
-
-function abrirListaQuemViu() {
-    const m = grupoDeMomentosAtual[indiceMomentoAtual];
-    if (m.userId !== currentUser.id) return;
-    const modal = document.getElementById("viewerListModal");
-    modal.style.display = "flex";
-    const lista = document.getElementById("listaDeQuemViu");
-    lista.innerHTML = "";
-    m.visualizacoes.forEach(vId => {
-        const c = contacts.find(con => con.id === vId);
-        lista.innerHTML += `<div class="viewer-item">${c ? c.username : 'Visitante'}${m.curtidas.includes(vId) ? ' ❤️' : ''}</div>`;
-    });
-}
-
-function fecharFullScreen() { 
-    clearTimeout(tempoStatus); 
-    document.getElementById("fullScreenViewer").style.display = "none"; 
-    document.getElementById("viewerListModal").style.display = "none"; 
-}
-
-async function postarNovoMomento(input) {
-    const file = input.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        await fetch("/postarMomento", { 
-            method: "POST", 
-            headers: {"Content-Type":"application/json"}, 
-            body: JSON.stringify({ userId: currentUser.id, username: currentUser.username, userPhoto: currentUser.photo, media: e.target.result }) 
-        });
-        input.value = ""; 
-        socket.emit("syncRequest");
-    };
-    reader.readAsDataURL(file);
-    }
-                     yId("addUserId").value.trim();
-    if (!id || id === currentUser.id) return;
-    const res = await fetch(`/getUser/${id}`);
-    const user = await res.json();
-    if(user.error) return alert("Não encontrado");
-    contacts.push(user); localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts();
-};
-    inválido ou já existente");
-    const res = await fetch(`/getUser/${id}`);
-    const user = await res.json();
-    if(user.error) return alert("Não encontrado");
-    contacts.push(user); localStorage.setItem("contacts", JSON.stringify(contacts));
-    renderContacts(); document.getElementById("addUserId").value = "";
-};
-        
+            
