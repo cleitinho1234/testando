@@ -25,6 +25,52 @@
   
   body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; -webkit-tap-highlight-color: transparent; }
 
+  /* Estilos para a barra de Momentos */
+  #momentosContainer {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 10px 5px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    flex-shrink: 0;
+    scrollbar-width: none; /* Esconde scroll no Firefox */
+  }
+  #momentosContainer::-webkit-scrollbar { display: none; } /* Esconde scroll no Chrome */
+
+  .momento-item {
+    flex-shrink: 0;
+    text-align: center;
+    width: 65px;
+    cursor: pointer;
+  }
+
+  .momento-aro {
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    border: 2px solid #25D366;
+    padding: 2px;
+    margin: 0 auto;
+  }
+
+  .momento-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .add-momento {
+    border: 2px dashed #ccc !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
   #installBanner {
     display: none; position: fixed; top: 0; left: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 9999; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); box-sizing: border-box;
   }
@@ -106,6 +152,19 @@
       <button type="submit" style="background:#25D366; color:white; border:none; padding:12px 25px; border-radius:5px; font-weight:bold; cursor:pointer; width:100%;">SALVAR PERFIL</button>
     </form>
     <p style="font-size:12px; color:#666; margin-top:10px;">Seu ID: <span id="userIdDisplay" style="font-weight:bold;"></span></p>
+  </div>
+
+  <h3 style="font-size: 14px; color: #075e54; margin: 0 0 8px 5px;">Momentos</h3>
+  <div id="momentosContainer">
+      <div class="momento-item" onclick="document.getElementById('inputMomento').click()">
+          <div class="momento-aro add-momento">
+              <img id="minhaFotoMomento" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="momento-img">
+              <span style="position: absolute; bottom: -2px; right: -2px; background: #075e54; color: white; border-radius: 50%; width: 22px; height: 22px; font-weight: bold; border: 2px solid white; display: flex; align-items: center; justify-content: center;">+</span>
+          </div>
+          <div style="font-size: 11px; margin-top: 5px; color: #555;">Novo</div>
+          <input type="file" id="inputMomento" accept="image/*" style="display: none;" onchange="postarNovoMomento(this)">
+      </div>
+      <div id="listaMomentos" style="display: flex; gap: 12px;"></div>
   </div>
   
   <div style="display:flex; gap:5px; flex-shrink: 0;">
