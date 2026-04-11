@@ -7,6 +7,7 @@ let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
+let mediaParaEnviar = null; // Armazena a mídia antes de enviar
 
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
@@ -49,6 +50,46 @@ window.addEventListener("load", async () => {
     renderContacts();
     setInterval(loadMessages, 1500);
 });
+
+// --- LÓGICA DE MÍDIA (FOTOS/VÍDEOS) ---
+
+// Botão de "+" abre o seletor de arquivos
+document.getElementById("addMediaBtn").onclick = () => {
+    document.getElementById("mediaInput").click();
+};
+
+// Captura o arquivo e mostra o preview no cantinho
+document.getElementById("mediaInput").onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        mediaParaEnviar = {
+            data: ev.target.result,
+            type: file.type.startsWith('image') ? 'image' : 'video'
+        };
+
+        const container = document.getElementById("mediaPreviewContainer");
+        const content = document.getElementById("mediaPreviewContent");
+        
+        container.style.display = "flex";
+        
+        if (mediaParaEnviar.type === 'image') {
+            content.innerHTML = `<img src="${mediaParaEnviar.data}">`;
+        } else {
+            content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
+        }
+    };
+    reader.readAsDataURL(file);
+};
+
+// Função para cancelar antes de enviar
+function cancelarEnvioMedia() {
+    mediaParaEnviar = null;
+    document.getElementById("mediaPreviewContainer").style.display = "none";
+    document.getElementById("mediaInput").value = "";
+}
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -174,9 +215,21 @@ function addMessage(m) {
     const date = new Date(m.timestamp);
     const hora = date.getHours().toString().padStart(2, '0');
     const min = date.getMinutes().toString().padStart(2, '0');
+
+    // Lógica para mostrar mídia na bolha se existir
+    let mediaHtml = "";
+    if (m.media) {
+        if (m.media.type === 'image') {
+            mediaHtml = `<img src="${m.media.data}" style="max-width:100%; border-radius:8px; display:block; margin-bottom:5px;">`;
+        } else {
+            mediaHtml = `<video src="${m.media.data}" controls style="max-width:100%; border-radius:8px; display:block; margin-bottom:5px;"></video>`;
+        }
+    }
+
     div.innerHTML = `
         <div class="bubble">
-            ${m.text}
+            ${mediaHtml}
+            ${m.text ? `<div>${m.text}</div>` : ""}
             <span class="time">${hora}:${min}</span>
         </div>
     `;
@@ -200,18 +253,31 @@ function voltar() {
     document.getElementById("chatScreen").style.display = "none";
     document.getElementById("home").style.display = "block";
     currentChat = null;
+    cancelarEnvioMedia(); // Limpa se sair do chat
     renderContacts();
 }
 
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
-    if(!text || !currentChat) return;
+    
+    // Só envia se tiver texto OU mídia
+    if((!text && !mediaParaEnviar) || !currentChat) return;
+    
+    const payload = { 
+        fromId: currentUser.id, 
+        toId: currentChat.id, 
+        text: text,
+        media: mediaParaEnviar 
+    };
+
     input.value = "";
+    cancelarEnvioMedia(); // Esconde o preview após o clique
+    
     await fetch("/sendMessage", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
+        body: JSON.stringify(payload)
     });
     loadMessages(); 
 };
@@ -276,7 +342,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- LÓGICA DE INSTALAÇÃO (PWA) COM BOTÃO SUPERIOR ---
+// --- LÓGICA DE INSTALAÇÃO (PWA) ---
 let deferredPrompt;
 const installBanner = document.getElementById("installBanner");
 
@@ -287,28 +353,19 @@ if ('serviceWorker' in navigator) {
 }
 
 window.addEventListener('beforeinstallprompt', (e) => {
-    // 1. Previne o banner automático do navegador
     e.preventDefault();
-    
-    // 2. Guarda o evento
     deferredPrompt = e;
-
-    // 3. Só mostra o botão se NÃO estiver rodando já como app
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     if (!isStandalone) {
         installBanner.style.display = "block";
     }
 });
 
-// 4. Ação ao clicar no banner verde
 installBanner.onclick = () => {
     if (deferredPrompt) {
-        // Dispara o prompt oficial de instalação
         deferredPrompt.prompt();
-
         deferredPrompt.userChoice.then((choiceResult) => {
             if (choiceResult.outcome === 'accepted') {
-                console.log('Usuário aceitou instalar');
                 installBanner.style.display = "none";
             }
             deferredPrompt = null;
@@ -316,7 +373,6 @@ installBanner.onclick = () => {
     }
 };
 
-// 5. Esconde o banner se a pessoa instalar por outros meios
 window.addEventListener('appinstalled', () => {
     installBanner.style.display = "none";
     deferredPrompt = null;
