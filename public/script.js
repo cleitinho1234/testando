@@ -61,14 +61,76 @@ window.addEventListener("load", async () => {
     socket.emit("register", currentUser.id);
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
-    if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
+    if(currentUser.photo) {
+        document.getElementById("profilePreview").src = currentUser.photo;
+        document.getElementById("minhaFotoMomento").src = currentUser.photo;
+    }
 
     renderContacts();
+    loadMomentos(); // Carrega os momentos ao iniciar
     atualizarBadgeIcone();
     
     setInterval(loadMessages, 1500);
+    setInterval(loadMomentos, 30000); // Atualiza momentos a cada 30 segundos
     aplicarTrava("messages");
 });
+
+// --- LÓGICA DE MOMENTOS ---
+
+async function loadMomentos() {
+    try {
+        const res = await fetch("/getMomentos");
+        const momentos = await res.json();
+        const container = document.getElementById("listaMomentos");
+        container.innerHTML = "";
+
+        momentos.forEach(m => {
+            const item = document.createElement("div");
+            item.className = "momento-item";
+            item.onclick = () => abrirFullScreen(m.media);
+            item.innerHTML = `
+                <div class="momento-aro">
+                    <img src="${m.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img">
+                </div>
+                <div style="font-size: 11px; margin-top: 5px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${m.username}</div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (err) {
+        console.error("Erro ao carregar momentos:", err);
+    }
+}
+
+async function postarNovoMomento(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const base64 = e.target.result;
+        
+        const btnCriar = document.querySelector(".add-momento");
+        btnCriar.style.opacity = "0.5"; // Feedback de carregamento
+
+        await fetch("/postarMomento", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({
+                userId: currentUser.id,
+                username: currentUser.username,
+                userPhoto: currentUser.photo,
+                media: base64
+            })
+        });
+        
+        btnCriar.style.opacity = "1";
+        input.value = ""; // Limpa o input
+        loadMomentos(); // Recarrega a lista
+    };
+    reader.readAsDataURL(file);
+}
+
+// --- FIM MOMENTOS ---
 
 document.getElementById("sendPhoto").onchange = function(e) {
     const file = e.target.files[0];
