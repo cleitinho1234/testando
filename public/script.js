@@ -30,6 +30,24 @@ window.addEventListener("load", async () => {
     
     if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
 
+    // --- NOVA FUNÇÃO: CLIQUE NA FOTO PARA MUDAR ---
+    const preview = document.getElementById("profilePreview");
+    const fileInput = document.getElementById("profilePic");
+
+    preview.onclick = () => fileInput.click();
+
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                preview.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    // ----------------------------------------------
+
     renderContacts();
     setInterval(loadMessages, 1500);
 });
@@ -243,7 +261,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement("canvas");
-                const MAX_WIDTH = 300; // Define um tamanho máximo para evitar erro de limite
+                const MAX_WIDTH = 300; 
                 const scaleSize = MAX_WIDTH / img.width;
                 canvas.width = MAX_WIDTH;
                 canvas.height = img.height * scaleSize;
