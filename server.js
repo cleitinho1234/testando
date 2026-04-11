@@ -13,10 +13,12 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// Conexão MongoDB
 mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZap?retryWrites=true&w=majority")
   .then(() => console.log("Mongo conectado"))
-  .catch(err => console.log(err));
+  .catch(err => console.log("Erro Mongo:", err));
 
+// Modelos
 const User = mongoose.model("User", { id: String, username: String, photo: String });
 const Message = mongoose.model("Message", { fromId: String, toId: String, text: String, timestamp: Number });
 const Momento = mongoose.model("Momento", {
@@ -26,30 +28,25 @@ const Momento = mongoose.model("Momento", {
     timestamp: { type: Date, default: Date.now, expires: 86400 } 
 });
 
-let usuariosOnline = {}; 
+// Socket.io
 io.on("connection", (socket) => {
     socket.on("register", (userId) => {
         socket.userId = userId;
-        usuariosOnline[userId] = socket.id;
-        io.emit("updateStatus", Object.keys(usuariosOnline));
+        io.emit("updateStatus", "refresh");
     });
-
-    // 🔥 NOVO: Avisa todo mundo que o perfil mudou
-    socket.on("profileUpdated", () => {
-        io.emit("refreshData"); 
+    // Avisa todos para atualizar quando alguém mudar o perfil ou postar momento
+    socket.on("syncRequest", () => {
+        io.emit("refreshData");
     });
-
     socket.on("disconnect", () => {
-        if (socket.userId) {
-            delete usuariosOnline[socket.userId];
-            io.emit("updateStatus", Object.keys(usuariosOnline));
-        }
+        io.emit("updateStatus", "refresh");
     });
 });
 
+// Rotas
 app.post("/user", async (req, res) => {
     const id = Math.floor(1000 + Math.random() * 9000).toString();
-    const user = new User({ id, username: req.body.username, photo: req.body.photo });
+    const user = new User({ id, username: req.body.username, photo: req.body.photo || "" });
     await user.save();
     res.json(user);
 });
@@ -77,7 +74,7 @@ app.get("/getMessages/:id", async (req, res) => {
 });
 
 app.post("/postarMomento", async (req, res) => {
-    const novo = await Momento.create({ ...req.body });
+    const novo = await Momento.create(req.body);
     res.json(novo);
 });
 
@@ -93,11 +90,11 @@ app.post("/visualizarMomento", async (req, res) => {
 
 app.post("/curtirMomento", async (req, res) => {
     const m = await Momento.findById(req.body.momentoId);
+    if(!m) return res.sendStatus(404);
     const idx = m.curtidas.indexOf(req.body.userId);
     if (idx === -1) m.curtidas.push(req.body.userId); else m.curtidas.splice(idx, 1);
     await m.save();
     res.json({ curtidas: m.curtidas });
 });
 
-server.listen(3000, () => console.log("Servidor rodando"));
-                    
+server.listen(3000, () => console.log("Servidor em http://localhost:3000"));
