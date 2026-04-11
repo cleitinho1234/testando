@@ -133,7 +133,6 @@ function abrirVisualizadorSequencial(listaFotos) {
     const img = document.getElementById("fullScreenImage");
     const progressContainer = document.getElementById("statusProgressBar");
     
-    // Cria as barrinhas de progresso
     progressContainer.innerHTML = "";
     listaFotos.forEach(() => {
         const segment = document.createElement("div");
@@ -157,13 +156,11 @@ function abrirVisualizadorSequencial(listaFotos) {
         img.src = listaFotos[indice];
         viewer.style.display = "flex";
 
-        // Gerencia as animações das barras
         segmentosHtml.forEach((seg, i) => {
             seg.classList.remove("active", "seen");
             if (i < indice) {
                 seg.classList.add("seen");
             } else if (i === indice) {
-                // Reinicia animação CSS
                 seg.style.display = 'none';
                 seg.offsetHeight; 
                 seg.style.display = 'flex';
@@ -174,7 +171,7 @@ function abrirVisualizadorSequencial(listaFotos) {
         tempoStatus = setTimeout(() => {
             indice++;
             mostrar();
-        }, 4000); // 4 segundos por foto
+        }, 4000); 
     };
 
     mostrar();
@@ -352,13 +349,33 @@ function renderContacts() {
     });
 }
 
+// 🔥 FUNÇÃO ATUALIZADA: Bloqueia auto-add e duplicatas
 document.getElementById("addFriendBtn").onclick = async () => {
     const id = document.getElementById("addUserId").value.trim();
+    
+    if (!id) return;
+
+    if (id === currentUser.id) {
+        alert("Você não pode adicionar seu próprio ID.");
+        return;
+    }
+
+    const jaExiste = contacts.find(c => c.id === id);
+    if (jaExiste) {
+        alert("Este contato já está na sua lista.");
+        return;
+    }
+
     const res = await fetch(`/getUser/${id}`);
     const user = await res.json();
-    if(user.error) return alert("Não encontrado");
+    
+    if(user.error) {
+        return alert("Usuário não encontrado.");
+    }
+
     contacts.push(user);
     localStorage.setItem("contacts", JSON.stringify(contacts));
     renderContacts();
+    document.getElementById("addUserId").value = "";
 };
-        
+                                 
