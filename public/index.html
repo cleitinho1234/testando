@@ -1,160 +1,31 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Mini-Zap</title>
-
-<link rel="manifest" href="/manifest.json">
-<link rel="icon" type="image/png" sizes="192x192" href="/logo.png">
-<link rel="icon" type="image/png" sizes="512x512" href="/logo.png">
-<link rel="apple-touch-icon" href="/logo.png">
-<meta name="theme-color" content="#075e54">
-<meta name="mobile-web-app-capable" content="yes">
-
-<style>
-  html, body { 
-    height: 100%; 
-    overflow: hidden !important; 
-    position: fixed; 
-    width: 100%; 
-    margin: 0; 
-    padding: 0;
-    overscroll-behavior-y: none !important;
-  }
-  
-  body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; -webkit-tap-highlight-color: transparent; }
-
-  #installBanner {
-    display: none; position: fixed; top: 0; left: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 9999; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); box-sizing: border-box;
-  }
-
-  #photoPreviewContainer {
-    display: none; position: absolute; bottom: 65px; left: 0; width: 100%; background: #f0f0f0; padding: 10px; align-items: center; gap: 10px; border-top: 1px solid #ccc; z-index: 101; box-sizing: border-box;
-  }
-
-  #fullScreenViewer {
-    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; align-items: center; justify-content: center;
-  }
-
-  #home, #messages { 
-    flex: 1; overflow-y: auto !important; box-sizing: border-box; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior-y: contain !important;
-  }
-
-  #home { max-width: 500px; margin: 0 auto; padding: 15px; height: 100%; display: flex; flex-direction: column; }
-  .profile-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
-  #profilePreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; }
-  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.2; }
-  .contact.selected { background: #d1e7dd !important; border: 1px solid #25D366; }
-
-  #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; z-index: 50; }
-  #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; position: relative; }
-  #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
-  #messages { padding: 10px; display: flex; flex-direction: column; }
-  #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; flex-shrink: 0; position: relative; }
-  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 8px; outline: none; }
-  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-  
-  .message { display: flex; margin: 5px 0; width: 100%; }
-  .me { justify-content: flex-end; }
-  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; position: relative; }
-  .me .bubble { background: #dcf8c6; }
-  .bubble img { max-width: 100%; border-radius: 8px; display: block; margin-top: 5px; cursor: pointer; }
-  .time { font-size: 10px; color: #888; float: right; margin: 5px 0 0 10px; }
-
-  .hidden { display: none; }
-  
-  #headerSelecao { 
-    display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  }
-
-  #confirmModal { 
-    display: none; position: fixed; top:0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; 
-  }
-  .modal-box { background:white; padding:20px; border-radius:10px; text-align:center; width: 80%; max-width: 300px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mini-Zap</title>
+    <style>
+        /* Cole aqui o seu CSS original do index.html */
+    </style>
 </head>
 <body>
 
-<div id="fullScreenViewer">
-    <button onclick="fecharFullScreen()" style="position:absolute; top:20px; left:20px; background:rgba(255,255,255,0.2); border:none; color:white; font-size:30px; border-radius:50%; width:50px; height:50px; cursor:pointer; z-index: 10000;">⬅</button>
-    <img id="fullScreenImage" style="max-width:100%; max-height:100%; object-fit:contain;">
-</div>
-
-<div id="installBanner">
-    <p style="margin:0 0 10px 0; font-weight:bold; font-size: 14px;">Instalar Mini-Zap na tela inicial?</p>
-    <div style="display: flex; justify-content: center; gap: 10px;">
-        <button id="btnInstall" style="background:#25D366; color:white; border:none; padding:8px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">BAIXAR APP</button>
-        <button onclick="recusarInstalacao()" style="background:transparent; color:white; border:1px solid white; padding:8px 15px; border-radius:5px;">DEPOIS</button>
-    </div>
-</div>
-
-<div id="headerSelecao">
-  <div style="display:flex; align-items:center;">
-    <button onclick="cancelarSelecao()" style="background:none; border:none; color:white; font-size:20px; margin-right:20px;">✕</button>
-    <span style="font-weight:bold;">Contato Selecionado</span>
-  </div>
-  <button onclick="abrirModal()" style="background:none; border:none; color:white; font-size:20px;">🗑️</button>
-</div>
-
 <div id="home">
-  <div class="profile-card">
-    <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
-    <form id="profileForm">
-      <input type="text" id="username" placeholder="Seu nome" style="width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;">
-      <input type="file" id="profilePic" accept="image/*" style="font-size: 12px; margin-bottom: 10px;">
-      <button type="submit" style="background:#25D366; color:white; border:none; padding:12px 25px; border-radius:5px; font-weight:bold; cursor:pointer; width:100%;">SALVAR PERFIL</button>
-    </form>
-    <p style="font-size:12px; color:#666; margin-top:10px;">Seu ID: <span id="userIdDisplay" style="font-weight:bold;"></span></p>
-  </div>
-  
-  <div style="display:flex; gap:5px; flex-shrink: 0;">
-    <input type="text" id="addUserId" placeholder="ID do amigo" style="flex:1; padding:10px; border:1px solid #ccc; border-radius:5px;">
-    <button id="addFriendBtn" style="background:#075e54; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold;">ADD</button>
-  </div>
-  
-  <div id="contacts" style="margin-top:15px;"></div>
-</div>
-
-<div id="chatScreen">
-  <div id="chatHeader">
-    <button onclick="voltar()" style="background:none; border:none; color:white; font-size:20px; margin-right:10px;">⬅</button>
-    <img id="chatAvatar">
-    <div>
-      <div id="chatName" style="font-weight:bold;"></div>
-      <div id="typingStatus" style="font-size:12px; opacity:0.8;">offline</div>
+    <div class="profile-card">
+        <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
+        <form id="profileForm">
+            <input type="text" id="username" placeholder="Seu nome" style="width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;">
+            <input type="file" id="profilePic" accept="image/*" style="font-size: 12px; margin-bottom: 10px;">
+            <button type="submit" style="background:#25D366; color:white; border:none; padding:12px 25px; border-radius:5px; font-weight:bold; cursor:pointer; width:100%;">SALVAR PERFIL</button>
+        </form>
+        <p style="font-size:12px; color:#666; margin-top:10px;">Seu ID: <span id="userIdDisplay" style="font-weight:bold;"></span></p>
     </div>
-  </div>
-
-  <div id="messages"></div>
-
-  <div id="photoPreviewContainer">
-      <img id="imagePreviewTarget" style="width:50px; height:50px; border-radius:5px; object-fit:cover;">
-      <span style="flex:1; font-size:12px; color:#555;">Foto pronta para enviar</span>
-      <button onclick="cancelarEnvioFoto()" style="background:#d9534f; color:white; border:none; padding:5px 10px; border-radius:5px;">✕</button>
-  </div>
-
-  <div id="chatInput">
-    <button id="attachmentBtn" style="font-size:24px;">+</button>
-    <div id="attachmentMenu" class="hidden" style="position:absolute; bottom:70px; left:10px; background:white; padding:15px; border-radius:12px; box-shadow:0 0 15px rgba(0,0,0,0.2); z-index:100;">
-        <label style="cursor:pointer; display:flex; align-items:center; gap:10px;">
-            📷 Enviar Foto
-            <input type="file" id="sendPhoto" accept="image/*" style="display:none;">
-        </label>
+    
+    <div style="display:flex; gap:5px; flex-shrink: 0;">
+        <input type="text" id="addUserId" placeholder="ID do amigo" style="flex:1; padding:10px; border:1px solid #ccc; border-radius:5px;">
+        <button id="addFriendBtn" style="background:#075e54; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold;">ADD</button>
     </div>
-    <input type="text" id="messageText" placeholder="Mensagem">
-    <button id="sendMessageBtn">➤</button>
-  </div>
-</div>
-
-<div id="confirmModal">
-  <div class="modal-box">
-    <p style="font-weight:bold;">Excluir este contato?</p>
-    <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
-        <button onclick="confirmarExclusao()" style="background:#d9534f; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Excluir</button>
-        <button onclick="fecharModal()" style="background:#eee; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">Cancelar</button>
-    </div>
-  </div>
+    <div id="contacts" style="margin-top:15px;"></div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
