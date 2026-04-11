@@ -277,3 +277,33 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         salvar(currentUser.photo);
     }
 };
+
+// --- LÓGICA DE INSTALAÇÃO (PWA) ---
+let deferredPrompt;
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+    .then(() => console.log("Service Worker registrado!"));
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+
+    const jaPerguntou = sessionStorage.getItem('pwaPrompt');
+
+    if (!jaPerguntou) {
+        setTimeout(() => {
+            if (confirm("Deseja instalar o Mini Zap no seu celular?")) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('Usuário aceitou a instalação');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+            sessionStorage.setItem('pwaPrompt', 'true');
+        }, 5000); 
+    }
+});
