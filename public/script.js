@@ -6,7 +6,6 @@ const socket = io();
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
-let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
 // Variáveis para Momentos
@@ -19,8 +18,12 @@ window.addEventListener("load", async () => {
     if (savedId) {
         const res = await fetch(`/getUser/${savedId}`);
         const user = await res.json();
-        if (!user.error) currentUser = user;
+        if (!user.error) {
+            currentUser = user;
+            atualizarInterfaceUsuario(); // 🔥 Carrega a foto e nome ao abrir
+        }
     }
+    
     if (!currentUser) {
         const res = await fetch("/user", {
             method: "POST",
@@ -29,19 +32,71 @@ window.addEventListener("load", async () => {
         });
         currentUser = await res.json();
         localStorage.setItem("userId", currentUser.id);
+        atualizarInterfaceUsuario();
     }
     
     socket.emit("register", currentUser.id);
-    document.getElementById("username").value = currentUser.username || "";
-    document.getElementById("userIdDisplay").textContent = currentUser.id;
-    
     renderContacts();
     loadMomentos(); 
     setInterval(loadMessages, 1500);
     setInterval(loadMomentos, 15000); 
 });
 
-// --- LÓGICA DE MOMENTOS (CURTIDAS E VIEWS) ---
+// 🔥 Função para colocar os dados do usuário na tela
+function atualizarInterfaceUsuario() {
+    if (!currentUser) return;
+    document.getElementById("username").value = currentUser.username || "";
+    document.getElementById("userIdDisplay").textContent = currentUser.id;
+    
+    const fotoPadrao = 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    const fotoUrl = currentUser.photo || fotoPadrao;
+    
+    document.getElementById("profilePreview").src = fotoUrl;
+    document.getElementById("minhaFotoMomento").src = fotoUrl;
+}
+
+// 🔥 Lógica para Alterar a Foto de Perfil ao clicar na imagem
+document.getElementById("profilePreview").onclick = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            currentUser.photo = ev.target.result;
+            document.getElementById("profilePreview").src = currentUser.photo;
+            document.getElementById("minhaFotoMomento").src = currentUser.photo;
+        };
+        reader.readAsDataURL(file);
+    };
+    input.click();
+};
+
+// 🔥 Salvar Perfil no Banco (Nome e Foto)
+document.getElementById("profileForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const novoNome = document.getElementById("username").value;
+    
+    // Atualiza no servidor
+    const res = await fetch("/updateUser", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ 
+            id: currentUser.id, 
+            username: novoNome, 
+            photo: currentUser.photo 
+        })
+    });
+    
+    const resultado = await res.json();
+    if (resultado.success) {
+        alert("Perfil atualizado!");
+        currentUser.username = novoNome;
+    }
+};
+
+// --- RESTANTE DA LÓGICA DE MOMENTOS (CURTIDAS E VIEWS) ---
 
 async function loadMomentos() {
     try {
@@ -53,7 +108,6 @@ async function loadMomentos() {
         const idsContatos = contacts.map(c => c.id);
         const grupos = {};
 
-        // Agrupando por usuário, mas mantendo o objeto completo da mídia
         todosMomentos.forEach(m => {
             const souEu = m.userId === currentUser.id;
             const ehMeuContato = idsContatos.includes(m.userId);
@@ -66,7 +120,7 @@ async function loadMomentos() {
                         posts: [] 
                     };
                 }
-                grupos[m.userId].posts.unshift(m); // Adiciona o objeto completo
+                grupos[m.userId].posts.unshift(m);
             }
         });
 
@@ -90,7 +144,6 @@ async function loadMomentos() {
 function abrirVisualizadorSequencial(posts) {
     grupoDeMomentosAtual = posts;
     indiceMomentoAtual = 0;
-    
     const viewer = document.getElementById("fullScreenViewer");
     const img = document.getElementById("fullScreenImage");
     const progressContainer = document.getElementById("statusProgressBar");
@@ -108,12 +161,10 @@ function abrirVisualizadorSequencial(posts) {
     const mostrar = () => {
         clearTimeout(tempoStatus);
         if (indiceMomentoAtual >= posts.length) { fecharFullScreen(); return; }
-        
         const m = posts[indiceMomentoAtual];
         img.src = m.media;
         viewer.style.display = "flex";
 
-        // Registrar visualização (avisa o servidor)
         if (m.userId !== currentUser.id) {
             fetch("/visualizarMomento", {
                 method: "POST",
@@ -121,9 +172,7 @@ function abrirVisualizadorSequencial(posts) {
                 body: JSON.stringify({ momentoId: m.id, viewerId: currentUser.id })
             });
         }
-
         atualizarUIStatus(m);
-
         segmentos.forEach((seg, i) => {
             seg.classList.remove("active", "seen");
             if (i < indiceMomentoAtual) seg.classList.add("seen");
@@ -132,10 +181,8 @@ function abrirVisualizadorSequencial(posts) {
                 seg.classList.add("active");
             }
         });
-        
         tempoStatus = setTimeout(() => { indiceMomentoAtual++; mostrar(); }, 4000);
     };
-
     mostrar();
     img.onclick = () => { indiceMomentoAtual++; mostrar(); };
 }
@@ -145,19 +192,15 @@ function atualizarUIStatus(m) {
     const numViews = document.getElementById("numViews");
     const iconeOlhinho = document.getElementById("iconeOlhinho");
 
-    // Se o status é meu, mostro o olhinho e permito clicar para ver a lista
     if (m.userId === currentUser.id) {
         iconeOlhinho.style.display = "inline";
         numViews.textContent = m.visualizacoes ? m.visualizacoes.length : 0;
         document.getElementById("viewControl").style.pointerEvents = "auto";
     } else {
-        // Se é de outro, escondo o olhinho (opcional) e mostro apenas o coração
         iconeOlhinho.style.display = "none";
         numViews.textContent = "";
         document.getElementById("viewControl").style.pointerEvents = "none";
     }
-
-    // Ativa o coração se eu já curti
     const jaCurti = m.curtidas && m.curtidas.includes(currentUser.id);
     btnLike.classList.toggle("active", jaCurti);
 }
@@ -169,7 +212,7 @@ function toggleCurtir() {
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ momentoId: m.id, userId: currentUser.id })
     }).then(res => res.json()).then(data => {
-        m.curtidas = data.curtidas; // Atualiza localmente o objeto
+        m.curtidas = data.curtidas;
         atualizarUIStatus(m);
     });
 }
@@ -177,19 +220,15 @@ function toggleCurtir() {
 function abrirListaQuemViu() {
     const m = grupoDeMomentosAtual[indiceMomentoAtual];
     if (m.userId !== currentUser.id) return;
-
     const modal = document.getElementById("viewerListModal");
     const lista = document.getElementById("listaDeQuemViu");
     lista.innerHTML = "";
     modal.style.display = "flex";
-
     if (m.visualizacoes) {
         m.visualizacoes.forEach(vId => {
-            // Tenta achar o nome nos contatos ou no próprio usuário
             const contato = contacts.find(c => c.id === vId);
-            const nome = contato ? contato.username : (vId === currentUser.id ? "Você" : "Alguém");
+            const nome = contato ? contato.username : (vId === currentUser.id ? "Você" : "Visitante");
             const deuLike = m.curtidas && m.curtidas.includes(vId) ? " ❤️" : "";
-
             const item = document.createElement("div");
             item.className = "viewer-item";
             item.innerHTML = `<span>${nome}${deuLike}</span>`;
@@ -203,8 +242,6 @@ function fecharFullScreen() {
     document.getElementById("fullScreenViewer").style.display = "none"; 
     document.getElementById("viewerListModal").style.display = "none";
 }
-
-// --- FUNÇÕES DE CHAT E CONTATOS (MANTIDAS) ---
 
 async function postarNovoMomento(input) {
     const file = input.files[0];
@@ -223,6 +260,8 @@ async function postarNovoMomento(input) {
     };
     reader.readAsDataURL(file);
 }
+
+// --- CHAT E CONTATOS ---
 
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
@@ -259,7 +298,7 @@ function renderContacts() {
     div.innerHTML = "";
     contacts.forEach(user => {
         const contactEl = document.createElement("div");
-        contactEl.className = `contact ${contatoSelecionadoId === user.id ? 'selected' : ''}`;
+        contactEl.className = "contact";
         contactEl.innerHTML = `<img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
                                <strong>${user.username}</strong>`;
         contactEl.onclick = () => abrirChat(user);
@@ -294,4 +333,4 @@ document.getElementById("addFriendBtn").onclick = async () => {
     renderContacts();
     document.getElementById("addUserId").value = "";
 };
-            
+        
