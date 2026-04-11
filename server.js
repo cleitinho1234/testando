@@ -35,12 +35,14 @@ const Message = mongoose.model("Message", {
     timestamp: Number 
 });
 
-// Modelo de Momentos com expiração automática de 24 horas (86400 segundos)
+// Modelo de Momentos Atualizado com arrays de interações
 const Momento = mongoose.model("Momento", {
     userId: String,
     username: String,
     userPhoto: String,
     media: String,
+    visualizacoes: { type: [String], default: [] }, // Array de IDs de quem viu
+    curtidas: { type: [String], default: [] },      // Array de IDs de quem curtiu
     timestamp: { type: Date, default: Date.now, expires: 86400 } 
 });
 
@@ -92,13 +94,20 @@ app.get("/getMessages/:id", async (req, res) => {
     res.send(msgs);
 });
 
-// --- NOVAS ROTAS PARA MOMENTOS ---
+// --- ROTAS PARA MOMENTOS ---
 
 // Postar um novo Momento
 app.post("/postarMomento", async (req, res) => {
     try {
         const { userId, username, userPhoto, media } = req.body;
-        const novoMomento = await Momento.create({ userId, username, userPhoto, media });
+        const novoMomento = await Momento.create({ 
+            userId, 
+            username, 
+            userPhoto, 
+            media,
+            visualizacoes: [],
+            curtidas: []
+        });
         res.json(novoMomento);
     } catch (err) {
         res.status(500).send(err);
@@ -108,9 +117,46 @@ app.post("/postarMomento", async (req, res) => {
 // Buscar todos os Momentos ativos
 app.get("/getMomentos", async (req, res) => {
     try {
-        // Busca momentos e ordena pelo mais recente
         const momentos = await Momento.find().sort({ timestamp: -1 });
         res.send(momentos);
+    } catch (err) {
+        res.status(500).send(err);
+    }
+});
+
+// 🔥 Registrar Visualização
+app.post("/visualizarMomento", async (req, res) => {
+    const { momentoId, viewerId } = req.body;
+    try {
+        // Usa o $addToSet para garantir que o ID só seja adicionado uma vez (evita duplicatas)
+        await Momento.findByIdAndUpdate(momentoId, { 
+            $addToSet: { visualizacoes: viewerId } 
+        });
+        res.sendStatus(200);
+    } catch (err) {
+        res.status(500).send(err);
+    }
+});
+
+// 🔥 Curtir/Descurtir Momento
+app.post("/curtirMomento", async (req, res) => {
+    const { momentoId, userId } = req.body;
+    try {
+        const momento = await Momento.findById(momentoId);
+        if (!momento) return res.status(404).send("Momento não encontrado");
+
+        const jaCurtiu = momento.curtidas.includes(userId);
+        
+        if (jaCurtiu) {
+            // Se já curtiu, remove a curtida
+            momento.curtidas = momento.curtidas.filter(id => id !== userId);
+        } else {
+            // Se não curtiu, adiciona
+            momento.curtidas.push(userId);
+        }
+
+        await momento.save();
+        res.json({ curtidas: momento.curtidas });
     } catch (err) {
         res.status(500).send(err);
     }
