@@ -9,6 +9,9 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
+// Variáveis para o controle dos Momentos (Status)
+let tempoStatus; 
+
 function atualizarBadgeIcone() {
     const counts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
     const totalNaoLidas = Object.values(counts).reduce((a, b) => a + b, 0);
@@ -75,42 +78,88 @@ window.addEventListener("load", async () => {
     aplicarTrava("messages");
 });
 
-// --- LÓGICA DE MOMENTOS COM PRIVACIDADE ---
+// --- LÓGICA DE MOMENTOS (AGRUPADOS ESTILO WHATSAPP) ---
 
 async function loadMomentos() {
     try {
         const res = await fetch("/getMomentos");
-        const momentos = await res.json();
+        const todosMomentos = await res.json();
         const container = document.getElementById("listaMomentos");
         container.innerHTML = "";
 
-        // Lista de IDs dos seus contatos salvos para filtro
         const idsContatos = contacts.map(c => c.id);
+        const grupos = {};
 
-        momentos.forEach(m => {
+        // Agrupa as fotos por Usuário
+        todosMomentos.forEach(m => {
             const souEu = m.userId === currentUser.id;
             const ehMeuContato = idsContatos.includes(m.userId);
 
-            // FILTRO: Só renderiza se for meu ou de um amigo adicionado
             if (souEu || ehMeuContato) {
-                const item = document.createElement("div");
-                item.className = "momento-item";
-                item.onclick = () => abrirFullScreen(m.media);
-                
-                const nomeExibicao = souEu ? "Você" : m.username;
-
-                item.innerHTML = `
-                    <div class="momento-aro" style="border-color: ${souEu ? '#075e54' : '#25D366'}">
-                        <img src="${m.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img">
-                    </div>
-                    <div style="font-size: 11px; margin-top: 5px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${nomeExibicao}</div>
-                `;
-                container.appendChild(item);
+                if (!grupos[m.userId]) {
+                    grupos[m.userId] = {
+                        username: souEu ? "Você" : m.username,
+                        userPhoto: m.userPhoto,
+                        midias: [] 
+                    };
+                }
+                // Adiciona a foto na lista desse usuário (da mais antiga para a mais nova)
+                grupos[m.userId].midias.unshift(m.media);
             }
+        });
+
+        // Renderiza apenas uma bolinha por pessoa
+        Object.keys(grupos).forEach(userId => {
+            const g = grupos[userId];
+            const item = document.createElement("div");
+            item.className = "momento-item";
+            
+            // Ao clicar, abre o visualizador com TODAS as fotos desse usuário
+            item.onclick = () => abrirVisualizadorSequencial(g.midias);
+            
+            item.innerHTML = `
+                <div class="momento-aro" style="border-color: ${userId === currentUser.id ? '#075e54' : '#25D366'}">
+                    <img src="${g.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img">
+                </div>
+                <div style="font-size: 11px; margin-top: 5px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${g.username}</div>
+            `;
+            container.appendChild(item);
         });
     } catch (err) {
         console.error("Erro ao carregar momentos:", err);
     }
+}
+
+function abrirVisualizadorSequencial(listaFotos) {
+    let indice = 0;
+    const viewer = document.getElementById("fullScreenViewer");
+    const img = document.getElementById("fullScreenImage");
+    
+    const mostrar = () => {
+        if (indice >= listaFotos.length) {
+            fecharFullScreen();
+            return;
+        }
+        
+        img.src = listaFotos[indice];
+        viewer.style.display = "flex";
+        
+        // Timer de 4 segundos para mudar de foto sozinho
+        clearTimeout(tempoStatus);
+        tempoStatus = setTimeout(() => {
+            indice++;
+            mostrar();
+        }, 4000);
+    };
+
+    mostrar();
+
+    // Clique na imagem pula para a próxima
+    img.onclick = (e) => {
+        e.stopPropagation();
+        indice++;
+        mostrar();
+    };
 }
 
 async function postarNovoMomento(input) {
@@ -120,7 +169,6 @@ async function postarNovoMomento(input) {
     const reader = new FileReader();
     reader.onload = async (e) => {
         const base64 = e.target.result;
-        
         const btnCriar = document.querySelector(".add-momento");
         btnCriar.style.opacity = "0.5";
 
@@ -166,7 +214,10 @@ function abrirFullScreen(src) {
     document.getElementById("fullScreenViewer").style.display = "flex";
 }
 
-function fecharFullScreen() { document.getElementById("fullScreenViewer").style.display = "none"; }
+function fecharFullScreen() { 
+    clearTimeout(tempoStatus); // Para o contador se fechar o visualizador
+    document.getElementById("fullScreenViewer").style.display = "none"; 
+}
 
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
@@ -286,4 +337,3 @@ document.getElementById("addFriendBtn").onclick = async () => {
     localStorage.setItem("contacts", JSON.stringify(contacts));
     renderContacts();
 };
-    
