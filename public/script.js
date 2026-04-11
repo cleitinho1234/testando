@@ -30,7 +30,6 @@ window.addEventListener("load", async () => {
     
     if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
 
-    // --- NOVA FUNÇÃO: CLIQUE NA FOTO PARA MUDAR ---
     const preview = document.getElementById("profilePreview");
     const fileInput = document.getElementById("profilePic");
 
@@ -46,7 +45,6 @@ window.addEventListener("load", async () => {
             reader.readAsDataURL(file);
         }
     };
-    // ----------------------------------------------
 
     renderContacts();
     setInterval(loadMessages, 1500);
@@ -278,37 +276,38 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- LÓGICA DE INSTALAÇÃO (PWA) MELHORADA ---
+// --- LÓGICA DE INSTALAÇÃO (PWA) REVISADA ---
 let deferredPrompt;
 
+// Registra o Service Worker
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
-    .then(() => console.log("Service Worker registrado!"));
+        .then(() => console.log("Service Worker OK"))
+        .catch(err => console.log("Erro no SW:", err));
 }
 
 window.addEventListener('beforeinstallprompt', (e) => {
+    // 1. Previne o banner padrão
     e.preventDefault();
+    // 2. Guarda o evento para disparar quando o usuário clicar
     deferredPrompt = e;
+    
+    console.log("Evento de instalação capturado!");
 
-    // Checa se o usuário já está no modo "App" (instalado e aberto)
+    // 3. Verifica se não está instalado e chama o prompt
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-
     if (!isStandalone) {
-        const jaPerguntou = sessionStorage.getItem('pwaPrompt');
-
-        if (!jaPerguntou) {
-            setTimeout(() => {
-                if (confirm("Deseja instalar o Mini Zap no seu celular para acesso rápido?")) {
-                    deferredPrompt.prompt();
-                    deferredPrompt.userChoice.then((choiceResult) => {
-                        if (choiceResult.outcome === 'accepted') {
-                            console.log('Usuário aceitou a instalação');
-                        }
-                        deferredPrompt = null;
-                    });
-                }
-                sessionStorage.setItem('pwaPrompt', 'true');
-            }, 5000); 
-        }
+        // Pequeno atraso para garantir que a página carregou tudo
+        setTimeout(() => {
+            if (confirm("Baixar Mini Zap como Aplicativo?")) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('Usuário instalou o app');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        }, 3000);
     }
 });
