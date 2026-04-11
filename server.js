@@ -6,13 +6,13 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-// 🔥 LIMITES AUMENTADOS PARA FOTOS E PERFIL
-app.use(express.json({ limit: '15mb' })); 
-app.use(express.urlencoded({ limit: '15mb', extended: true }));
+// 1. LIMITES AUMENTADOS (50MB é mais seguro para vídeos curtos e fotos HD)
+app.use(express.json({ limit: '50mb' })); 
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-    maxHttpBufferSize: 1e7 // 10MB de limite no socket também
+    maxHttpBufferSize: 5e7 // Aumentado para 50MB também no Socket
 });
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -31,10 +31,12 @@ const User = mongoose.model("User", {
     photo: String
 });
 
+// 2. AJUSTE NO MODELO: Agora aceita o campo 'media'
 const Message = mongoose.model("Message", {
     fromId: String,
     toId: String,
     text: String,
+    media: Object, // <--- ADICIONADO: Para salvar {data, type}
     timestamp: { type: Number, default: Date.now }
 });
 
@@ -53,7 +55,6 @@ io.on("connection", (socket) => {
     });
 
     socket.on("updateProfileVisual", (dados) => {
-        // Envia para todos EXCETO para quem enviou
         socket.broadcast.emit("userUpdated", dados);
     });
 
@@ -67,7 +68,7 @@ io.on("connection", (socket) => {
 });
 
 // ==========================
-// Rotas API com tratamento de erros
+// Rotas API
 app.post("/user", async (req, res) => {
     try {
         const { username, photo } = req.body;
@@ -106,24 +107,34 @@ app.get("/getUser/:id", async (req, res) => {
     }
 });
 
+// 3. AJUSTE NA ROTA DE MENSAGEM: Capturar 'media' e validar corretamente
 app.post("/sendMessage", async (req, res) => {
     try {
-        const { fromId, toId, text } = req.body;
-        if(!text) return res.status(400).send("Texto vazio");
+        const { fromId, toId, text, media } = req.body;
         
-        const msg = await Message.create({ fromId, toId, text, timestamp: Date.now() });
+        // Agora permite enviar se tiver texto OU se tiver mídia
+        if(!text && !media) return res.status(400).send("Mensagem vazia");
+        
+        const msg = await Message.create({ 
+            fromId, 
+            toId, 
+            text, 
+            media, // <--- SALVANDO A MÍDIA NO MONGO
+            timestamp: Date.now() 
+        });
+        
         res.json({ success: true, msg });
     } catch (e) {
+        console.error("Erro ao enviar:", e);
         res.status(500).send("Erro ao enviar");
     }
 });
 
 app.get("/getMessages/:id", async (req, res) => {
     try {
-        // Busca mensagens onde o usuário é o remetente OU o destinatário
         const msgs = await Message.find({
             $or: [{ fromId: req.params.id }, { toId: req.params.id }]
-        }).sort({ timestamp: 1 }).limit(200); // Limite de 200 mensagens para não travar
+        }).sort({ timestamp: 1 }).limit(200);
         res.send(msgs);
     } catch (e) {
         res.status(500).send([]);
