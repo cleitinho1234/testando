@@ -43,6 +43,11 @@ app.post("/user", async (req, res) => {
     res.json(user);
 });
 
+app.put("/updateUser/:id", async (req, res) => {
+    const user = await User.findOneAndUpdate({ id: req.params.id }, req.body, { new: true });
+    res.json(user);
+});
+
 app.get("/getUser/:id", async (req, res) => {
     const user = await User.findOne({ id: req.params.id });
     res.send(user || { error: "Não encontrado" });
