@@ -13,6 +13,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 
 <style>
+  /* --- TRAVA GERAL DO APP --- */
   html, body { 
     height: 100%; 
     overflow: hidden !important; 
@@ -23,101 +24,90 @@
     overscroll-behavior-y: none !important;
   }
   
-  body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; -webkit-tap-highlight-color: transparent; }
+  body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; }
 
-  /* Estilos para a barra de Momentos */
-  #momentosContainer {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    padding: 10px 5px;
-    margin-bottom: 10px;
-    background: white;
-    border-radius: 15px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    flex-shrink: 0;
-    scrollbar-width: none; /* Esconde scroll no Firefox */
-  }
-  #momentosContainer::-webkit-scrollbar { display: none; } /* Esconde scroll no Chrome */
-
-  .momento-item {
-    flex-shrink: 0;
-    text-align: center;
-    width: 65px;
-    cursor: pointer;
+  /* BANNER DE INSTALAÇÃO */
+  #installBanner {
+    display: none; 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    background: #075e54; 
+    color: white; 
+    padding: 15px; 
+    z-index: 9999; 
+    text-align: center; 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    box-sizing: border-box;
   }
 
-  .momento-aro {
-    width: 55px;
-    height: 55px;
-    border-radius: 50%;
-    border: 2px solid #25D366;
-    padding: 2px;
-    margin: 0 auto;
+  /* PREVIEW DA FOTO (NOVO) */
+  #photoPreviewContainer {
+    display: none;
+    position: absolute;
+    bottom: 65px;
+    left: 0;
+    width: 100%;
+    background: #f0f0f0;
+    padding: 10px;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid #ccc;
+    z-index: 101;
+    box-sizing: border-box;
   }
 
-  .momento-img {
+  /* VISUALIZADOR TELA CHEIA (NOVO) */
+  #fullScreenViewer {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-
-  .add-momento {
-    border: 2px dashed #ccc !important;
-    display: flex;
+    background: black;
+    z-index: 9999;
     align-items: center;
     justify-content: center;
-    position: relative;
   }
 
-  #installBanner {
-    display: none; position: fixed; top: 0; left: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 9999; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); box-sizing: border-box;
-  }
-
-  #photoPreviewContainer {
-    display: none; position: absolute; bottom: 65px; left: 0; width: 100%; background: #f0f0f0; padding: 10px; align-items: center; gap: 10px; border-top: 1px solid #ccc; z-index: 101; box-sizing: border-box;
-  }
-
-  #fullScreenViewer {
-    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; align-items: center; justify-content: center;
-  }
-
+  /* TELA HOME E MENSAGENS */
   #home, #messages { 
-    flex: 1; overflow-y: auto !important; box-sizing: border-box; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior-y: contain !important;
+    flex: 1;
+    overflow-y: auto !important; 
+    box-sizing: border-box; 
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior-y: contain !important;
   }
 
   #home { max-width: 500px; margin: 0 auto; padding: 15px; height: 100%; display: flex; flex-direction: column; }
   .profile-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
   #profilePreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; }
-  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.2; }
-  .contact.selected { background: #d1e7dd !important; border: 1px solid #25D366; }
+  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .contact.selected { background: #d1e7dd !important; }
 
+  /* TELA CHAT */
   #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; z-index: 50; }
-  #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; position: relative; }
+  #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; }
   #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
-  #messages { padding: 10px; display: flex; flex-direction: column; }
+  #messages { padding: 10px; }
   #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; flex-shrink: 0; position: relative; }
   #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 8px; outline: none; }
-  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; }
   
-  .message { display: flex; margin: 5px 0; width: 100%; }
+  .message { display: flex; margin: 5px 0; }
   .me { justify-content: flex-end; }
-  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; position: relative; }
+  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; }
   .me .bubble { background: #dcf8c6; }
   .bubble img { max-width: 100%; border-radius: 8px; display: block; margin-top: 5px; cursor: pointer; }
   .time { font-size: 10px; color: #888; float: right; margin: 5px 0 0 10px; }
 
   .hidden { display: none; }
-  
-  #headerSelecao { 
-    display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  }
-
-  #confirmModal { 
-    display: none; position: fixed; top:0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; 
-  }
-  .modal-box { background:white; padding:20px; border-radius:10px; text-align:center; width: 80%; max-width: 300px; }
+  #headerSelecao { display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; }
+  #confirmModal { display: none; position: fixed; top:0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; }
+  .modal-box { background:white; padding:20px; border-radius:10px; text-align:center; width: 80%; }
 </style>
 </head>
 <body>
@@ -138,7 +128,7 @@
 <div id="headerSelecao">
   <div style="display:flex; align-items:center;">
     <button onclick="cancelarSelecao()" style="background:none; border:none; color:white; font-size:20px; margin-right:20px;">✕</button>
-    <span style="font-weight:bold;">Contato Selecionado</span>
+    <span style="font-weight:bold;">Selecionado</span>
   </div>
   <button onclick="abrirModal()" style="background:none; border:none; color:white; font-size:20px;">🗑️</button>
 </div>
@@ -152,19 +142,6 @@
       <button type="submit" style="background:#25D366; color:white; border:none; padding:12px 25px; border-radius:5px; font-weight:bold; cursor:pointer; width:100%;">SALVAR PERFIL</button>
     </form>
     <p style="font-size:12px; color:#666; margin-top:10px;">Seu ID: <span id="userIdDisplay" style="font-weight:bold;"></span></p>
-  </div>
-
-  <h3 style="font-size: 14px; color: #075e54; margin: 0 0 8px 5px;">Momentos</h3>
-  <div id="momentosContainer">
-      <div class="momento-item" onclick="document.getElementById('inputMomento').click()">
-          <div class="momento-aro add-momento">
-              <img id="minhaFotoMomento" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="momento-img">
-              <span style="position: absolute; bottom: -2px; right: -2px; background: #075e54; color: white; border-radius: 50%; width: 22px; height: 22px; font-weight: bold; border: 2px solid white; display: flex; align-items: center; justify-content: center;">+</span>
-          </div>
-          <div style="font-size: 11px; margin-top: 5px; color: #555;">Novo</div>
-          <input type="file" id="inputMomento" accept="image/*" style="display: none;" onchange="postarNovoMomento(this)">
-      </div>
-      <div id="listaMomentos" style="display: flex; gap: 12px;"></div>
   </div>
   
   <div style="display:flex; gap:5px; flex-shrink: 0;">
