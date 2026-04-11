@@ -42,7 +42,7 @@ function atualizarUIUsuario() {
     document.getElementById("minhaFotoMomento").src = foto;
 }
 
-// 🔥 FUNÇÃO PARA ESCOLHER FOTO DE PERFIL
+// 🔥 FUNÇÃO PARA ESCOLHER FOTO DE PERFIL AO CLICAR NA IMAGEM
 document.getElementById("profilePreview").onclick = () => {
     const input = document.createElement("input");
     input.type = "file";
@@ -51,6 +51,7 @@ document.getElementById("profilePreview").onclick = () => {
         const file = e.target.files[0];
         const reader = new FileReader();
         reader.onload = (ev) => {
+            // Atualiza localmente para pré-visualização
             currentUser.photo = ev.target.result;
             document.getElementById("profilePreview").src = currentUser.photo;
             document.getElementById("minhaFotoMomento").src = currentUser.photo;
@@ -60,14 +61,23 @@ document.getElementById("profilePreview").onclick = () => {
     input.click();
 };
 
+// 🔥 SALVAR PERFIL (NOME E FOTO) PARA TODOS OS USUÁRIOS VEREM
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
-    await fetch("/updateUser", {
+    const res = await fetch("/updateUser", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ id: currentUser.id, username: document.getElementById("username").value, photo: currentUser.photo })
+        body: JSON.stringify({ 
+            id: currentUser.id, 
+            username: document.getElementById("username").value, 
+            photo: currentUser.photo 
+        })
     });
-    alert("Perfil Salvo!");
+    const data = await res.json();
+    if(data.success) {
+        alert("Perfil atualizado com sucesso!");
+        loadMomentos(); // Atualiza a barra de momentos com a foto nova
+    }
 };
 
 // --- MOMENTOS ---
@@ -194,12 +204,23 @@ function renderContacts() {
     contacts.forEach(u => {
         const el = document.createElement("div"); el.className = "contact";
         el.innerHTML = `<img src="${u.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;"><strong>${u.username}</strong>`;
-        el.onclick = () => { currentChat = u; document.getElementById("home").style.display = "none"; document.getElementById("chatScreen").style.display = "flex"; document.getElementById("chatName").textContent = u.username; document.getElementById("chatAvatar").src = u.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'; loadMessages(); };
+        el.onclick = () => { 
+            currentChat = u; 
+            document.getElementById("home").style.display = "none"; 
+            document.getElementById("chatScreen").style.display = "flex"; 
+            document.getElementById("chatName").textContent = u.username; 
+            document.getElementById("chatAvatar").src = u.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'; 
+            loadMessages(); 
+        };
         div.appendChild(el);
     });
 }
 
-function voltar() { document.getElementById("chatScreen").style.display = "none"; document.getElementById("home").style.display = "block"; currentChat = null; }
+function voltar() { 
+    document.getElementById("chatScreen").style.display = "none"; 
+    document.getElementById("home").style.display = "block"; 
+    currentChat = null; 
+}
 
 document.getElementById("addFriendBtn").onclick = async () => {
     const id = document.getElementById("addUserId").value.trim();
@@ -210,4 +231,4 @@ document.getElementById("addFriendBtn").onclick = async () => {
     contacts.push(user); localStorage.setItem("contacts", JSON.stringify(contacts));
     renderContacts(); document.getElementById("addUserId").value = "";
 };
-                                        
+        
