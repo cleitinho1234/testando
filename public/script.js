@@ -8,8 +8,35 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let listaOnlineGlobal = [];
 let statusInterval; 
 
+// --- LÓGICA DE INSTALAÇÃO (PWA) ---
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const btnInstalar = document.getElementById('btnInstalarPWA');
+    if (btnInstalar) btnInstalar.style.display = 'block';
+});
+
+async function instalarMiniZap() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+        const btnInstalar = document.getElementById('btnInstalarPWA');
+        if (btnInstalar) btnInstalar.style.display = 'none';
+    }
+    deferredPrompt = null;
+}
+
+window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    const btnInstalar = document.getElementById('btnInstalarPWA');
+    if (btnInstalar) btnInstalar.style.display = 'none';
+});
+
+// --- INICIALIZAÇÃO ---
 window.addEventListener("load", async () => {
-    // Segurança contra IDs corrompidos
     if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
         localStorage.clear();
     }
@@ -51,7 +78,6 @@ window.addEventListener("load", async () => {
 });
 
 // --- LÓGICA DE MOMENTOS (STATUS) ---
-
 async function loadMoments() {
     try {
         const res = await fetch("/api/moments");
@@ -63,7 +89,6 @@ async function loadMoments() {
 
         const container = document.getElementById("momentsList");
         if(!container) return;
-
         container.innerHTML = "";
 
         const grupos = {};
@@ -97,7 +122,6 @@ function abrirPlayerStatus(lista) {
     viewer.style.display = "flex";
     progressContainer.innerHTML = "";
 
-    // Cria as barrinhas segmentadas para cada status
     lista.forEach(() => {
         const segment = document.createElement("div");
         segment.className = "status-segment";
@@ -109,17 +133,14 @@ function abrirPlayerStatus(lista) {
         if (idx >= lista.length) return fecharStatus();
         if (idx < 0) idx = 0;
         index = idx;
-
         img.src = lista[idx].media;
 
-        // Atualiza as barrinhas (vistas, ativa, futura)
         const segments = document.querySelectorAll(".status-segment");
         segments.forEach((seg, i) => {
             seg.classList.remove("active", "seen");
             if (i < idx) {
                 seg.classList.add("seen");
             } else if (i === idx) {
-                // Força o reinício da animação CSS
                 void seg.offsetWidth; 
                 seg.classList.add("active");
             }
@@ -129,20 +150,15 @@ function abrirPlayerStatus(lista) {
         statusInterval = setTimeout(() => play(index + 1), 5000);
     };
 
-    // Navegação por clique: Direita (próximo), Esquerda (anterior)
     viewer.onclick = (e) => {
-        if (e.target.tagName === 'BUTTON') return; // Ignora se clicar no botão de fechar
-
+        if (e.target.tagName === 'BUTTON') return;
         const larguraTela = window.innerWidth;
-        if (e.clientX > larguraTela / 2) {
-            play(index + 1);
-        } else {
-            if (index > 0) play(index - 1);
-            else play(0);
-        }
+        if (e.clientX > larguraTela / 2) play(index + 1);
+        else if (index > 0) play(index - 1);
+        else play(0);
     };
 
-    play(0); // Começa sempre do primeiro status (o mais antigo)
+    play(0);
 }
 
 function fecharStatus() {
@@ -174,7 +190,6 @@ document.getElementById("momentInput").onchange = (e) => {
 socket.on("newMoment", () => loadMoments());
 
 // --- MENSAGENS E CONTATOS ---
-
 socket.on("receiveMessage", (data) => {
     const { msg, sender } = data;
     const index = contacts.findIndex(c => c.id === sender.id);
