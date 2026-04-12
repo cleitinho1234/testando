@@ -33,6 +33,48 @@
     padding: 15px; 
   }
 
+  /* --- ESTILOS DE STATUS (MOMENTOS) --- */
+  .moment-item {
+    flex: 0 0 auto;
+    width: 65px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  .moment-item img {
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    border: 2px solid #25D366;
+    object-fit: cover;
+    padding: 2px;
+    background: white;
+  }
+  #momentProgressContainer {
+    display: flex;
+    gap: 5px;
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    position: absolute;
+    top: 0;
+  }
+  .progress-bar-bg {
+    flex: 1;
+    height: 3px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: white;
+    width: 0%;
+  }
+
+  /* --- PERFIL E CARDS --- */
   .profile-card {
     background: white;
     padding: 20px;
@@ -206,6 +248,7 @@
   .visualizer-dots { color: #8696a0; letter-spacing: 3px; font-weight: bold; flex: 1; text-align: center; }
   
   .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .contact img { width: 45px; height: 45px; border-radius: 50%; margin-right: 12px; object-fit: cover; }
   .contact.selected { background: #d1e7dd !important; }
 
   #confirmModal { 
@@ -247,6 +290,16 @@
     <p style="font-size: 14px; color: #555; margin-top: 15px;">Seu ID: <span id="userIdDisplay" style="font-weight:bold; background:#eee; padding:2px 8px; border-radius:4px;"></span></p>
   </div>
 
+  <div id="statusContainer" style="padding: 10px; background: white; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+    <div style="display: flex; align-items: center; gap: 12px; overflow-x: auto; padding-bottom: 5px;" id="momentsList">
+        <div class="moment-item" onclick="document.getElementById('momentInput').click()">
+            <div style="width: 55px; height: 55px; border-radius: 50%; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border: 2px dashed #25D366; font-size: 24px; color: #25D366;">+</div>
+            <div style="font-size: 10px; text-align: center;">Meu Status</div>
+        </div>
+    </div>
+    <input type="file" id="momentInput" accept="image/*,video/*" style="display: none;">
+  </div>
+
   <hr style="border: 0; border-top: 1px solid #ccc; margin: 20px 0;">
 
   <h3 style="color: #075e54; margin-left: 5px;">Contatos</h3>
@@ -277,9 +330,7 @@
     <div id="chatInput">
       <button id="addMediaBtn">+</button>
       <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none;">
-      
       <input type="text" id="messageText" placeholder="Mensagem" autocomplete="off">
-      
       <div class="input-actions">
         <button id="audioControlBtn">🎤</button>
         <button id="sendMessageBtn">➤</button>
@@ -290,13 +341,21 @@
       <button id="deleteAudio" style="background:none; border:none; color:#ff4d4d; font-size:22px; cursor:pointer;">🗑️</button>
       <span id="recordTimer">0:00</span>
       <div class="visualizer-dots">....................</div>
-      
       <button id="previewAudioBtn" style="display:none; background:none; border:none; color:#34b7f1; font-size:22px; cursor:pointer; margin-right:10px;">▶️</button>
-      
       <button id="pauseRecord" style="background:none; border:none; color:#00a884; font-size:22px; cursor:pointer;">⏸️</button>
       <button id="sendAudioBtn" style="background:#00a884; border:none; color:white; width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:18px;">➤</button>
     </div>
   </div>
+</div>
+
+<div id="momentViewer" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:10000; flex-direction:column;">
+    <div id="momentProgressContainer"></div>
+    <div style="display:flex; align-items:center; padding:15px; color:white; z-index: 10;">
+        <img id="momentUserPhoto" src="" style="width:40px; height:40px; border-radius:50%; margin-right:10px; object-fit: cover; border: 1px solid white;">
+        <span id="momentUserName" style="font-weight:bold; text-shadow: 1px 1px 2px black;"></span>
+        <span onclick="fecharMomentos()" style="margin-left:auto; font-size:30px; cursor:pointer; padding: 0 10px;">&times;</span>
+    </div>
+    <div id="momentContent" style="flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden;"></div>
 </div>
 
 <div id="confirmModal">
