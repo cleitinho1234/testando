@@ -138,7 +138,6 @@
     margin-left: 10px;
   }
 
-  /* Ajuste para fotos clicáveis no chat */
   .bubble img, .bubble video {
     max-width: 100%;
     max-height: 250px;
@@ -168,9 +167,10 @@
 
   #chatInputContainer { position: relative; background: #f0f0f0; padding: 10px; }
   #chatInput { display: flex; align-items: center; position: relative; }
-  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; font-size: 16px; padding-right: 50px; }
+  #chatInput input[type="text"] { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; font-size: 16px; padding-right: 50px; }
   
-  #addMediaBtn { background: none; border: none; color: #075e54; font-size: 30px; margin-right: 10px; cursor: pointer; }
+  #addMediaBtn, #addAudioFileBtn { background: none; border: none; color: #075e54; font-size: 26px; cursor: pointer; margin-right: 5px; }
+  #addAudioFileBtn { font-size: 24px; } /* Estilo específico para o ícone de música */
   
   .input-actions { position: relative; display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; margin-left: 5px; }
   
@@ -215,7 +215,6 @@
   }
   .modal-box { background: white; padding: 25px; border-radius: 15px; text-align: center; width: 85%; max-width: 300px; }
 
-  /* Estilo do Botão de Voltar da Tela Cheia */
   .btn-back-fs {
     position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.5); 
     border: none; color: white; font-size: 24px; width: 45px; height: 45px; 
@@ -279,6 +278,9 @@
     <div id="chatInput">
       <button id="addMediaBtn">+</button>
       <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none;">
+
+      <button id="addAudioFileBtn">🎵</button>
+      <input type="file" id="audioFileInput" accept="audio/*" style="display:none;">
       
       <input type="text" id="messageText" placeholder="Mensagem" autocomplete="off">
       
