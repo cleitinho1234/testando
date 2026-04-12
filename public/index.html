@@ -95,7 +95,7 @@
   }
 
   #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; }
-  #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
+  #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; }
   #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
   
   #messages { 
@@ -220,20 +220,6 @@
     border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
     z-index: 2100;
   }
-
-  /* Estilos da nova tela de chamada */
-  #incomingCallScreen {
-    display: none; 
-    position: fixed; 
-    top: 0; left: 0; 
-    width: 100%; height: 100%; 
-    background: #075e54; 
-    color: white; 
-    z-index: 10000; 
-    flex-direction: column; 
-    align-items: center; 
-    justify-content: center;
-  }
 </style>
 </head>
 <body>
@@ -273,15 +259,12 @@
 
 <div id="chatScreen">
   <div id="chatHeader">
-    <div style="display: flex; align-items: center;">
-      <button onclick="voltar()" style="background:none; border:none; color:white; font-size:20px; margin-right: 5px; cursor: pointer;">⬅</button>
-      <img id="chatAvatar">
-      <div>
-        <div id="chatName" style="font-weight:bold;"></div>
-        <div id="typingStatus" style="font-size: 12px; opacity: 0.9;">offline</div>
-      </div>
+    <button onclick="voltar()" style="background:none; border:none; color:white; font-size:20px; margin-right: 5px; cursor: pointer;">⬅</button>
+    <img id="chatAvatar">
+    <div>
+      <div id="chatName" style="font-weight:bold;"></div>
+      <div id="typingStatus" style="font-size: 12px; opacity: 0.9;">offline</div>
     </div>
-    <button onclick="iniciarChamada()" style="background:none; border:none; color:white; font-size:22px; cursor:pointer; padding: 5px 10px;">📞</button>
   </div>
   <div id="messages"></div>
 
@@ -316,21 +299,6 @@
   </div>
 </div>
 
-<div id="incomingCallScreen">
-    <img id="callerPhoto" src="" style="width:120px; height:120px; border-radius:50%; border:3px solid #25D366; margin-bottom:20px; object-fit: cover;">
-    <h2 id="callerName" style="margin: 0;">Nome</h2>
-    <p id="callStatusText" style="margin-top: 10px; opacity: 0.8;">Chamada de voz...</p>
-    
-    <div style="display:flex; gap:40px; margin-top:50px;">
-        <button onclick="recusarChamada()" style="background:#ff4d4d; border:none; border-radius:50%; width:70px; height:70px; font-size:30px; color:white; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
-        <button id="btnAceitar" onclick="aceitarChamada()" style="background:#25D366; border:none; border-radius:50%; width:70px; height:70px; font-size:30px; color:white; cursor:pointer; display:none; align-items:center; justify-content:center;">📞</button>
-    </div>
-    
-    <audio id="ringtone" loop>
-        <source src="ringtone.mp3" type="audio/mpeg">
-    </audio>
-</div>
-
 <div id="confirmModal">
   <div class="modal-box">
     <p style="font-weight: bold;">Excluir contato?</p>
@@ -347,7 +315,6 @@
     <div id="fullScreenContent" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center;"></div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="script.js"></script>
 
