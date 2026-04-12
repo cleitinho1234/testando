@@ -9,7 +9,7 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 let mediaParaEnviar = null; 
 
-// --- NOVAS VARIÁVEIS PARA ÁUDIO ---
+// --- VARIÁVEIS PARA ÁUDIO ---
 let mediaRecorder;
 let audioChunks = [];
 let audioBlob;
@@ -74,27 +74,61 @@ document.getElementById("mediaInput").onchange = (e) => {
             type: file.type.startsWith('image') ? 'image' : 'video'
         };
 
-        const container = document.getElementById("mediaPreviewContainer");
-        const content = document.getElementById("mediaPreviewContent");
-        
-        container.style.display = "flex";
-        
-        if (mediaParaEnviar.type === 'image') {
-            content.innerHTML = `<img src="${mediaParaEnviar.data}">`;
-        } else {
-            content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
-        }
-
-        audioBtn.style.display = "none";
-        sendTextBtn.style.display = "flex";
+        exibirPreviewMedia();
     };
     reader.readAsDataURL(file);
 };
+
+// --- NOVA LÓGICA: ENVIAR ARQUIVO DE ÁUDIO/MÚSICA ---
+document.getElementById("addAudioFileBtn").onclick = () => {
+    document.getElementById("audioFileInput").click();
+};
+
+document.getElementById("audioFileInput").onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        mediaParaEnviar = {
+            data: ev.target.result,
+            type: 'audio',
+            name: file.name
+        };
+        exibirPreviewMedia();
+    };
+    reader.readAsDataURL(file);
+};
+
+function exibirPreviewMedia() {
+    const container = document.getElementById("mediaPreviewContainer");
+    const content = document.getElementById("mediaPreviewContent");
+    
+    container.style.display = "flex";
+    
+    if (mediaParaEnviar.type === 'image') {
+        content.innerHTML = `<img src="${mediaParaEnviar.data}">`;
+    } else if (mediaParaEnviar.type === 'video') {
+        content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
+    } else if (mediaParaEnviar.type === 'audio') {
+        content.innerHTML = `
+            <div style="display:flex; align-items:center; background:#fff; padding:5px 10px; border-radius:8px; border:1px solid #ddd;">
+                <span style="font-size:20px; margin-right:10px;">🎵</span>
+                <span style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    ${mediaParaEnviar.name}
+                </span>
+            </div>`;
+    }
+
+    audioBtn.style.display = "none";
+    sendTextBtn.style.display = "flex";
+}
 
 function cancelarEnvioMedia() {
     mediaParaEnviar = null;
     document.getElementById("mediaPreviewContainer").style.display = "none";
     document.getElementById("mediaInput").value = "";
+    document.getElementById("audioFileInput").value = "";
 
     if (messageInput.value.trim() === "") {
         audioBtn.style.display = "flex";
@@ -102,7 +136,7 @@ function cancelarEnvioMedia() {
     }
 }
 
-// --- LÓGICA DO MICROFONE (ÁUDIO) ---
+// --- LÓGICA DO MICROFONE (GRAVAÇÃO) ---
 const audioBtn = document.getElementById("audioControlBtn");
 const messageInput = document.getElementById("messageText");
 const sendTextBtn = document.getElementById("sendMessageBtn");
@@ -223,7 +257,7 @@ function pararMicrofone() {
     }
 }
 
-// --- RESTANTE DAS FUNÇÕES ---
+// --- RESTANTE DAS FUNÇÕES (SOCKETS, CONTACTS, ETC) ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -364,7 +398,6 @@ function addMessage(m) {
     let mediaHtml = "";
     if (m.media) {
         if (m.media.type === 'image') {
-            // Chamada para abrir fullscreen ao clicar
             mediaHtml = `<img src="${m.media.data}" onclick="abrirFullscreen('${m.media.data}', 'image')" style="cursor:pointer;">`; 
         } else if (m.media.type === 'video') {
             mediaHtml = `<video src="${m.media.data}" controls onclick="abrirFullscreen('${m.media.data}', 'video')" style="cursor:pointer;"></video>`;
@@ -520,7 +553,6 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- FUNÇÕES DE TELA CHEIA (FULLSCREEN) ---
 function abrirFullscreen(src, type) {
     const modal = document.getElementById("fullScreenModal");
     const content = document.getElementById("fullScreenContent");
@@ -541,13 +573,12 @@ function fecharFullscreen() {
     modal.style.display = "none";
 }
 
-// --- PWA ---
-let deferredPrompt;
-const installBanner = document.getElementById("installBanner");
-
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(err => console.log(err));
 }
+
+let deferredPrompt;
+const installBanner = document.getElementById("installBanner");
 
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
