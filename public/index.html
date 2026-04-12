@@ -138,6 +138,7 @@
     margin-left: 10px;
   }
 
+  /* Ajuste para fotos clicáveis no chat */
   .bubble img, .bubble video {
     max-width: 100%;
     max-height: 250px;
@@ -145,6 +146,7 @@
     display: block;
     margin: 5px 0;
     object-fit: cover;
+    cursor: pointer;
   }
 
   audio { height: 35px; max-width: 210px; margin: 5px 0; }
@@ -164,14 +166,12 @@
     border: 2px solid #25D366;
   }
 
-  /* --- AJUSTE DOS BOTÕES DE ENVIO --- */
   #chatInputContainer { position: relative; background: #f0f0f0; padding: 10px; }
   #chatInput { display: flex; align-items: center; position: relative; }
   #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; font-size: 16px; padding-right: 50px; }
   
   #addMediaBtn { background: none; border: none; color: #075e54; font-size: 30px; margin-right: 10px; cursor: pointer; }
   
-  /* Container para os botões que ficam na direita */
   .input-actions { position: relative; display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; margin-left: 5px; }
   
   #audioControlBtn { background: none; border: none; font-size: 24px; cursor: pointer; color: #555; display: flex; }
@@ -186,13 +186,12 @@
     border-radius: 50%; 
     font-size: 20px; 
     cursor: pointer; 
-    display: none; /* Controlado pelo JS */
+    display: none; 
     align-items: center; 
     justify-content: center;
     z-index: 2;
   }
 
-  /* Barra de Gravação */
   #recordBar {
     display: none;
     position: absolute;
@@ -215,6 +214,14 @@
     background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center; 
   }
   .modal-box { background: white; padding: 25px; border-radius: 15px; text-align: center; width: 85%; max-width: 300px; }
+
+  /* Estilo do Botão de Voltar da Tela Cheia */
+  .btn-back-fs {
+    position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.5); 
+    border: none; color: white; font-size: 24px; width: 45px; height: 45px; 
+    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    z-index: 2100;
+  }
 </style>
 </head>
 <body>
@@ -303,6 +310,11 @@
         <button onclick="fecharModal()" style="background:#eee; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor: pointer;">Cancelar</button>
     </div>
   </div>
+</div>
+
+<div id="fullScreenModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:2000; justify-content:center; align-items:center;">
+    <button class="btn-back-fs" onclick="fecharFullscreen()">⬅</button>
+    <div id="fullScreenContent" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center;"></div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
