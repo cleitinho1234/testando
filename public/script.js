@@ -19,8 +19,8 @@ const ringtone = document.getElementById("ringtone");
 let chamandoAgora = null;
 
 // VARIÁVEIS WebRTC (VOZ EM TEMPO REAL)
-let peer;
-let streamLocal;
+let peer = null;
+let streamLocal = null;
 
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
@@ -68,40 +68,47 @@ window.addEventListener("load", async () => {
 
 async function obterMediaPrivado() {
     try {
+        // Garante que não há stream antiga rodando
+        if (streamLocal) {
+            streamLocal.getTracks().forEach(t => t.stop());
+        }
         streamLocal = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         return streamLocal;
     } catch (err) {
-        alert("Erro ao acessar microfone para chamada: " + err);
+        console.error("Erro ao acessar microfone:", err);
+        alert("Erro ao acessar microfone para chamada. Verifique as permissões.");
     }
 }
 
 async function iniciarChamada() {
     if (!currentChat) return;
     
-    // 1. Liga o microfone
     await obterMediaPrivado();
+    if (!streamLocal) return;
 
-    // 2. Cria a conexão Peer (Iniciador)
+    // Se já existir um peer antigo, destrói
+    if (peer) peer.destroy();
+
     peer = new SimplePeer({ initiator: true, trickle: false, stream: streamLocal });
 
-    // 3. Quando gerar o sinal de áudio, envia pelo socket
     peer.on('signal', sinal => {
         const dadosChamada = {
             de: currentUser.id,
             deNome: currentUser.username,
             deFoto: currentUser.photo,
             para: currentChat.id,
-            sinal: sinal // Envia os dados técnicos da conexão
+            sinal: sinal 
         };
         socket.emit("ligarPara", dadosChamada);
     });
 
-    // 4. Quando receber a voz do outro, toca no alto-falante
     peer.on('stream', streamRemota => {
         const audioRemoto = new Audio();
         audioRemoto.srcObject = streamRemota;
         audioRemoto.play();
     });
+
+    peer.on('error', err => console.error('Erro no Peer:', err));
     
     abrirTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
     document.getElementById("btnAceitar").style.display = "none";
@@ -115,14 +122,12 @@ socket.on("recebendoLigacao", (dados) => {
     ringtone.play().catch(e => console.log("Áudio bloqueado"));
 });
 
-// Escuta quando o outro lado aceita a chamada
 socket.on("chamadaAceita", (dados) => {
     ringtone.pause();
     ringtone.currentTime = 0;
     document.getElementById("callStatusText").textContent = "Em chamada...";
     
-    // Conecta o áudio com o sinal que veio de volta
-    if (dados && dados.sinal) {
+    if (dados && dados.sinal && peer) {
         peer.signal(dados.sinal);
     }
 });
@@ -134,25 +139,22 @@ async function aceitarChamada() {
     document.getElementById("btnAceitar").style.display = "none";
     
     if(chamandoAgora) {
-        // 1. Liga o microfone de quem atendeu
         await obterMediaPrivado();
+        if (!streamLocal) return;
 
-        // 2. Cria o Peer (Receptor)
+        if (peer) peer.destroy();
         peer = new SimplePeer({ initiator: false, trickle: false, stream: streamLocal });
 
-        // 3. Gera o sinal de volta para quem ligou
         peer.on('signal', sinal => {
             socket.emit("aceitarChamada", { para: chamandoAgora.de, sinal: sinal });
         });
 
-        // 4. Recebe o som de quem ligou
         peer.on('stream', streamRemota => {
             const audioRemoto = new Audio();
             audioRemoto.srcObject = streamRemota;
             audioRemoto.play();
         });
 
-        // 5. Processa o sinal de quem ligou para fechar a conexão
         peer.signal(chamandoAgora.sinal);
     }
 }
@@ -162,9 +164,14 @@ function recusarChamada() {
     ringtone.currentTime = 0;
     document.getElementById("incomingCallScreen").style.display = "none";
     
-    // Para o microfone se estiver ligado
     if (streamLocal) {
         streamLocal.getTracks().forEach(t => t.stop());
+        streamLocal = null;
+    }
+
+    if (peer) {
+        peer.destroy();
+        peer = null;
     }
 
     if(chamandoAgora) {
@@ -179,8 +186,14 @@ socket.on("chamadaEncerrada", () => {
     ringtone.pause();
     ringtone.currentTime = 0;
     document.getElementById("incomingCallScreen").style.display = "none";
+    
     if (streamLocal) {
         streamLocal.getTracks().forEach(t => t.stop());
+        streamLocal = null;
+    }
+    if (peer) {
+        peer.destroy();
+        peer = null;
     }
     chamandoAgora = null;
 });
@@ -207,7 +220,6 @@ document.getElementById("mediaInput").onchange = (e) => {
             data: ev.target.result,
             type: file.type.startsWith('image') ? 'image' : 'video'
         };
-
         exibirPreviewMedia();
     };
     reader.readAsDataURL(file);
@@ -223,14 +235,6 @@ function exibirPreviewMedia() {
         content.innerHTML = `<img src="${mediaParaEnviar.data}">`;
     } else if (mediaParaEnviar.type === 'video') {
         content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
-    } else if (mediaParaEnviar.type === 'audio') {
-        content.innerHTML = `
-            <div style="display:flex; align-items:center; background:#fff; padding:5px 10px; border-radius:8px; border:1px solid #ddd;">
-                <span style="font-size:20px; margin-right:10px;">🎵</span>
-                <span style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                    ${mediaParaEnviar.name || 'Áudio Externo'}
-                </span>
-            </div>`;
     }
 
     audioBtn.style.display = "none";
@@ -377,7 +381,7 @@ document.getElementById("sendAudioBtn").onclick = async () => {
     }, 200);
 };
 
-// --- RESTANTE DAS FUNÇÕES (Sincronização e UI) ---
+// --- SINCRONIZAÇÃO E UI ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -426,8 +430,6 @@ function renderContacts() {
 
         const contactEl = document.createElement("div");
         contactEl.className = `contact ${isSelected ? 'selected' : ''}`;
-        contactEl.style.display = "flex";
-        contactEl.style.alignItems = "center";
         contactEl.innerHTML = `
             <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
             <div style="flex:1;">
@@ -499,10 +501,7 @@ async function loadMessages() {
     if (container.children.length !== filtered.length) {
         container.innerHTML = "";
         filtered.forEach(addMessage);
-        
-        if (estaNoFinal) {
-            container.scrollTop = container.scrollHeight;
-        }
+        if (estaNoFinal) container.scrollTop = container.scrollHeight;
     }
 }
 
@@ -533,10 +532,7 @@ function addMessage(m) {
 
     if (textoOriginal.length > LIMITE) {
         const resumo = textoOriginal.substring(0, LIMITE);
-        textoHTML = `
-            <span class="resumo">${resumo}...</span>
-            <span class="completo" style="display:none">${textoOriginal}</span>
-        `;
+        textoHTML = `<span class="resumo">${resumo}...</span><span class="completo" style="display:none">${textoOriginal}</span>`;
         botaoLerMais = `<div class="btn-ler-mais" style="color:#007bff; cursor:pointer; font-weight:bold; font-size:13px; margin-top:5px;">Ler mais</div>`;
     }
 
@@ -557,7 +553,6 @@ function addMessage(m) {
             btn.remove();
         };
     }
-
     container.appendChild(div);
 }
 
@@ -571,7 +566,6 @@ function abrirChat(user) {
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
-    
     document.getElementById("messages").innerHTML = "";
     loadMessages();
 }
@@ -587,16 +581,9 @@ function voltar() {
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
-    
     if((!text && !mediaParaEnviar) || !currentChat) return;
     
-    const payload = { 
-        fromId: currentUser.id, 
-        toId: currentChat.id, 
-        text: text,
-        media: mediaParaEnviar 
-    };
-
+    const payload = { fromId: currentUser.id, toId: currentChat.id, text: text, media: mediaParaEnviar };
     input.value = "";
     audioBtn.style.display = "flex";
     sendTextBtn.style.display = "none";
@@ -607,10 +594,7 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify(payload)
     });
-    
-    await loadMessages();
-    const container = document.getElementById("messages");
-    container.scrollTop = container.scrollHeight;
+    loadMessages();
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
@@ -639,11 +623,9 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             headers: {"Content-Type":"application/json"},
             body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoFinal })
         });
-        
         if (res.ok) {
             currentUser.username = nome; 
             currentUser.photo = fotoFinal;
-            if (fotoFinal) document.getElementById("profilePreview").src = fotoFinal;
             socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
             alert("Perfil Salvo!");
             renderContacts();
@@ -662,8 +644,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
                 canvas.height = img.height * scaleSize;
                 const ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
-                salvar(compressedBase64);
+                salvar(canvas.toDataURL("image/jpeg", 0.7));
             };
             img.src = ev.target.result;
         };
@@ -676,21 +657,14 @@ document.getElementById("profileForm").onsubmit = async (e) => {
 function abrirFullscreen(src, type) {
     const modal = document.getElementById("fullScreenModal");
     const content = document.getElementById("fullScreenContent");
-    
-    if (type === 'image') {
-        content.innerHTML = `<img src="${src}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
-    } else if (type === 'video') {
-        content.innerHTML = `<video src="${src}" controls autoplay style="max-width:100%; max-height:100%;"></video>`;
-    }
-    
+    if (type === 'image') content.innerHTML = `<img src="${src}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+    else if (type === 'video') content.innerHTML = `<video src="${src}" controls autoplay style="max-width:100%; max-height:100%;"></video>`;
     modal.style.display = "flex";
 }
 
 function fecharFullscreen() {
-    const modal = document.getElementById("fullScreenModal");
-    const content = document.getElementById("fullScreenContent");
-    content.innerHTML = ""; 
-    modal.style.display = "none";
+    document.getElementById("fullScreenContent").innerHTML = ""; 
+    document.getElementById("fullScreenModal").style.display = "none";
 }
 
 if ('serviceWorker' in navigator) {
@@ -703,9 +677,7 @@ const installBanner = document.getElementById("installBanner");
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    if (!window.matchMedia('(display-mode: standalone)').matches) {
-        installBanner.style.display = "block";
-    }
+    if (!window.matchMedia('(display-mode: standalone)').matches) installBanner.style.display = "block";
 });
 
 installBanner.onclick = () => {
