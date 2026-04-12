@@ -119,7 +119,7 @@ function abrirPlayerStatus(lista) {
             if (i < idx) {
                 seg.classList.add("seen");
             } else if (i === idx) {
-                // Truque para reiniciar a animação do CSS
+                // Força o reinício da animação CSS
                 void seg.offsetWidth; 
                 seg.classList.add("active");
             }
@@ -129,12 +129,20 @@ function abrirPlayerStatus(lista) {
         statusInterval = setTimeout(() => play(index + 1), 5000);
     };
 
-    img.onclick = (e) => {
-        if (e.clientX > window.innerWidth / 2) play(index + 1);
-        else play(index - 1);
+    // Navegação por clique: Direita (próximo), Esquerda (anterior)
+    viewer.onclick = (e) => {
+        if (e.target.tagName === 'BUTTON') return; // Ignora se clicar no botão de fechar
+
+        const larguraTela = window.innerWidth;
+        if (e.clientX > larguraTela / 2) {
+            play(index + 1);
+        } else {
+            if (index > 0) play(index - 1);
+            else play(0);
+        }
     };
 
-    play(0); // Começa sempre do primeiro (o mais antigo)
+    play(0); // Começa sempre do primeiro status (o mais antigo)
 }
 
 function fecharStatus() {
