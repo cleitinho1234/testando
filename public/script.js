@@ -214,11 +214,12 @@ async function loadMessages() {
     }
 }
 
-// --- FUNÇÃO ATUALIZADA COM LER MAIS E QUEBRA DE LINHA ---
+// --- FUNÇÃO CORRIGIDA PARA COMBINAR COM O NOVO CSS ---
 function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+    
     const date = new Date(m.timestamp);
     const hora = date.getHours().toString().padStart(2, '0');
     const min = date.getMinutes().toString().padStart(2, '0');
@@ -232,11 +233,10 @@ function addMessage(m) {
         }
     }
 
-    // LÓGICA DE TEXTO LONGO (LER MAIS)
     let textoOriginal = m.text || "";
     let textoHTML = textoOriginal;
     let botaoLerMais = "";
-    const LIMITE = 400; // Define o tamanho máximo antes de cortar
+    const LIMITE = 400; 
 
     if (textoOriginal.length > LIMITE) {
         const resumo = textoOriginal.substring(0, LIMITE);
@@ -247,16 +247,16 @@ function addMessage(m) {
         botaoLerMais = `<div class="btn-ler-mais" style="color:#007bff; cursor:pointer; font-weight:bold; font-size:13px; margin-top:5px;">Ler mais</div>`;
     }
 
+    // Estrutura atualizada para fit-content
     div.innerHTML = `
         <div class="bubble">
             ${mediaHtml}
-            <div class="msg-body" style="word-wrap: break-word;">${textoHTML}</div>
+            <div class="msg-body">${textoHTML}</div>
             ${botaoLerMais}
             <span class="time">${hora}:${min}</span>
         </div>
     `;
 
-    // Evento para o botão Ler Mais
     if (botaoLerMais) {
         const btn = div.querySelector(".btn-ler-mais");
         btn.onclick = () => {
