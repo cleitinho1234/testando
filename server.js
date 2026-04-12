@@ -55,21 +55,22 @@ io.on("connection", (socket) => {
         console.log(`🚀 Usuário ${userId} online.`);
     });
 
-    // --- LÓGICA DE LIGAÇÃO (ATUALIZADA) ---
+    // --- LÓGICA DE LIGAÇÃO E VOZ (ATUALIZADA) ---
     
     // Escuta o sinal de ligação e repassa para o destino
     socket.on("ligarPara", (dados) => {
         const socketDestino = usuariosOnline[dados.para];
         if (socketDestino) {
+            // Repassa os dados incluindo o 'sinal' do WebRTC
             io.to(socketDestino).emit("recebendoLigacao", dados);
         }
     });
 
-    // NOVO: Escuta quando alguém ATENDE e avisa quem ligou
+    // Escuta quando alguém ATENDE e avisa quem ligou, enviando o sinal de volta
     socket.on("aceitarChamada", (dados) => {
         const socketDestino = usuariosOnline[dados.para];
         if (socketDestino) {
-            io.to(socketDestino).emit("chamadaAceita");
+            io.to(socketDestino).emit("chamadaAceita", { sinal: dados.sinal });
         }
     });
 
@@ -78,6 +79,17 @@ io.on("connection", (socket) => {
         const socketDestino = usuariosOnline[dados.para];
         if (socketDestino) {
             io.to(socketDestino).emit("chamadaEncerrada");
+        }
+    });
+
+    // Evento genérico para troca de sinais WebRTC (caso precise durante a chamada)
+    socket.on("enviarSinal", (dados) => {
+        const socketDestino = usuariosOnline[dados.para];
+        if (socketDestino) {
+            io.to(socketDestino).emit("receberSinal", {
+                sinal: dados.sinal,
+                de: socket.userId
+            });
         }
     });
 
