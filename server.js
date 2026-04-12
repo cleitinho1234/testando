@@ -64,3 +64,4 @@ app.get("/getMessages/:id", async (req, res) => {
 });
 
 server.listen(3000, () => console.log("Rodando na 3000"));
+        
