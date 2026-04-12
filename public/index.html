@@ -107,7 +107,6 @@
     overflow-x: hidden;
   }
   
-  /* --- AJUSTE NAS BOLHAS (PARA NÃO FICAR HORRÍVEL) --- */
   .message { display: flex; margin: 5px 0; width: 100%; }
   .me { justify-content: flex-end; }
   .other { justify-content: flex-start; }
@@ -115,7 +114,7 @@
   .bubble { 
     padding: 8px 12px; 
     border-radius: 10px; 
-    width: fit-content; /* A caixa segue o tamanho do texto */
+    width: fit-content; 
     max-width: 80%; 
     position: relative; 
     box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
@@ -139,7 +138,6 @@
     margin-left: 10px;
   }
 
-  /* --- ÁREA DE MÍDIA --- */
   .bubble img, .bubble video {
     max-width: 100%;
     max-height: 250px;
@@ -149,7 +147,9 @@
     object-fit: cover;
   }
 
-  /* --- Pré-visualização --- */
+  /* --- Estilo para Áudios no Chat --- */
+  audio { height: 35px; max-width: 210px; margin: 5px 0; }
+
   #mediaPreviewContainer {
     display: none;
     padding: 10px;
@@ -165,19 +165,30 @@
     border: 2px solid #25D366;
   }
 
-  #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; }
-  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; }
+  /* --- INPUT DE CHAT E BARRA DE GRAVAÇÃO --- */
+  #chatInputContainer { position: relative; background: #f0f0f0; padding: 10px; }
   
-  #addMediaBtn {
-    background: none;
-    border: none;
-    color: #075e54;
-    font-size: 30px;
-    margin-right: 10px;
-    cursor: pointer;
-  }
+  #chatInput { display: flex; align-items: center; }
+  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; font-size: 16px; }
+  
+  #addMediaBtn { background: none; border: none; color: #075e54; font-size: 30px; margin-right: 10px; cursor: pointer; }
+  #audioControlBtn { background: none; border: none; font-size: 24px; margin-left: 8px; cursor: pointer; color: #555; }
+  #sendMessageBtn { margin-left: 8px; width: 45px; height: 45px; border: none; background: #075e54; color: white; border-radius: 50%; font-size: 20px; cursor: pointer; display: none; }
 
-  #sendMessageBtn { margin-left: 8px; width: 45px; height: 45px; border: none; background: #075e54; color: white; border-radius: 50%; font-size: 20px; cursor: pointer; }
+  /* Barra de Gravação (Sobrepõe o Input) */
+  #recordBar {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: #121b22;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+    box-sizing: border-box;
+    z-index: 10;
+  }
+  #recordTimer { color: white; font-family: monospace; font-weight: bold; font-size: 16px; }
+  .visualizer-dots { color: #8696a0; letter-spacing: 3px; font-weight: bold; flex: 1; text-align: center; }
   
   .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   .contact.selected { background: #d1e7dd !important; }
@@ -242,12 +253,24 @@
     <button onclick="cancelarEnvioMedia()" style="background:#d9534f; color:white; border:none; border-radius:50%; width:35px; height:35px; font-weight:bold; cursor:pointer;">✕</button>
   </div>
 
-  <div id="chatInput">
-    <button id="addMediaBtn">+</button>
-    <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none;">
-    
-    <input type="text" id="messageText" placeholder="Mensagem">
-    <button id="sendMessageBtn">➤</button>
+  <div id="chatInputContainer">
+    <div id="chatInput">
+      <button id="addMediaBtn">+</button>
+      <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none;">
+      
+      <input type="text" id="messageText" placeholder="Mensagem" autocomplete="off">
+      
+      <button id="audioControlBtn">🎤</button>
+      <button id="sendMessageBtn">➤</button>
+    </div>
+
+    <div id="recordBar">
+      <button id="deleteAudio" style="background:none; border:none; color:#ff4d4d; font-size:22px; cursor:pointer;">🗑️</button>
+      <span id="recordTimer">0:00</span>
+      <div class="visualizer-dots">....................</div>
+      <button id="pauseRecord" style="background:none; border:none; color:#00a884; font-size:22px; cursor:pointer;">⏸️</button>
+      <button id="sendAudioBtn" style="background:#00a884; border:none; color:white; width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:18px;">➤</button>
+    </div>
   </div>
 </div>
 
@@ -264,26 +287,6 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="script.js"></script>
-
-<script>
-  const previewImg = document.getElementById('profilePreview');
-  const fileInp = document.getElementById('profilePic');
-
-  previewImg.addEventListener('click', () => {
-    fileInp.click();
-  });
-
-  fileInp.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        previewImg.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-</script>
 
 </body>
 </html>
