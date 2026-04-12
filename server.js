@@ -17,8 +17,14 @@ app.use(express.static("public"));
 mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZapV2")
     .then(() => console.log("✅ Banco de Dados conectado!"));
 
-// Schemas
-const User = mongoose.model("User", { id: String, username: String, photo: String });
+// Schemas Atualizados com deviceId
+const User = mongoose.model("User", { 
+    id: String, 
+    username: String, 
+    photo: String,
+    deviceId: String // Novo campo para persistência
+});
+
 const Message = mongoose.model("Message", { fromId: String, toId: String, text: String, timestamp: Number });
 const Moment = mongoose.model("Moment", { userId: String, username: String, userPhoto: String, media: String, timestamp: Number });
 
@@ -45,10 +51,29 @@ io.on("connection", (socket) => {
 
 // --- ROTAS DE USUÁRIO ---
 
+// Criar usuário (Agora salvando o deviceId)
 app.post("/api/user", async (req, res) => {
-    const id = Math.floor(1000 + Math.random() * 9000).toString();
-    const user = await User.create({ id, ...req.body });
-    res.json(user);
+    try {
+        const id = Math.floor(1000 + Math.random() * 9000).toString();
+        const user = await User.create({ id, ...req.body });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: "Erro ao criar usuário" });
+    }
+});
+
+// 🔥 NOVA ROTA: Recuperar conta pelo ID do Dispositivo
+app.get("/api/recover-by-device/:deviceId", async (req, res) => {
+    try {
+        const user = await User.findOne({ deviceId: req.params.deviceId });
+        if (user) {
+            res.json(user);
+        } else {
+            res.status(404).json({ error: "Nenhuma conta vinculada a este dispositivo" });
+        }
+    } catch (err) {
+        res.status(500).json({ error: "Erro na recuperação" });
+    }
 });
 
 app.post("/api/saveProfile", async (req, res) => {
@@ -72,14 +97,12 @@ app.get("/api/user/:id", async (req, res) => {
 
 // --- ROTA DE MOMENTOS (STATUS) ---
 
-// Postar um novo momento
 app.post("/api/moments", async (req, res) => {
     try {
         const novoMomento = await Moment.create({
             ...req.body,
             timestamp: Date.now()
         });
-        // Avisa a todos os usuários que há um novo status no ar
         io.emit("newMoment", novoMomento);
         res.json(novoMomento);
     } catch (err) {
@@ -87,7 +110,6 @@ app.post("/api/moments", async (req, res) => {
     }
 });
 
-// Buscar momentos das últimas 24 horas
 app.get("/api/moments", async (req, res) => {
     const umDiaAtras = Date.now() - (24 * 60 * 60 * 1000);
     try {
