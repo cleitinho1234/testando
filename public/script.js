@@ -170,7 +170,6 @@ async function loadMessages() {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
             
-            // Lógica para mensagens recebidas
             if (m.toId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.fromId);
                 if (index === -1) {
@@ -182,12 +181,10 @@ async function loadMessages() {
                     contacts.unshift(contatoMovido);
                 }
 
-                // CORREÇÃO DO CONTADOR: Aumenta se o chat dessa pessoa não estiver aberto
                 if (!currentChat || currentChat.id != m.fromId) {
                     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
                 }
             } 
-            // Lógica para mensagens enviadas por mim (para mover contato ao topo)
             else if (m.fromId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.toId);
                 if (index !== -1) {
@@ -217,6 +214,7 @@ async function loadMessages() {
     }
 }
 
+// --- FUNÇÃO ATUALIZADA COM LER MAIS E QUEBRA DE LINHA ---
 function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
@@ -234,19 +232,46 @@ function addMessage(m) {
         }
     }
 
+    // LÓGICA DE TEXTO LONGO (LER MAIS)
+    let textoOriginal = m.text || "";
+    let textoHTML = textoOriginal;
+    let botaoLerMais = "";
+    const LIMITE = 400; // Define o tamanho máximo antes de cortar
+
+    if (textoOriginal.length > LIMITE) {
+        const resumo = textoOriginal.substring(0, LIMITE);
+        textoHTML = `
+            <span class="resumo">${resumo}...</span>
+            <span class="completo" style="display:none">${textoOriginal}</span>
+        `;
+        botaoLerMais = `<div class="btn-ler-mais" style="color:#007bff; cursor:pointer; font-weight:bold; font-size:13px; margin-top:5px;">Ler mais</div>`;
+    }
+
     div.innerHTML = `
         <div class="bubble">
             ${mediaHtml}
-            ${m.text ? `<div>${m.text}</div>` : ""}
+            <div class="msg-body" style="word-wrap: break-word;">${textoHTML}</div>
+            ${botaoLerMais}
             <span class="time">${hora}:${min}</span>
         </div>
     `;
+
+    // Evento para o botão Ler Mais
+    if (botaoLerMais) {
+        const btn = div.querySelector(".btn-ler-mais");
+        btn.onclick = () => {
+            div.querySelector(".resumo").style.display = "none";
+            div.querySelector(".completo").style.display = "inline";
+            btn.remove();
+        };
+    }
+
     container.appendChild(div);
 }
 
 function abrirChat(user) {
     currentChat = user;
-    unreadCounts[user.id] = 0; // Limpa notificações ao abrir
+    unreadCounts[user.id] = 0; 
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
@@ -255,7 +280,6 @@ function abrirChat(user) {
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
-    // Limpar mensagens antigas da tela e carregar as novas
     document.getElementById("messages").innerHTML = "";
     loadMessages();
 }
@@ -272,7 +296,6 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
     
-    // Agora aceita enviar se houver texto OU mídia
     if((!text && !mediaParaEnviar) || !currentChat) return;
     
     const payload = { 
