@@ -84,6 +84,10 @@ document.getElementById("mediaInput").onchange = (e) => {
         } else {
             content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
         }
+
+        // MOSTRAR botão de enviar ao selecionar mídia
+        audioBtn.style.display = "none";
+        sendTextBtn.style.display = "flex";
     };
     reader.readAsDataURL(file);
 };
@@ -92,6 +96,12 @@ function cancelarEnvioMedia() {
     mediaParaEnviar = null;
     document.getElementById("mediaPreviewContainer").style.display = "none";
     document.getElementById("mediaInput").value = "";
+
+    // SE NÃO HOUVER TEXTO, voltar o microfone ao cancelar mídia
+    if (messageInput.value.trim() === "") {
+        audioBtn.style.display = "flex";
+        sendTextBtn.style.display = "none";
+    }
 }
 
 // --- LÓGICA DO MICROFONE (ÁUDIO) ---
@@ -101,10 +111,10 @@ const sendTextBtn = document.getElementById("sendMessageBtn");
 const recordBar = document.getElementById("recordBar");
 const previewAudioBtn = document.getElementById("previewAudioBtn");
 
-// CORREÇÃO: Troca Mic por Seta ao digitar de forma limpa
 messageInput.oninput = () => {
     const temTexto = messageInput.value.trim() !== "";
-    if (temTexto) {
+    // Se tiver texto OU mídia pendente, mostra o botão de enviar
+    if (temTexto || mediaParaEnviar) {
         audioBtn.style.display = "none";
         sendTextBtn.style.display = "flex";
     } else {
@@ -438,7 +448,7 @@ document.getElementById("sendMessageBtn").onclick = async () => {
 
     input.value = "";
     
-    // CORREÇÃO: Resetar botões após enviar
+    // RESETAR botões após enviar
     audioBtn.style.display = "flex";
     sendTextBtn.style.display = "none";
 
