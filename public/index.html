@@ -123,6 +123,29 @@
   .me .bubble { background: #dcf8c6; }
   .badge { background: #25D366; color: white; border-radius: 50%; padding: 2px 8px; font-size: 12px; margin-left: auto; font-weight: bold; }
 
+  /* Estilo do Botão de Instalar */
+  #btnInstalarPWA {
+    display: none;
+    width: 100%;
+    background: #075e54;
+    color: white;
+    border: none;
+    padding: 15px;
+    border-radius: 12px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    font-size: 14px;
+    animation: bounce 2s infinite;
+  }
+
+  @keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+    40% {transform: translateY(-5px);}
+    60% {transform: translateY(-3px);}
+  }
+
   .hidden { display: none; }
   #headerSelecao { display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; }
   #confirmModal { display: none; position: fixed; top:0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; }
@@ -145,6 +168,10 @@
 </div>
 
 <div id="home">
+  <button id="btnInstalarPWA" onclick="instalarMiniZap()">
+    📥 INSTALAR MINI-ZAP NO CELULAR
+  </button>
+
   <div class="profile-card">
     <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('profilePic').click()">
     <form id="profileForm">
