@@ -6,13 +6,13 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-// 1. LIMITES AUMENTADOS (50MB é mais seguro para vídeos curtos e fotos HD)
+// 1. LIMITES AUMENTADOS
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-    maxHttpBufferSize: 5e7 // Aumentado para 50MB também no Socket
+    maxHttpBufferSize: 5e7 // 50MB
 });
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -31,28 +31,49 @@ const User = mongoose.model("User", {
     photo: String
 });
 
-// 2. AJUSTE NO MODELO: Agora aceita o campo 'media'
 const Message = mongoose.model("Message", {
     fromId: String,
     toId: String,
     text: String,
-    media: Object, // <--- ADICIONADO: Para salvar {data, type}
+    media: Object,
     timestamp: { type: Number, default: Date.now }
 });
 
 // ==========================
-// Lógica de Status em Tempo Real
+// Lógica de Status e Chamadas em Tempo Real
 let usuariosOnline = {}; 
 
 io.on("connection", (socket) => {
+    
+    // REGISTRO
     socket.on("register", (userId) => {
         if(!userId) return;
         socket.userId = userId;
-        usuariosOnline[userId] = socket.id;
+        usuariosOnline[userId] = socket.id; // Mapeia ID do usuário para o ID do Socket
         
         io.emit("updateStatus", Object.keys(usuariosOnline));
         console.log(`🚀 Usuário ${userId} online.`);
     });
+
+    // --- LÓGICA DE LIGAÇÃO (ADICIONADA AQUI) ---
+    
+    // Escuta o sinal de ligação e repassa para o socket específico do destino
+    socket.on("ligarPara", (dados) => {
+        const socketDestino = usuariosOnline[dados.para];
+        if (socketDestino) {
+            io.to(socketDestino).emit("recebendoLigacao", dados);
+        }
+    });
+
+    // Escuta quando alguém recusa ou encerra e avisa o outro lado
+    socket.on("chamadaRecusada", (dados) => {
+        const socketDestino = usuariosOnline[dados.para];
+        if (socketDestino) {
+            io.to(socketDestino).emit("chamadaEncerrada");
+        }
+    });
+
+    // --------------------------------------------
 
     socket.on("updateProfileVisual", (dados) => {
         socket.broadcast.emit("userUpdated", dados);
@@ -107,19 +128,16 @@ app.get("/getUser/:id", async (req, res) => {
     }
 });
 
-// 3. AJUSTE NA ROTA DE MENSAGEM: Capturar 'media' e validar corretamente
 app.post("/sendMessage", async (req, res) => {
     try {
         const { fromId, toId, text, media } = req.body;
-        
-        // Agora permite enviar se tiver texto OU se tiver mídia
         if(!text && !media) return res.status(400).send("Mensagem vazia");
         
         const msg = await Message.create({ 
             fromId, 
             toId, 
             text, 
-            media, // <--- SALVANDO A MÍDIA NO MONGO
+            media, 
             timestamp: Date.now() 
         });
         
