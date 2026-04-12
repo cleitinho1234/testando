@@ -27,12 +27,14 @@
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   }
 
+  /* Container centralizado para não ficar exagerado no PC */
   #home { 
     max-width: 500px; 
     margin: 0 auto; 
     padding: 15px; 
   }
 
+  /* --- Estilo do Card de Perfil (Ajustado) --- */
   .profile-card {
     background: white;
     padding: 20px;
@@ -64,6 +66,7 @@
     outline: none;
   }
 
+  /* BOTÃO SALVAR */
   #profileForm button {
     background: #25D366;
     color: white;
@@ -88,6 +91,7 @@
     cursor: pointer;
   }
 
+  /* --- Restante do Layout --- */
   #headerSelecao { 
     display: none; position: fixed; top: 0; left: 0; width: 100%; 
     background: #075e54; color: white; padding: 15px; z-index: 100;
@@ -97,131 +101,28 @@
   #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; }
   #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; }
   #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
-  
-  #messages { 
-    flex: 1; 
-    overflow-y: auto; 
-    padding: 10px; 
-    display: flex; 
-    flex-direction: column; 
-    overflow-x: hidden;
-  }
-  
-  .message { display: flex; margin: 5px 0; width: 100%; }
-  .me { justify-content: flex-end; }
-  .other { justify-content: flex-start; }
-  
-  .bubble { 
-    padding: 8px 12px; 
-    border-radius: 10px; 
-    width: fit-content; 
-    max-width: 80%; 
-    position: relative; 
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
-    display: flex;
-    flex-direction: column;
-    word-wrap: break-word;
-    word-break: break-word;
-    white-space: pre-wrap;
-  }
-
-  .me .bubble { background: #dcf8c6; border-top-right-radius: 0; }
-  .other .bubble { background: white; border-top-left-radius: 0; }
-  
-  .msg-body { margin-bottom: 2px; line-height: 1.4; }
-
-  .time { 
-    font-size: 10px; 
-    color: #888; 
-    align-self: flex-end; 
-    margin-top: 2px;
-    margin-left: 10px;
-  }
-
-  /* Ajuste para fotos clicáveis no chat */
-  .bubble img, .bubble video {
-    max-width: 100%;
-    max-height: 250px;
-    border-radius: 8px;
-    display: block;
-    margin: 5px 0;
-    object-fit: cover;
-    cursor: pointer;
-  }
-
-  audio { height: 35px; max-width: 210px; margin: 5px 0; }
-
-  #mediaPreviewContainer {
-    display: none;
-    padding: 10px;
-    background: #f0f0f0;
-    border-top: 1px solid #ddd;
-    align-items: center;
-    justify-content: space-between;
-  }
-  #mediaPreviewContent img, #mediaPreviewContent video {
-    max-width: 80px;
-    max-height: 80px;
-    border-radius: 8px;
-    border: 2px solid #25D366;
-  }
-
-  #chatInputContainer { position: relative; background: #f0f0f0; padding: 10px; }
-  #chatInput { display: flex; align-items: center; position: relative; }
-  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; font-size: 16px; padding-right: 50px; }
-  
-  #addMediaBtn { background: none; border: none; color: #075e54; font-size: 30px; margin-right: 10px; cursor: pointer; }
-  
-  .input-actions { position: relative; display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; margin-left: 5px; }
-  
-  #audioControlBtn { background: none; border: none; font-size: 24px; cursor: pointer; color: #555; display: flex; }
-  
-  #sendMessageBtn { 
-    position: absolute; 
-    top: 0; left: 0; 
-    width: 100%; height: 100%; 
-    border: none; 
-    background: #075e54; 
-    color: white; 
-    border-radius: 50%; 
-    font-size: 20px; 
-    cursor: pointer; 
-    display: none; 
-    align-items: center; 
-    justify-content: center;
-    z-index: 2;
-  }
-
-  #recordBar {
-    display: none;
-    position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: #121b22;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 15px;
-    box-sizing: border-box;
-    z-index: 10;
-  }
-  #recordTimer { color: white; font-family: monospace; font-weight: bold; font-size: 16px; }
-  .visualizer-dots { color: #8696a0; letter-spacing: 3px; font-weight: bold; flex: 1; text-align: center; }
+  #messages { flex: 1; overflow-y: auto; padding: 10px; }
+  #chatInput { display: flex; padding: 10px; background: #f0f0f0; }
+  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; }
+  #chatInput button { margin-left: 8px; width: 45px; height: 45px; border: none; background: #075e54; color: white; border-radius: 50%; font-size: 20px; cursor: pointer; }
   
   .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   .contact.selected { background: #d1e7dd !important; }
+
+  .message { display: flex; margin: 5px 0; }
+  .me { justify-content: flex-end; }
+  .other { justify-content: flex-start; }
+  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+  .me .bubble { background: #dcf8c6; border-top-right-radius: 0; }
+  .other .bubble { background: white; border-top-left-radius: 0; }
+  
+  .time { font-size: 10px; color: #888; margin-left: 10px; float: right; margin-top: 5px; }
 
   #confirmModal { 
     display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
     background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center; 
   }
   .modal-box { background: white; padding: 25px; border-radius: 15px; text-align: center; width: 85%; max-width: 300px; }
-
-  /* Estilo do Botão de Voltar da Tela Cheia */
-  .btn-back-fs {
-    position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.5); 
-    border: none; color: white; font-size: 24px; width: 45px; height: 45px; 
-    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
-    z-index: 2100;
-  }
 </style>
 </head>
 <body>
@@ -241,9 +142,12 @@
 <div id="home">
   <div class="profile-card">
     <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" title="Clique para mudar a foto">
+    
     <form id="profileForm">
       <input type="text" id="username" placeholder="Seu nome">
+      
       <input type="file" id="profilePic" accept="image/*" style="display: none;">
+      
       <button type="submit">SALVAR PERFIL</button>
     </form>
     <p style="font-size: 14px; color: #555; margin-top: 15px;">Seu ID: <span id="userIdDisplay" style="font-weight:bold; background:#eee; padding:2px 8px; border-radius:4px;"></span></p>
@@ -256,6 +160,7 @@
     <input type="text" id="addUserId" placeholder="Digite o ID do amigo">
     <button id="addFriendBtn">ADICIONAR AMIGO</button>
   </div>
+  
   <div id="contacts" style="margin-top: 15px;"></div>
 </div>
 
@@ -269,35 +174,9 @@
     </div>
   </div>
   <div id="messages"></div>
-
-  <div id="mediaPreviewContainer">
-    <div id="mediaPreviewContent"></div>
-    <button onclick="cancelarEnvioMedia()" style="background:#d9534f; color:white; border:none; border-radius:50%; width:35px; height:35px; font-weight:bold; cursor:pointer;">✕</button>
-  </div>
-
-  <div id="chatInputContainer">
-    <div id="chatInput">
-      <button id="addMediaBtn">+</button>
-      <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none;">
-      
-      <input type="text" id="messageText" placeholder="Mensagem" autocomplete="off">
-      
-      <div class="input-actions">
-        <button id="audioControlBtn">🎤</button>
-        <button id="sendMessageBtn">➤</button>
-      </div>
-    </div>
-
-    <div id="recordBar">
-      <button id="deleteAudio" style="background:none; border:none; color:#ff4d4d; font-size:22px; cursor:pointer;">🗑️</button>
-      <span id="recordTimer">0:00</span>
-      <div class="visualizer-dots">....................</div>
-      
-      <button id="previewAudioBtn" style="display:none; background:none; border:none; color:#34b7f1; font-size:22px; cursor:pointer; margin-right:10px;">▶️</button>
-      
-      <button id="pauseRecord" style="background:none; border:none; color:#00a884; font-size:22px; cursor:pointer;">⏸️</button>
-      <button id="sendAudioBtn" style="background:#00a884; border:none; color:white; width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:18px;">➤</button>
-    </div>
+  <div id="chatInput">
+    <input type="text" id="messageText" placeholder="Mensagem">
+    <button id="sendMessageBtn">➤</button>
   </div>
 </div>
 
@@ -312,13 +191,30 @@
   </div>
 </div>
 
-<div id="fullScreenModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:2000; justify-content:center; align-items:center;">
-    <button class="btn-back-fs" onclick="fecharFullscreen()">⬅</button>
-    <div id="fullScreenContent" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center;"></div>
-</div>
-
 <script src="/socket.io/socket.io.js"></script>
 <script src="script.js"></script>
+
+<script>
+  // Nota: A lógica do preview da imagem já está no seu script.js também, 
+  // mas deixei aqui por segurança conforme o seu código original.
+  const preview = document.getElementById('profilePreview');
+  const fileInput = document.getElementById('profilePic');
+
+  preview.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        preview.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+</script>
 
 </body>
 </html>
