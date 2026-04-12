@@ -9,6 +9,13 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 let mediaParaEnviar = null; 
 
+// --- NOVAS VARIÁVEIS PARA ÁUDIO ---
+let mediaRecorder;
+let audioChunks = [];
+let audioBlob;
+let timerInterval;
+let seconds = 0;
+
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
     if (savedId) {
@@ -51,7 +58,7 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- LÓGICA DE MÍDIA ---
+// --- LÓGICA DE MÍDIA (FOTOS/VÍDEOS) ---
 document.getElementById("addMediaBtn").onclick = () => {
     document.getElementById("mediaInput").click();
 };
@@ -86,6 +93,115 @@ function cancelarEnvioMedia() {
     document.getElementById("mediaPreviewContainer").style.display = "none";
     document.getElementById("mediaInput").value = "";
 }
+
+// --- LÓGICA DO MICROFONE (ÁUDIO) ---
+const audioBtn = document.getElementById("audioControlBtn");
+const messageInput = document.getElementById("messageText");
+const sendTextBtn = document.getElementById("sendMessageBtn");
+const recordBar = document.getElementById("recordBar");
+
+// Troca Mic por Seta ao digitar
+messageInput.oninput = () => {
+    if (messageInput.value.trim() !== "") {
+        audioBtn.style.display = "none";
+        sendTextBtn.style.display = "flex";
+    } else {
+        audioBtn.style.display = "flex";
+        sendTextBtn.style.display = "none";
+    }
+};
+
+audioBtn.onclick = async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+            audioBlob = new Blob(audioChunks, { type: 'audio/ogg; codecs=opus' });
+        };
+
+        mediaRecorder.start();
+        recordBar.style.display = "flex";
+        iniciarTimer();
+    } catch (err) {
+        alert("Para mandar áudio, você precisa permitir o microfone!");
+    }
+};
+
+function iniciarTimer() {
+    seconds = 0;
+    document.getElementById("recordTimer").textContent = "0:00";
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        seconds++;
+        let m = Math.floor(seconds / 60);
+        let s = seconds % 60;
+        document.getElementById("recordTimer").textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    }, 1000);
+}
+
+// Pausa para escutar (Para a gravação mas não envia)
+document.getElementById("pauseRecord").onclick = () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        clearInterval(timerInterval);
+        document.getElementById("pauseRecord").textContent = "✅";
+    }
+};
+
+// Lixo (Cancela)
+document.getElementById("deleteAudio").onclick = () => {
+    pararMicrofone();
+    recordBar.style.display = "none";
+    clearInterval(timerInterval);
+    document.getElementById("pauseRecord").textContent = "⏸️";
+    audioBlob = null;
+};
+
+// Enviar Áudio
+document.getElementById("sendAudioBtn").onclick = async () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+    }
+
+    setTimeout(async () => {
+        if (!audioBlob) return;
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+            const base64Audio = reader.result;
+            
+            const payload = {
+                fromId: currentUser.id,
+                toId: currentChat.id,
+                text: "",
+                media: { data: base64Audio, type: 'audio' }
+            };
+
+            await fetch("/sendMessage", {
+                method: "POST",
+                headers: {"Content-Type":"application/json"},
+                body: JSON.stringify(payload)
+            });
+            
+            recordBar.style.display = "none";
+            pararMicrofone();
+            document.getElementById("pauseRecord").textContent = "⏸️";
+            loadMessages();
+        };
+    }, 300);
+};
+
+function pararMicrofone() {
+    if (mediaRecorder && mediaRecorder.stream) {
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+}
+
+// --- RESTANTE DAS FUNÇÕES ORIGINAIS ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -214,7 +330,6 @@ async function loadMessages() {
     }
 }
 
-// --- FUNÇÃO CORRIGIDA PARA COMBINAR COM O NOVO CSS ---
 function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
@@ -228,8 +343,10 @@ function addMessage(m) {
     if (m.media) {
         if (m.media.type === 'image') {
             mediaHtml = `<img src="${m.media.data}">`; 
-        } else {
+        } else if (m.media.type === 'video') {
             mediaHtml = `<video src="${m.media.data}" controls></video>`;
+        } else if (m.media.type === 'audio') {
+            mediaHtml = `<audio src="${m.media.data}" controls style="max-width:100%;"></audio>`;
         }
     }
 
@@ -247,7 +364,6 @@ function addMessage(m) {
         botaoLerMais = `<div class="btn-ler-mais" style="color:#007bff; cursor:pointer; font-weight:bold; font-size:13px; margin-top:5px;">Ler mais</div>`;
     }
 
-    // Estrutura atualizada para fit-content
     div.innerHTML = `
         <div class="bubble">
             ${mediaHtml}
