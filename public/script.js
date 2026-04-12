@@ -9,15 +9,19 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
 window.addEventListener("load", async () => {
+    // Tenta carregar do cache local para o nome aparecer instantaneamente
+    let localUser = localStorage.getItem("myUserObject");
     let savedId = localStorage.getItem("userId");
-    if (savedId) {
-        // Ajustado para /api/
+
+    if (localUser) {
+        currentUser = JSON.parse(localUser);
+    } else if (savedId) {
         const res = await fetch(`/api/user/${savedId}`);
         const user = await res.json();
         if (!user.error) currentUser = user;
     }
+
     if (!currentUser) {
-        // Ajustado para /api/
         const res = await fetch("/api/user", {
             method: "POST",
             headers: {"Content-Type":"application/json"},
@@ -25,7 +29,9 @@ window.addEventListener("load", async () => {
         });
         currentUser = await res.json();
         localStorage.setItem("userId", currentUser.id);
+        localStorage.setItem("myUserObject", JSON.stringify(currentUser));
     }
+
     socket.emit("register", currentUser.id);
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
@@ -54,7 +60,6 @@ window.addEventListener("load", async () => {
 
 // ESCUTAR ATUALIZAÇÃO DE PERFIL EM TEMPO REAL
 socket.on("userUpdated", (dados) => {
-    // 1. Atualiza na lista de contatos local
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
         contacts[index].username = dados.username;
@@ -63,7 +68,6 @@ socket.on("userUpdated", (dados) => {
         renderContacts();
     }
 
-    // 2. Se o chat dessa pessoa estiver aberto agora, atualiza o topo do chat na hora
     if (currentChat && currentChat.id == dados.id) {
         currentChat.username = dados.username;
         currentChat.photo = dados.photo;
@@ -135,13 +139,21 @@ function renderContacts() {
 }
 
 async function loadMessages() {
-    if(!currentUser) return;
-    // Ajustado para bater com as rotas do seu servidor (precisa de id1/id2 no seu server)
-    // Nota: você pode precisar ajustar a rota no server ou aqui para pegar "todas" as msgs do usuário
-    const res = await fetch(`/api/messages/${currentUser.id}/${currentChat?.id || 'null'}`);
+    if(!currentUser || !currentChat) return;
+    const res = await fetch(`/api/messages/${currentUser.id}/${currentChat.id}`);
     const msgs = await res.json();
     
-    // ... (sua lógica de msgs continua aqui, mas recomendo usar socket para mensagens também no futuro)
+    const container = document.getElementById("messages");
+    if (container.childElementCount !== msgs.length) {
+        container.innerHTML = "";
+        msgs.forEach(m => {
+            const div = document.createElement("div");
+            div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+            div.innerHTML = `<div class="bubble">${m.text}</div>`;
+            container.appendChild(div);
+        });
+        container.scrollTop = container.scrollHeight;
+    }
 }
 
 function abrirChat(user) {
@@ -154,7 +166,7 @@ function abrirChat(user) {
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
-    // loadMessages(); // Comentado para evitar erros se a rota /api/messages não estiver pronta para 1 user
+    loadMessages();
 }
 
 function voltar() {
@@ -174,6 +186,7 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
     });
+    loadMessages();
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
@@ -194,10 +207,11 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
     const file = document.getElementById("profilePic").files[0];
+    const previewAtual = document.getElementById("profilePreview").src;
+    
     if (!nome) return alert("Digite um nome!");
     
     const salvar = async (fotoFinal) => {
-        // Rota ajustada para /api/saveProfile
         const res = await fetch("/api/saveProfile", {
             method: "POST", 
             headers: {"Content-Type":"application/json"},
@@ -205,14 +219,17 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         });
         
         if (res.ok) {
+            // ATUALIZAÇÃO LOCAL: Aqui garantimos que o nome fique fixo
             currentUser.username = nome; 
             currentUser.photo = fotoFinal;
+            localStorage.setItem("myUserObject", JSON.stringify(currentUser));
             
-            // Emite para o servidor avisar os outros em tempo real
             socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
             
             alert("Perfil Salvo!");
             renderContacts();
+        } else {
+            alert("Erro ao salvar perfil no servidor.");
         }
     };
     
@@ -235,7 +252,8 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         };
         reader.readAsDataURL(file);
     } else {
-        salvar(currentUser.photo);
+        // Se não mudou a foto, envia o que já está no preview
+        salvar(previewAtual);
     }
 };
 
