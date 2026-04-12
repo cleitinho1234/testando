@@ -170,6 +170,7 @@ async function loadMessages() {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
             
+            // Lógica para mensagens recebidas
             if (m.toId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.fromId);
                 if (index === -1) {
@@ -180,10 +181,13 @@ async function loadMessages() {
                     const contatoMovido = contacts.splice(index, 1)[0];
                     contacts.unshift(contatoMovido);
                 }
-                if (currentChat?.id !== m.fromId) {
+
+                // CORREÇÃO DO CONTADOR: Aumenta se o chat dessa pessoa não estiver aberto
+                if (!currentChat || currentChat.id != m.fromId) {
                     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
                 }
             } 
+            // Lógica para mensagens enviadas por mim (para mover contato ao topo)
             else if (m.fromId == currentUser.id) {
                 const index = contacts.findIndex(c => c.id == m.toId);
                 if (index !== -1) {
@@ -224,7 +228,7 @@ function addMessage(m) {
     let mediaHtml = "";
     if (m.media) {
         if (m.media.type === 'image') {
-            mediaHtml = `<img src="${m.media.data}">`; // Estilo agora controlado pelo CSS no HTML
+            mediaHtml = `<img src="${m.media.data}">`; 
         } else {
             mediaHtml = `<video src="${m.media.data}" controls></video>`;
         }
@@ -242,7 +246,7 @@ function addMessage(m) {
 
 function abrirChat(user) {
     currentChat = user;
-    unreadCounts[user.id] = 0;
+    unreadCounts[user.id] = 0; // Limpa notificações ao abrir
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
@@ -250,6 +254,9 @@ function abrirChat(user) {
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
+    
+    // Limpar mensagens antigas da tela e carregar as novas
+    document.getElementById("messages").innerHTML = "";
     loadMessages();
 }
 
@@ -264,6 +271,8 @@ function voltar() {
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
+    
+    // Agora aceita enviar se houver texto OU mídia
     if((!text && !mediaParaEnviar) || !currentChat) return;
     
     const payload = { 
