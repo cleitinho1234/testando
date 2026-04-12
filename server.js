@@ -6,13 +6,13 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-// 1. LIMITES PARA SUPORTAR MÍDIA (ÁUDIO/FOTOS)
+// 1. LIMITES AUMENTADOS (50MB é mais seguro para vídeos curtos e fotos HD)
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-    maxHttpBufferSize: 5e7 // 50MB para garantir o tráfego de buffers grandes
+    maxHttpBufferSize: 5e7 // Aumentado para 50MB também no Socket
 });
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -33,69 +33,30 @@ const User = mongoose.model("User", {
     photo: String
 });
 
+// 2. AJUSTE NO MODELO: Agora aceita o campo 'media'
 const Message = mongoose.model("Message", {
     fromId: String,
     toId: String,
     text: String,
-    media: Object, // Armazena { data: base64, type: 'image'|'video'|'audio' }
+    media: Object, // <--- ADICIONADO: Para salvar {data, type}
     timestamp: { type: Number, default: Date.now }
 });
 
 // ==========================
-// Lógica de Status e Chamadas em Tempo Real
+// Lógica de Status em Tempo Real
 // ==========================
 let usuariosOnline = {}; 
 
 io.on("connection", (socket) => {
-    
-    // REGISTRO DE USUÁRIO
     socket.on("register", (userId) => {
         if(!userId) return;
         socket.userId = userId;
-        usuariosOnline[userId] = socket.id; 
+        usuariosOnline[userId] = socket.id;
         
         io.emit("updateStatus", Object.keys(usuariosOnline));
         console.log(`🚀 Usuário ${userId} online.`);
     });
 
-    // --- LÓGICA DE LIGAÇÃO WebRTC ---
-    
-    // Inicia a chamada enviando o sinal do Peer A para o Peer B
-    socket.on("ligarPara", (dados) => {
-        const socketDestino = usuariosOnline[dados.para];
-        if (socketDestino) {
-            io.to(socketDestino).emit("recebendoLigacao", dados);
-        }
-    });
-
-    // Peer B aceita e envia seu sinal de volta para o Peer A
-    socket.on("aceitarChamada", (dados) => {
-        const socketDestino = usuariosOnline[dados.para];
-        if (socketDestino) {
-            io.to(socketDestino).emit("chamadaAceita", { sinal: dados.sinal });
-        }
-    });
-
-    // Notifica encerramento ou recusa para a outra parte
-    socket.on("chamadaRecusada", (dados) => {
-        const socketDestino = usuariosOnline[dados.para];
-        if (socketDestino) {
-            io.to(socketDestino).emit("chamadaEncerrada");
-        }
-    });
-
-    // Canal genérico para troca de sinais adicionais (se necessário)
-    socket.on("enviarSinal", (dados) => {
-        const socketDestino = usuariosOnline[dados.para];
-        if (socketDestino) {
-            io.to(socketDestino).emit("receberSinal", {
-                sinal: dados.sinal,
-                de: socket.userId
-            });
-        }
-    });
-
-    // Atualização visual de perfil (Username/Foto) em tempo real
     socket.on("updateProfileVisual", (dados) => {
         socket.broadcast.emit("userUpdated", dados);
     });
@@ -112,8 +73,6 @@ io.on("connection", (socket) => {
 // ==========================
 // Rotas API
 // ==========================
-
-// Criar novo usuário com ID de 4 dígitos único
 app.post("/user", async (req, res) => {
     try {
         const { username, photo } = req.body;
@@ -132,7 +91,6 @@ app.post("/user", async (req, res) => {
     }
 });
 
-// Salvar/Editar Perfil
 app.post("/saveProfile", async (req, res) => {
     try {
         const { id, username, photo } = req.body;
@@ -143,7 +101,6 @@ app.post("/saveProfile", async (req, res) => {
     }
 });
 
-// Buscar dados de um contato pelo ID
 app.get("/getUser/:id", async (req, res) => {
     try {
         const user = await User.findOne({ id: req.params.id });
@@ -154,17 +111,19 @@ app.get("/getUser/:id", async (req, res) => {
     }
 });
 
-// Salvar mensagem no Banco
+// 3. AJUSTE NA ROTA DE MENSAGEM: Capturar 'media' e validar corretamente
 app.post("/sendMessage", async (req, res) => {
     try {
         const { fromId, toId, text, media } = req.body;
+        
+        // Agora permite enviar se tiver texto OU se tiver mídia
         if(!text && !media) return res.status(400).send("Mensagem vazia");
         
         const msg = await Message.create({ 
             fromId, 
             toId, 
             text, 
-            media, 
+            media, // <--- SALVANDO A MÍDIA NO MONGO
             timestamp: Date.now() 
         });
         
@@ -175,7 +134,6 @@ app.post("/sendMessage", async (req, res) => {
     }
 });
 
-// Buscar histórico de mensagens (Limite de 200 para performance)
 app.get("/getMessages/:id", async (req, res) => {
     try {
         const msgs = await Message.find({
@@ -187,9 +145,5 @@ app.get("/getMessages/:id", async (req, res) => {
     }
 });
 
-// Inicialização do Servidor
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`--- MiniZap Rodando ---`);
-    console.log(`🌍 Local: http://localhost:${PORT}`);
-});
+server.listen(PORT, () => console.log(`🌍 Servidor em: http://localhost:${PORT}`));
