@@ -67,7 +67,6 @@ window.addEventListener("load", async () => {
     let localUser = localStorage.getItem("myUserObject");
     let savedId = localStorage.getItem("userId");
 
-    // 1. Tenta recuperar do LocalStorage
     if (localUser) {
         currentUser = JSON.parse(localUser);
     } else if (savedId) {
@@ -76,7 +75,6 @@ window.addEventListener("load", async () => {
         if (!user.error) currentUser = user;
     }
 
-    // 2. Se não achou no LocalStorage, tenta recuperar do servidor via Device ID
     if (!currentUser) {
         try {
             const resRecover = await fetch(`/api/recover-by-device/${deviceID}`);
@@ -85,12 +83,10 @@ window.addEventListener("load", async () => {
                 currentUser = recovered;
                 localStorage.setItem("userId", currentUser.id);
                 localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-                console.log("Conta recuperada via Device ID");
             }
-        } catch (e) { console.log("Nenhuma conta para recuperar neste dispositivo."); }
+        } catch (e) { console.log("Nenhuma conta para recuperar."); }
     }
 
-    // 3. Se ainda não existe, cria um novo vinculado ao Device ID
     if (!currentUser) {
         const res = await fetch("/api/user", {
             method: "POST",
@@ -106,7 +102,6 @@ window.addEventListener("load", async () => {
         localStorage.setItem("myUserObject", JSON.stringify(currentUser));
     }
 
-    // Vincula ao Socket e preenche a interface
     socket.emit("register", currentUser.id);
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
@@ -343,6 +338,7 @@ document.getElementById("addFriendBtn").onclick = async () => {
     document.getElementById("addUserId").value = "";
 };
 
+// --- SALVAR PERFIL (CORRIGIDO COM SOCKET) ---
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
@@ -358,6 +354,14 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         currentUser.username = nome; 
         currentUser.photo = previewAtual;
         localStorage.setItem("myUserObject", JSON.stringify(currentUser));
+
+        // 🔥 AQUI: Avisa o socket para que os outros vejam sua foto nova
+        socket.emit("updateProfileVisual", {
+            id: currentUser.id,
+            username: nome,
+            photo: previewAtual
+        });
+
         alert("Perfil Atualizado!");
     } else {
         alert("Erro ao salvar perfil no servidor.");
@@ -375,4 +379,15 @@ document.getElementById("profilePic").onchange = (e) => {
         reader.readAsDataURL(file);
     }
 };
+
+// 🔥 OUVINTE PARA ATUALIZAÇÃO DE PERFIL DE TERCEIROS
+socket.on("userUpdated", (dados) => {
+    const index = contacts.findIndex(c => c.id === dados.id);
+    if (index !== -1) {
+        contacts[index].username = dados.username;
+        contacts[index].photo = dados.photo;
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+    }
+});
         
