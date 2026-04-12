@@ -1,67 +1,65 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const path = require("path");
 const http = require("http");
 const { Server } = require("socket.io");
+const path = require("path");
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
-
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.static("public"));
 
-mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZap?retryWrites=true&w=majority")
-  .then(() => console.log("Mongo conectado"));
+// Conexão direta e segura
+mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZapV2")
+    .then(() => console.log("✅ Banco de Dados conectado!"));
 
+// Schemas simplificados
 const User = mongoose.model("User", { id: String, username: String, photo: String });
 const Message = mongoose.model("Message", { fromId: String, toId: String, text: String, timestamp: Number });
+const Moment = mongoose.model("Moment", { userId: String, username: String, userPhoto: String, media: String, timestamp: Number });
 
-let usuariosOnline = {}; 
+let onlineUsers = {};
 
 io.on("connection", (socket) => {
     socket.on("register", (userId) => {
         socket.userId = userId;
-        usuariosOnline[userId] = socket.id;
-        io.emit("updateStatus", Object.keys(usuariosOnline));
+        onlineUsers[userId] = socket.id;
+        io.emit("updateStatus", Object.keys(onlineUsers));
     });
 
     socket.on("disconnect", () => {
-        if (socket.userId) {
-            delete usuariosOnline[socket.userId];
-            io.emit("updateStatus", Object.keys(usuariosOnline));
-        }
+        delete onlineUsers[socket.userId];
+        io.emit("updateStatus", Object.keys(onlineUsers));
     });
 });
 
-app.post("/user", async (req, res) => {
+// Rotas principais
+app.post("/api/user", async (req, res) => {
     const id = Math.floor(1000 + Math.random() * 9000).toString();
-    const user = new User({ id, username: req.body.username, photo: req.body.photo });
-    await user.save();
+    const user = await User.create({ id, ...req.body });
     res.json(user);
 });
 
-app.put("/updateUser/:id", async (req, res) => {
-    const user = await User.findOneAndUpdate({ id: req.params.id }, req.body, { new: true });
-    res.json(user);
-});
-
-app.get("/getUser/:id", async (req, res) => {
+app.get("/api/user/:id", async (req, res) => {
     const user = await User.findOne({ id: req.params.id });
-    res.send(user || { error: "Não encontrado" });
+    res.json(user || { error: "Não encontrado" });
 });
 
-app.post("/sendMessage", async (req, res) => {
+app.post("/api/messages", async (req, res) => {
     const msg = await Message.create({ ...req.body, timestamp: Date.now() });
     res.json(msg);
 });
 
-app.get("/getMessages/:id", async (req, res) => {
-    const msgs = await Message.find({ $or: [{ fromId: req.params.id }, { toId: req.params.id }] }).sort({ timestamp: 1 });
-    res.send(msgs);
+app.get("/api/messages/:id1/:id2", async (req, res) => {
+    const msgs = await Message.find({
+        $or: [
+            { fromId: req.params.id1, toId: req.params.id2 },
+            { fromId: req.params.id2, toId: req.params.id1 }
+        ]
+    }).sort({ timestamp: 1 });
+    res.json(msgs);
 });
 
-server.listen(3000, () => console.log("Rodando na 3000"));
-        
+server.listen(3000, () => console.log("🚀 MiniZap V2 rodando na porta 3000"));
