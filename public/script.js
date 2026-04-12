@@ -80,7 +80,9 @@ document.getElementById("mediaInput").onchange = (e) => {
 };
 
 // --- NOVA LÓGICA: ENVIAR ARQUIVO DE ÁUDIO/MÚSICA ---
-document.getElementById("addAudioFileBtn").onclick = () => {
+document.getElementById("addAudioFileBtn").onclick = (e) => {
+    // Limpamos o valor para garantir que o evento 'onchange' dispare sempre
+    document.getElementById("audioFileInput").value = "";
     document.getElementById("audioFileInput").click();
 };
 
