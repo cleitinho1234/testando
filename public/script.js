@@ -6,9 +6,14 @@ const socket = io();
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let listaOnlineGlobal = [];
-let statusInterval; // Para controlar o tempo do status
+let statusInterval; 
 
 window.addEventListener("load", async () => {
+    // Segurança contra IDs corrompidos
+    if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
+        localStorage.clear();
+    }
+
     let localUser = localStorage.getItem("myUserObject");
     let savedId = localStorage.getItem("userId");
 
@@ -41,97 +46,102 @@ window.addEventListener("load", async () => {
     }
 
     renderContacts();
-    loadMoments(); // Carrega os status ao abrir
+    loadMoments(); 
     setInterval(loadMessages, 1500);
 });
 
 // --- LÓGICA DE MOMENTOS (STATUS) ---
 
 async function loadMoments() {
-    const res = await fetch("/api/moments");
-    const todosMomentos = await res.json();
-    
-    // FILTRO DE PRIVACIDADE: Só vejo momentos de quem eu tenho o ID salvo (contatos) ou os meus
-    const momentosFiltrados = todosMomentos.filter(m => 
-        contacts.some(c => c.id === m.userId) || m.userId === currentUser.id
-    );
+    try {
+        const res = await fetch("/api/moments");
+        const todosMomentos = await res.json();
+        
+        const momentosFiltrados = todosMomentos.filter(m => 
+            contacts.some(c => c.id === m.userId) || m.userId === currentUser.id
+        );
 
-    const container = document.getElementById("momentsList");
-    if(!container) return;
+        const container = document.getElementById("momentsList");
+        if(!container) return;
 
-    // Mantém o botão de adicionar
-    const addBtn = container.querySelector(".add-moment");
-    container.innerHTML = "";
-    container.appendChild(addBtn);
+        container.innerHTML = "";
 
-    // Agrupar momentos por usuário para o player funcionar corretamente
-    const grupos = {};
-    momentosFiltrados.forEach(m => {
-        if (!grupos[m.userId]) grupos[m.userId] = [];
-        grupos[m.userId].push(m);
-    });
+        const grupos = {};
+        momentosFiltrados.forEach(m => {
+            if (!grupos[m.userId]) grupos[m.userId] = [];
+            grupos[m.userId].push(m);
+        });
 
-    Object.values(grupos).forEach(msgs => {
-        const m = msgs[0];
-        const div = document.createElement("div");
-        div.className = "moment-item";
-        div.innerHTML = `
-            <div class="moment-ring">
-                <img src="${m.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="moment-img">
-            </div>
-            <span>${m.username.split(' ')[0]}</span>
-        `;
-        div.onclick = () => abrirPlayerStatus(msgs);
-        container.appendChild(div);
-    });
+        Object.values(grupos).forEach(msgs => {
+            const m = msgs[0];
+            const div = document.createElement("div");
+            div.className = "momento-item";
+            div.innerHTML = `
+                <div class="momento-aro">
+                    <img src="${m.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img">
+                </div>
+                <div style="font-size: 11px; margin-top: 5px; color: #555;">${m.username.split(' ')[0]}</div>
+            `;
+            div.onclick = () => abrirPlayerStatus(msgs);
+            container.appendChild(div);
+        });
+    } catch (e) { console.error("Erro ao carregar momentos", e); }
 }
 
 function abrirPlayerStatus(lista) {
     let index = 0;
-    const modal = document.getElementById("statusView");
-    const progress = document.getElementById("statusProgress");
+    const viewer = document.getElementById("fullScreenViewer");
+    const progressContainer = document.getElementById("statusProgressBar");
     const img = document.getElementById("statusImg");
 
-    modal.style.display = "flex";
+    viewer.style.display = "flex";
+    progressContainer.innerHTML = "";
+
+    // Cria as barrinhas segmentadas
+    lista.forEach(() => {
+        const segment = document.createElement("div");
+        segment.className = "status-segment";
+        segment.innerHTML = '<div class="status-filler"></div>';
+        progressContainer.appendChild(segment);
+    });
 
     const play = (idx) => {
         if (idx >= lista.length) return fecharStatus();
+        if (idx < 0) idx = 0;
         index = idx;
+
         img.src = lista[idx].media;
 
-        // Reset animação da barra
-        progress.style.transition = "none";
-        progress.style.width = "0%";
-        
-        setTimeout(() => {
-            progress.style.transition = "width 5s linear";
-            progress.style.width = "100%";
-        }, 50);
+        // Atualiza as barrinhas (vistas, ativa, futura)
+        const segments = document.querySelectorAll(".status-segment");
+        segments.forEach((seg, i) => {
+            seg.classList.remove("active", "seen");
+            if (i < idx) seg.classList.add("seen");
+            if (i === idx) seg.classList.add("active");
+        });
 
         clearTimeout(statusInterval);
         statusInterval = setTimeout(() => play(index + 1), 5000);
     };
 
-    modal.onclick = (e) => {
+    img.onclick = (e) => {
         if (e.clientX > window.innerWidth / 2) play(index + 1);
-        else if (index > 0) play(index - 1);
+        else play(index - 1);
     };
 
     play(0);
 }
 
 function fecharStatus() {
-    document.getElementById("statusView").style.display = "none";
+    document.getElementById("fullScreenViewer").style.display = "none";
     clearTimeout(statusInterval);
 }
 
-// Postar Momento
 document.getElementById("momentInput").onchange = (e) => {
     const file = e.target.files[0];
     if (file) {
         const reader = new FileReader();
         reader.onload = async (ev) => {
-            // Aqui você pode usar a mesma lógica de compressão do perfil se desejar
             await fetch("/api/moments", {
                 method: "POST",
                 headers: {"Content-Type":"application/json"},
@@ -150,7 +160,7 @@ document.getElementById("momentInput").onchange = (e) => {
 
 socket.on("newMoment", () => loadMoments());
 
-// --- MENSAGENS E CONTATOS (MANTIDO) ---
+// --- MENSAGENS E CONTATOS ---
 
 socket.on("receiveMessage", (data) => {
     const { msg, sender } = data;
@@ -167,20 +177,6 @@ socket.on("receiveMessage", (data) => {
     if (currentChat && currentChat.id === sender.id) loadMessages();
 });
 
-socket.on("userUpdated", (dados) => {
-    const index = contacts.findIndex(c => c.id == dados.id);
-    if (index !== -1) {
-        contacts[index].username = dados.username;
-        contacts[index].photo = dados.photo;
-        localStorage.setItem("contacts", JSON.stringify(contacts));
-        renderContacts();
-    }
-    if (currentChat && currentChat.id == dados.id) {
-        document.getElementById("chatName").textContent = dados.username;
-        document.getElementById("chatAvatar").src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    }
-});
-
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts();
@@ -188,12 +184,13 @@ socket.on("updateStatus", (listaOnline) => {
 
 function renderContacts() {
     const div = document.getElementById("contacts");
+    if(!div) return;
     div.innerHTML = "";
     contacts.forEach(user => {
         const count = unreadCounts[user.id] || 0;
         const isOnline = listaOnlineGlobal.includes(user.id);
         const contactEl = document.createElement("div");
-        contactEl.className = `contact ${contatoSelecionadoId === user.id ? 'selected' : ''}`;
+        contactEl.className = `contact ${currentChat && currentChat.id === user.id ? 'selected' : ''}`;
         contactEl.innerHTML = `
             <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="contact-img">
             <div style="flex:1;">
@@ -209,19 +206,21 @@ function renderContacts() {
 
 async function loadMessages() {
     if(!currentUser || !currentChat) return;
-    const res = await fetch(`/api/messages/${currentUser.id}/${currentChat.id}`);
-    const msgs = await res.json();
-    const container = document.getElementById("messages");
-    if (container.childElementCount !== msgs.length) {
-        container.innerHTML = "";
-        msgs.forEach(m => {
-            const div = document.createElement("div");
-            div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-            div.innerHTML = `<div class="bubble">${m.text}</div>`;
-            container.appendChild(div);
-        });
-        container.scrollTop = container.scrollHeight;
-    }
+    try {
+        const res = await fetch(`/api/messages/${currentUser.id}/${currentChat.id}`);
+        const msgs = await res.json();
+        const container = document.getElementById("messages");
+        if (container.childElementCount !== msgs.length) {
+            container.innerHTML = "";
+            msgs.forEach(m => {
+                const div = document.createElement("div");
+                div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+                div.innerHTML = `<div class="bubble">${m.text}</div>`;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+    } catch (e) { console.error("Erro ao carregar msgs", e); }
 }
 
 function abrirChat(user) {
@@ -237,7 +236,7 @@ function abrirChat(user) {
 
 function voltar() {
     document.getElementById("chatScreen").style.display = "none";
-    document.getElementById("home").style.display = "block";
+    document.getElementById("home").style.display = "flex";
     currentChat = null;
     renderContacts();
 }
@@ -255,6 +254,21 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     loadMessages();
 };
 
+document.getElementById("addFriendBtn").onclick = async () => {
+    const id = document.getElementById("addUserId").value.trim();
+    if(!id || id === currentUser.id) return;
+    const res = await fetch(`/api/user/${id}`);
+    const user = await res.json();
+    if(user.error) return alert("Usuário não encontrado!");
+    
+    if(!contacts.some(c => c.id === user.id)) {
+        contacts.push(user);
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+    }
+    document.getElementById("addUserId").value = "";
+};
+
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
@@ -270,7 +284,21 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         currentUser.username = nome; 
         currentUser.photo = previewAtual;
         localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-        socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: previewAtual });
         alert("Perfil Atualizado!");
+    } else {
+        alert("Erro ao salvar perfil no servidor.");
+    }
+};
+
+// Lógica de Foto de Perfil (Preview)
+document.getElementById("profilePic").onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            document.getElementById("profilePreview").src = ev.target.result;
+            if(document.getElementById("myMomentPhoto")) document.getElementById("myMomentPhoto").src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
     }
 };
