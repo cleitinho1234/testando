@@ -58,6 +58,34 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
+// --- LÓGICA DE RECEBIMENTO DE MENSAGEM (AUTO-ADD CONTATO) ---
+socket.on("receiveMessage", (data) => {
+    const { msg, sender } = data;
+
+    // 1. Verifica se o contato já existe na lista
+    const index = contacts.findIndex(c => c.id === sender.id);
+
+    if (index === -1) {
+        // Se não existe, adiciona o novo contato no topo da lista automaticamente
+        contacts.unshift(sender);
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+    }
+
+    // 2. Notificação (bolinha vermelha)
+    if (!currentChat || currentChat.id !== sender.id) {
+        unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
+        localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    }
+
+    // 3. Atualiza a tela
+    renderContacts();
+    
+    // 4. Se o chat já estiver aberto, carrega a mensagem na hora
+    if (currentChat && currentChat.id === sender.id) {
+        loadMessages();
+    }
+});
+
 // ESCUTAR ATUALIZAÇÃO DE PERFIL EM TEMPO REAL
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -80,6 +108,8 @@ socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts();
 });
+
+// --- FUNÇÕES DE INTERFACE ---
 
 function ativarSelecao(id) {
     contatoSelecionadoId = id;
@@ -219,7 +249,6 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         });
         
         if (res.ok) {
-            // ATUALIZAÇÃO LOCAL: Aqui garantimos que o nome fique fixo
             currentUser.username = nome; 
             currentUser.photo = fotoFinal;
             localStorage.setItem("myUserObject", JSON.stringify(currentUser));
@@ -252,7 +281,6 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         };
         reader.readAsDataURL(file);
     } else {
-        // Se não mudou a foto, envia o que já está no preview
         salvar(previewAtual);
     }
 };
