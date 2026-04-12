@@ -99,11 +99,12 @@ const audioBtn = document.getElementById("audioControlBtn");
 const messageInput = document.getElementById("messageText");
 const sendTextBtn = document.getElementById("sendMessageBtn");
 const recordBar = document.getElementById("recordBar");
-const previewAudioBtn = document.getElementById("previewAudioBtn"); // Novo botão
+const previewAudioBtn = document.getElementById("previewAudioBtn");
 
-// Troca Mic por Seta ao digitar
+// CORREÇÃO: Troca Mic por Seta ao digitar de forma limpa
 messageInput.oninput = () => {
-    if (messageInput.value.trim() !== "") {
+    const temTexto = messageInput.value.trim() !== "";
+    if (temTexto) {
         audioBtn.style.display = "none";
         sendTextBtn.style.display = "flex";
     } else {
@@ -125,7 +126,7 @@ audioBtn.onclick = async () => {
 
         mediaRecorder.start();
         recordBar.style.display = "flex";
-        previewAudioBtn.style.display = "none"; // Garante que comece escondido
+        previewAudioBtn.style.display = "none"; 
         document.getElementById("pauseRecord").style.display = "block";
         iniciarTimer();
     } catch (err) {
@@ -145,19 +146,15 @@ function iniciarTimer() {
     }, 1000);
 }
 
-// Pausa para escutar
 document.getElementById("pauseRecord").onclick = () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
         clearInterval(timerInterval);
-        
-        // Esconde pausa e mostra o Play (Preview)
         document.getElementById("pauseRecord").style.display = "none";
         previewAudioBtn.style.display = "block";
     }
 };
 
-// Lógica para ouvir o áudio antes de enviar
 previewAudioBtn.onclick = () => {
     if (audioBlob) {
         const url = URL.createObjectURL(audioBlob);
@@ -169,7 +166,6 @@ previewAudioBtn.onclick = () => {
     }
 };
 
-// Lixo (Cancela)
 document.getElementById("deleteAudio").onclick = () => {
     pararMicrofone();
     recordBar.style.display = "none";
@@ -179,7 +175,6 @@ document.getElementById("deleteAudio").onclick = () => {
     audioBlob = null;
 };
 
-// Enviar Áudio
 document.getElementById("sendAudioBtn").onclick = async () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
@@ -221,7 +216,7 @@ function pararMicrofone() {
     }
 }
 
-// --- RESTANTE DAS FUNÇÕES ORIGINAIS ---
+// --- RESTANTE DAS FUNÇÕES ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -442,6 +437,11 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     };
 
     input.value = "";
+    
+    // CORREÇÃO: Resetar botões após enviar
+    audioBtn.style.display = "flex";
+    sendTextBtn.style.display = "none";
+
     cancelarEnvioMedia(); 
     
     await fetch("/sendMessage", {
