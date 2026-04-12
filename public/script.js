@@ -5,11 +5,10 @@ const socket = io();
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
-let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
+let statusInterval; // Para controlar o tempo do status
 
 window.addEventListener("load", async () => {
-    // Tenta carregar do cache local para o nome aparecer instantaneamente
     let localUser = localStorage.getItem("myUserObject");
     let savedId = localStorage.getItem("userId");
 
@@ -36,57 +35,138 @@ window.addEventListener("load", async () => {
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
     
-    if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
-
-    const preview = document.getElementById("profilePreview");
-    const fileInput = document.getElementById("profilePic");
-
-    preview.onclick = () => fileInput.click();
-
-    fileInput.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                preview.src = ev.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-    };
+    if(currentUser.photo) {
+        document.getElementById("profilePreview").src = currentUser.photo;
+        if(document.getElementById("myMomentPhoto")) document.getElementById("myMomentPhoto").src = currentUser.photo;
+    }
 
     renderContacts();
+    loadMoments(); // Carrega os status ao abrir
     setInterval(loadMessages, 1500);
 });
 
-// --- LÓGICA DE RECEBIMENTO DE MENSAGEM (AUTO-ADD CONTATO) ---
+// --- LÓGICA DE MOMENTOS (STATUS) ---
+
+async function loadMoments() {
+    const res = await fetch("/api/moments");
+    const todosMomentos = await res.json();
+    
+    // FILTRO DE PRIVACIDADE: Só vejo momentos de quem eu tenho o ID salvo (contatos) ou os meus
+    const momentosFiltrados = todosMomentos.filter(m => 
+        contacts.some(c => c.id === m.userId) || m.userId === currentUser.id
+    );
+
+    const container = document.getElementById("momentsList");
+    if(!container) return;
+
+    // Mantém o botão de adicionar
+    const addBtn = container.querySelector(".add-moment");
+    container.innerHTML = "";
+    container.appendChild(addBtn);
+
+    // Agrupar momentos por usuário para o player funcionar corretamente
+    const grupos = {};
+    momentosFiltrados.forEach(m => {
+        if (!grupos[m.userId]) grupos[m.userId] = [];
+        grupos[m.userId].push(m);
+    });
+
+    Object.values(grupos).forEach(msgs => {
+        const m = msgs[0];
+        const div = document.createElement("div");
+        div.className = "moment-item";
+        div.innerHTML = `
+            <div class="moment-ring">
+                <img src="${m.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="moment-img">
+            </div>
+            <span>${m.username.split(' ')[0]}</span>
+        `;
+        div.onclick = () => abrirPlayerStatus(msgs);
+        container.appendChild(div);
+    });
+}
+
+function abrirPlayerStatus(lista) {
+    let index = 0;
+    const modal = document.getElementById("statusView");
+    const progress = document.getElementById("statusProgress");
+    const img = document.getElementById("statusImg");
+
+    modal.style.display = "flex";
+
+    const play = (idx) => {
+        if (idx >= lista.length) return fecharStatus();
+        index = idx;
+        img.src = lista[idx].media;
+
+        // Reset animação da barra
+        progress.style.transition = "none";
+        progress.style.width = "0%";
+        
+        setTimeout(() => {
+            progress.style.transition = "width 5s linear";
+            progress.style.width = "100%";
+        }, 50);
+
+        clearTimeout(statusInterval);
+        statusInterval = setTimeout(() => play(index + 1), 5000);
+    };
+
+    modal.onclick = (e) => {
+        if (e.clientX > window.innerWidth / 2) play(index + 1);
+        else if (index > 0) play(index - 1);
+    };
+
+    play(0);
+}
+
+function fecharStatus() {
+    document.getElementById("statusView").style.display = "none";
+    clearTimeout(statusInterval);
+}
+
+// Postar Momento
+document.getElementById("momentInput").onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            // Aqui você pode usar a mesma lógica de compressão do perfil se desejar
+            await fetch("/api/moments", {
+                method: "POST",
+                headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({
+                    userId: currentUser.id,
+                    username: currentUser.username,
+                    userPhoto: currentUser.photo,
+                    media: ev.target.result
+                })
+            });
+            loadMoments();
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
+socket.on("newMoment", () => loadMoments());
+
+// --- MENSAGENS E CONTATOS (MANTIDO) ---
+
 socket.on("receiveMessage", (data) => {
     const { msg, sender } = data;
-
-    // 1. Verifica se o contato já existe na lista
     const index = contacts.findIndex(c => c.id === sender.id);
-
     if (index === -1) {
-        // Se não existe, adiciona o novo contato no topo da lista automaticamente
         contacts.unshift(sender);
         localStorage.setItem("contacts", JSON.stringify(contacts));
     }
-
-    // 2. Notificação (bolinha vermelha)
     if (!currentChat || currentChat.id !== sender.id) {
         unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
         localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     }
-
-    // 3. Atualiza a tela
     renderContacts();
-    
-    // 4. Se o chat já estiver aberto, carrega a mensagem na hora
-    if (currentChat && currentChat.id === sender.id) {
-        loadMessages();
-    }
+    if (currentChat && currentChat.id === sender.id) loadMessages();
 });
 
-// ESCUTAR ATUALIZAÇÃO DE PERFIL EM TEMPO REAL
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
     if (index !== -1) {
@@ -95,10 +175,7 @@ socket.on("userUpdated", (dados) => {
         localStorage.setItem("contacts", JSON.stringify(contacts));
         renderContacts();
     }
-
     if (currentChat && currentChat.id == dados.id) {
-        currentChat.username = dados.username;
-        currentChat.photo = dados.photo;
         document.getElementById("chatName").textContent = dados.username;
         document.getElementById("chatAvatar").src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     }
@@ -109,61 +186,23 @@ socket.on("updateStatus", (listaOnline) => {
     renderContacts();
 });
 
-// --- FUNÇÕES DE INTERFACE ---
-
-function ativarSelecao(id) {
-    contatoSelecionadoId = id;
-    document.getElementById("headerSelecao").style.display = "flex";
-    renderContacts();
-}
-
-function cancelarSelecao() {
-    contatoSelecionadoId = null;
-    document.getElementById("headerSelecao").style.display = "none";
-    renderContacts();
-}
-
-function abrirModal() { document.getElementById("confirmModal").style.display = "flex"; }
-function fecharModal() { document.getElementById("confirmModal").style.display = "none"; }
-
-function confirmarExclusao() {
-    contacts = contacts.filter(c => c.id !== contatoSelecionadoId);
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    fecharModal();
-    cancelarSelecao();
-}
-
 function renderContacts() {
     const div = document.getElementById("contacts");
     div.innerHTML = "";
     contacts.forEach(user => {
         const count = unreadCounts[user.id] || 0;
         const isOnline = listaOnlineGlobal.includes(user.id);
-        const isSelected = contatoSelecionadoId === user.id;
-
         const contactEl = document.createElement("div");
-        contactEl.className = `contact ${isSelected ? 'selected' : ''}`;
-        contactEl.style.display = "flex";
-        contactEl.style.alignItems = "center";
+        contactEl.className = `contact ${contatoSelecionadoId === user.id ? 'selected' : ''}`;
         contactEl.innerHTML = `
-            <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
+            <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="contact-img">
             <div style="flex:1;">
                 <div style="font-weight:bold;">${user.username}</div>
                 <div style="font-size:11px; color:${isOnline ? '#25D366' : 'gray'}">${isOnline ? '● Online' : '● Offline'}</div>
             </div>
-            ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:2px 8px;font-size:12px;">${count}</span>` : ""}
+            ${count > 0 ? `<span class="badge">${count}</span>` : ""}
         `;
-
-        let pressTimer;
-        contactEl.onmousedown = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
-        contactEl.onmouseup = () => clearTimeout(pressTimer);
-        contactEl.ontouchstart = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
-        contactEl.ontouchend = () => clearTimeout(pressTimer);
-
-        contactEl.onclick = () => {
-            if (contatoSelecionadoId) cancelarSelecao();
-            else abrirChat(user);
-        };
+        contactEl.onclick = () => abrirChat(user);
         div.appendChild(contactEl);
     });
 }
@@ -172,7 +211,6 @@ async function loadMessages() {
     if(!currentUser || !currentChat) return;
     const res = await fetch(`/api/messages/${currentUser.id}/${currentChat.id}`);
     const msgs = await res.json();
-    
     const container = document.getElementById("messages");
     if (container.childElementCount !== msgs.length) {
         container.innerHTML = "";
@@ -194,8 +232,6 @@ function abrirChat(user) {
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    const estaOnline = listaOnlineGlobal.includes(user.id);
-    document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     loadMessages();
 }
 
@@ -219,95 +255,22 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     loadMessages();
 };
 
-document.getElementById("addFriendBtn").onclick = async () => {
-    const id = document.getElementById("addUserId").value.trim();
-    if(!id || id == currentUser.id) return;
-    const res = await fetch(`/api/user/${id}`);
-    const user = await res.json();
-    if(user.error) return alert("Não encontrado");
-    if(!contacts.some(c => c.id == id)) {
-        contacts.unshift(user); 
-        localStorage.setItem("contacts", JSON.stringify(contacts));
-        renderContacts();
-    }
-    document.getElementById("addUserId").value = "";
-};
-
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
-    const file = document.getElementById("profilePic").files[0];
     const previewAtual = document.getElementById("profilePreview").src;
     
-    if (!nome) return alert("Digite um nome!");
+    const res = await fetch("/api/saveProfile", {
+        method: "POST", 
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ id: currentUser.id, username: nome, photo: previewAtual })
+    });
     
-    const salvar = async (fotoFinal) => {
-        const res = await fetch("/api/saveProfile", {
-            method: "POST", 
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoFinal })
-        });
-        
-        if (res.ok) {
-            currentUser.username = nome; 
-            currentUser.photo = fotoFinal;
-            localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-            
-            socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
-            
-            alert("Perfil Salvo!");
-            renderContacts();
-        } else {
-            alert("Erro ao salvar perfil no servidor.");
-        }
-    };
-    
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement("canvas");
-                const MAX_WIDTH = 300; 
-                const scaleSize = MAX_WIDTH / img.width;
-                canvas.width = MAX_WIDTH;
-                canvas.height = img.height * scaleSize;
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
-                salvar(compressedBase64);
-            };
-            img.src = ev.target.result;
-        };
-        reader.readAsDataURL(file);
-    } else {
-        salvar(previewAtual);
+    if (res.ok) {
+        currentUser.username = nome; 
+        currentUser.photo = previewAtual;
+        localStorage.setItem("myUserObject", JSON.stringify(currentUser));
+        socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: previewAtual });
+        alert("Perfil Atualizado!");
     }
 };
-
-// --- LÓGICA PWA ---
-let deferredPrompt;
-const installBanner = document.getElementById("installBanner");
-
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(err => console.log(err));
-}
-
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    if (!isStandalone && installBanner) installBanner.style.display = "block";
-});
-
-if(installBanner) {
-    installBanner.onclick = () => {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then(() => {
-                installBanner.style.display = "none";
-                deferredPrompt = null;
-            });
-        }
-    };
-}
