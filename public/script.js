@@ -9,7 +9,7 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 let mediaParaEnviar = null; 
 
-// --- VARIÁVEIS PARA ÁUDIO ---
+// --- NOVAS VARIÁVEIS PARA ÁUDIO ---
 let mediaRecorder;
 let audioChunks = [];
 let audioBlob;
@@ -74,34 +74,22 @@ document.getElementById("mediaInput").onchange = (e) => {
             type: file.type.startsWith('image') ? 'image' : 'video'
         };
 
-        exibirPreviewMedia();
+        const container = document.getElementById("mediaPreviewContainer");
+        const content = document.getElementById("mediaPreviewContent");
+        
+        container.style.display = "flex";
+        
+        if (mediaParaEnviar.type === 'image') {
+            content.innerHTML = `<img src="${mediaParaEnviar.data}">`;
+        } else {
+            content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
+        }
+
+        audioBtn.style.display = "none";
+        sendTextBtn.style.display = "flex";
     };
     reader.readAsDataURL(file);
 };
-
-function exibirPreviewMedia() {
-    const container = document.getElementById("mediaPreviewContainer");
-    const content = document.getElementById("mediaPreviewContent");
-    
-    container.style.display = "flex";
-    
-    if (mediaParaEnviar.type === 'image') {
-        content.innerHTML = `<img src="${mediaParaEnviar.data}">`;
-    } else if (mediaParaEnviar.type === 'video') {
-        content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
-    } else if (mediaParaEnviar.type === 'audio') {
-        content.innerHTML = `
-            <div style="display:flex; align-items:center; background:#fff; padding:5px 10px; border-radius:8px; border:1px solid #ddd;">
-                <span style="font-size:20px; margin-right:10px;">🎵</span>
-                <span style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                    ${mediaParaEnviar.name || 'Áudio Externo'}
-                </span>
-            </div>`;
-    }
-
-    audioBtn.style.display = "none";
-    sendTextBtn.style.display = "flex";
-}
 
 function cancelarEnvioMedia() {
     mediaParaEnviar = null;
@@ -114,7 +102,7 @@ function cancelarEnvioMedia() {
     }
 }
 
-// --- LÓGICA DO MICROFONE (GRAVAÇÃO) ---
+// --- LÓGICA DO MICROFONE (ÁUDIO) ---
 const audioBtn = document.getElementById("audioControlBtn");
 const messageInput = document.getElementById("messageText");
 const sendTextBtn = document.getElementById("sendMessageBtn");
@@ -138,12 +126,9 @@ audioBtn.onclick = async () => {
         mediaRecorder = new MediaRecorder(stream);
         audioChunks = [];
 
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) audioChunks.push(e.data);
-        };
-
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
         mediaRecorder.onstop = () => {
-            audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            audioBlob = new Blob(audioChunks, { type: 'audio/ogg; codecs=opus' });
         };
 
         mediaRecorder.start();
@@ -168,20 +153,12 @@ function iniciarTimer() {
     }, 1000);
 }
 
-function pararMicrofone() {
-    if (mediaRecorder && mediaRecorder.stream) {
-        mediaRecorder.stream.getTracks().forEach(track => track.stop());
-    }
-}
-
 document.getElementById("pauseRecord").onclick = () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
-        pararMicrofone();
         clearInterval(timerInterval);
         document.getElementById("pauseRecord").style.display = "none";
         previewAudioBtn.style.display = "block";
-        previewAudioBtn.textContent = "▶️";
     }
 };
 
@@ -197,9 +174,6 @@ previewAudioBtn.onclick = () => {
 };
 
 document.getElementById("deleteAudio").onclick = () => {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-    }
     pararMicrofone();
     recordBar.style.display = "none";
     clearInterval(timerInterval);
@@ -211,7 +185,6 @@ document.getElementById("deleteAudio").onclick = () => {
 document.getElementById("sendAudioBtn").onclick = async () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
-        pararMicrofone();
     }
 
     setTimeout(async () => {
@@ -237,13 +210,20 @@ document.getElementById("sendAudioBtn").onclick = async () => {
             
             recordBar.style.display = "none";
             previewAudioBtn.style.display = "none";
+            pararMicrofone();
             audioBlob = null;
             loadMessages();
         };
-    }, 200);
+    }, 300);
 };
 
-// --- RESTANTE DAS FUNÇÕES (SOCKETS, CONTACTS, ETC) ---
+function pararMicrofone() {
+    if (mediaRecorder && mediaRecorder.stream) {
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+}
+
+// --- RESTANTE DAS FUNÇÕES ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -384,6 +364,7 @@ function addMessage(m) {
     let mediaHtml = "";
     if (m.media) {
         if (m.media.type === 'image') {
+            // Chamada para abrir fullscreen ao clicar
             mediaHtml = `<img src="${m.media.data}" onclick="abrirFullscreen('${m.media.data}', 'image')" style="cursor:pointer;">`; 
         } else if (m.media.type === 'video') {
             mediaHtml = `<video src="${m.media.data}" controls onclick="abrirFullscreen('${m.media.data}', 'video')" style="cursor:pointer;"></video>`;
@@ -539,6 +520,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
+// --- FUNÇÕES DE TELA CHEIA (FULLSCREEN) ---
 function abrirFullscreen(src, type) {
     const modal = document.getElementById("fullScreenModal");
     const content = document.getElementById("fullScreenContent");
@@ -559,12 +541,13 @@ function fecharFullscreen() {
     modal.style.display = "none";
 }
 
+// --- PWA ---
+let deferredPrompt;
+const installBanner = document.getElementById("installBanner");
+
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(err => console.log(err));
 }
-
-let deferredPrompt;
-const installBanner = document.getElementById("installBanner");
 
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
