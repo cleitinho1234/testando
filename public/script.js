@@ -7,7 +7,7 @@ let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
-let mediaParaEnviar = null; // Armazena a mídia antes de enviar
+let mediaParaEnviar = null; 
 
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
@@ -51,14 +51,11 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- LÓGICA DE MÍDIA (FOTOS/VÍDEOS) ---
-
-// Botão de "+" abre o seletor de arquivos
+// --- LÓGICA DE MÍDIA ---
 document.getElementById("addMediaBtn").onclick = () => {
     document.getElementById("mediaInput").click();
 };
 
-// Captura o arquivo e mostra o preview no cantinho
 document.getElementById("mediaInput").onchange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -84,7 +81,6 @@ document.getElementById("mediaInput").onchange = (e) => {
     reader.readAsDataURL(file);
 };
 
-// Função para cancelar antes de enviar
 function cancelarEnvioMedia() {
     mediaParaEnviar = null;
     document.getElementById("mediaPreviewContainer").style.display = "none";
@@ -166,6 +162,10 @@ function renderContacts() {
 async function loadMessages() {
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
+    const container = document.getElementById("messages");
+
+    // Lógica de Trava de Rolagem: verifica se o usuário está no final do chat
+    const estaNoFinal = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
     
     for (let m of msgs) {
         if (m.timestamp > lastTimestamp) {
@@ -201,11 +201,19 @@ async function loadMessages() {
     renderContacts();
 
     if (!currentChat) return;
+
     const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
-    const container = document.getElementById("messages");
-    container.innerHTML = "";
-    filtered.forEach(addMessage);
-    container.scrollTop = container.scrollHeight;
+    
+    // Só reconstrói o HTML se houver novas mensagens para evitar travamentos
+    if (container.children.length !== filtered.length) {
+        container.innerHTML = "";
+        filtered.forEach(addMessage);
+        
+        // Só rola para baixo se o usuário já estava acompanhando o final
+        if (estaNoFinal) {
+            container.scrollTop = container.scrollHeight;
+        }
+    }
 }
 
 function addMessage(m) {
@@ -216,7 +224,6 @@ function addMessage(m) {
     const hora = date.getHours().toString().padStart(2, '0');
     const min = date.getMinutes().toString().padStart(2, '0');
 
-    // Lógica para mostrar mídia na bolha se existir
     let mediaHtml = "";
     if (m.media) {
         if (m.media.type === 'image') {
@@ -253,15 +260,13 @@ function voltar() {
     document.getElementById("chatScreen").style.display = "none";
     document.getElementById("home").style.display = "block";
     currentChat = null;
-    cancelarEnvioMedia(); // Limpa se sair do chat
+    cancelarEnvioMedia();
     renderContacts();
 }
 
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
-    
-    // Só envia se tiver texto OU mídia
     if((!text && !mediaParaEnviar) || !currentChat) return;
     
     const payload = { 
@@ -272,14 +277,18 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     };
 
     input.value = "";
-    cancelarEnvioMedia(); // Esconde o preview após o clique
+    cancelarEnvioMedia(); 
     
     await fetch("/sendMessage", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify(payload)
     });
-    loadMessages(); 
+    
+    await loadMessages();
+    // Força rolagem para baixo ao enviar mensagem própria
+    const container = document.getElementById("messages");
+    container.scrollTop = container.scrollHeight;
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
@@ -342,21 +351,18 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- LÓGICA DE INSTALAÇÃO (PWA) ---
+// --- PWA ---
 let deferredPrompt;
 const installBanner = document.getElementById("installBanner");
 
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js')
-        .then(() => console.log("Service Worker OK"))
-        .catch(err => console.log("Erro no SW:", err));
+    navigator.serviceWorker.register('/sw.js').catch(err => console.log(err));
 }
 
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    if (!isStandalone) {
+    if (!window.matchMedia('(display-mode: standalone)').matches) {
         installBanner.style.display = "block";
     }
 });
@@ -364,16 +370,9 @@ window.addEventListener('beforeinstallprompt', (e) => {
 installBanner.onclick = () => {
     if (deferredPrompt) {
         deferredPrompt.prompt();
-        deferredPrompt.userChoice.then((choiceResult) => {
-            if (choiceResult.outcome === 'accepted') {
-                installBanner.style.display = "none";
-            }
+        deferredPrompt.userChoice.then(() => {
+            installBanner.style.display = "none";
             deferredPrompt = null;
         });
     }
 };
-
-window.addEventListener('appinstalled', () => {
-    installBanner.style.display = "none";
-    deferredPrompt = null;
-});
