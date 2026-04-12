@@ -85,7 +85,6 @@ document.getElementById("mediaInput").onchange = (e) => {
             content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
         }
 
-        // MOSTRAR botão de enviar ao selecionar mídia
         audioBtn.style.display = "none";
         sendTextBtn.style.display = "flex";
     };
@@ -97,7 +96,6 @@ function cancelarEnvioMedia() {
     document.getElementById("mediaPreviewContainer").style.display = "none";
     document.getElementById("mediaInput").value = "";
 
-    // SE NÃO HOUVER TEXTO, voltar o microfone ao cancelar mídia
     if (messageInput.value.trim() === "") {
         audioBtn.style.display = "flex";
         sendTextBtn.style.display = "none";
@@ -113,7 +111,6 @@ const previewAudioBtn = document.getElementById("previewAudioBtn");
 
 messageInput.oninput = () => {
     const temTexto = messageInput.value.trim() !== "";
-    // Se tiver texto OU mídia pendente, mostra o botão de enviar
     if (temTexto || mediaParaEnviar) {
         audioBtn.style.display = "none";
         sendTextBtn.style.display = "flex";
@@ -367,9 +364,10 @@ function addMessage(m) {
     let mediaHtml = "";
     if (m.media) {
         if (m.media.type === 'image') {
-            mediaHtml = `<img src="${m.media.data}">`; 
+            // Chamada para abrir fullscreen ao clicar
+            mediaHtml = `<img src="${m.media.data}" onclick="abrirFullscreen('${m.media.data}', 'image')" style="cursor:pointer;">`; 
         } else if (m.media.type === 'video') {
-            mediaHtml = `<video src="${m.media.data}" controls></video>`;
+            mediaHtml = `<video src="${m.media.data}" controls onclick="abrirFullscreen('${m.media.data}', 'video')" style="cursor:pointer;"></video>`;
         } else if (m.media.type === 'audio') {
             mediaHtml = `<audio src="${m.media.data}" controls style="max-width:100%;"></audio>`;
         }
@@ -447,11 +445,8 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     };
 
     input.value = "";
-    
-    // RESETAR botões após enviar
     audioBtn.style.display = "flex";
     sendTextBtn.style.display = "none";
-
     cancelarEnvioMedia(); 
     
     await fetch("/sendMessage", {
@@ -524,6 +519,27 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         salvar(currentUser.photo);
     }
 };
+
+// --- FUNÇÕES DE TELA CHEIA (FULLSCREEN) ---
+function abrirFullscreen(src, type) {
+    const modal = document.getElementById("fullScreenModal");
+    const content = document.getElementById("fullScreenContent");
+    
+    if (type === 'image') {
+        content.innerHTML = `<img src="${src}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+    } else if (type === 'video') {
+        content.innerHTML = `<video src="${src}" controls autoplay style="max-width:100%; max-height:100%;"></video>`;
+    }
+    
+    modal.style.display = "flex";
+}
+
+function fecharFullscreen() {
+    const modal = document.getElementById("fullScreenModal");
+    const content = document.getElementById("fullScreenContent");
+    content.innerHTML = ""; 
+    modal.style.display = "none";
+}
 
 // --- PWA ---
 let deferredPrompt;
