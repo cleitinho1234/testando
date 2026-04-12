@@ -97,7 +97,7 @@ function abrirPlayerStatus(lista) {
     viewer.style.display = "flex";
     progressContainer.innerHTML = "";
 
-    // Cria as barrinhas segmentadas
+    // Cria as barrinhas segmentadas para cada status
     lista.forEach(() => {
         const segment = document.createElement("div");
         segment.className = "status-segment";
@@ -116,8 +116,13 @@ function abrirPlayerStatus(lista) {
         const segments = document.querySelectorAll(".status-segment");
         segments.forEach((seg, i) => {
             seg.classList.remove("active", "seen");
-            if (i < idx) seg.classList.add("seen");
-            if (i === idx) seg.classList.add("active");
+            if (i < idx) {
+                seg.classList.add("seen");
+            } else if (i === idx) {
+                // Truque para reiniciar a animação do CSS
+                void seg.offsetWidth; 
+                seg.classList.add("active");
+            }
         });
 
         clearTimeout(statusInterval);
@@ -129,7 +134,7 @@ function abrirPlayerStatus(lista) {
         else play(index - 1);
     };
 
-    play(0);
+    play(0); // Começa sempre do primeiro (o mais antigo)
 }
 
 function fecharStatus() {
@@ -290,7 +295,6 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// Lógica de Foto de Perfil (Preview)
 document.getElementById("profilePic").onchange = (e) => {
     const file = e.target.files[0];
     if (file) {
