@@ -18,6 +18,10 @@ let seconds = 0;
 const ringtone = document.getElementById("ringtone");
 let chamandoAgora = null;
 
+// VARIÁVEIS WebRTC (VOZ EM TEMPO REAL)
+let peer;
+let streamLocal;
+
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
     if (savedId) {
@@ -60,22 +64,47 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- LÓGICA DE LIGAÇÃO (CORRIGIDA) ---
+// --- LÓGICA DE LIGAÇÃO E VOZ WebRTC ---
 
-function iniciarChamada() {
+async function obterMediaPrivado() {
+    try {
+        streamLocal = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        return streamLocal;
+    } catch (err) {
+        alert("Erro ao acessar microfone para chamada: " + err);
+    }
+}
+
+async function iniciarChamada() {
     if (!currentChat) return;
     
-    const dadosChamada = {
-        de: currentUser.id,
-        deNome: currentUser.username,
-        deFoto: currentUser.photo,
-        para: currentChat.id
-    };
+    // 1. Liga o microfone
+    await obterMediaPrivado();
+
+    // 2. Cria a conexão Peer (Iniciador)
+    peer = new SimplePeer({ initiator: true, trickle: false, stream: streamLocal });
+
+    // 3. Quando gerar o sinal de áudio, envia pelo socket
+    peer.on('signal', sinal => {
+        const dadosChamada = {
+            de: currentUser.id,
+            deNome: currentUser.username,
+            deFoto: currentUser.photo,
+            para: currentChat.id,
+            sinal: sinal // Envia os dados técnicos da conexão
+        };
+        socket.emit("ligarPara", dadosChamada);
+    });
+
+    // 4. Quando receber a voz do outro, toca no alto-falante
+    peer.on('stream', streamRemota => {
+        const audioRemoto = new Audio();
+        audioRemoto.srcObject = streamRemota;
+        audioRemoto.play();
+    });
     
     abrirTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
     document.getElementById("btnAceitar").style.display = "none";
-    
-    socket.emit("ligarPara", dadosChamada);
     ringtone.play().catch(e => console.log("Áudio bloqueado"));
 }
 
@@ -86,18 +115,46 @@ socket.on("recebendoLigacao", (dados) => {
     ringtone.play().catch(e => console.log("Áudio bloqueado"));
 });
 
-// NOVO: Escuta quando o outro lado aceita a chamada
-socket.on("chamadaAceita", () => {
+// Escuta quando o outro lado aceita a chamada
+socket.on("chamadaAceita", (dados) => {
     ringtone.pause();
     ringtone.currentTime = 0;
     document.getElementById("callStatusText").textContent = "Em chamada...";
+    
+    // Conecta o áudio com o sinal que veio de volta
+    if (dados && dados.sinal) {
+        peer.signal(dados.sinal);
+    }
 });
 
-function abrirTelaChamada(nome, foto, status) {
-    document.getElementById("callerName").textContent = nome;
-    document.getElementById("callerPhoto").src = foto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    document.getElementById("callStatusText").textContent = status;
-    document.getElementById("incomingCallScreen").style.display = "flex";
+async function aceitarChamada() {
+    ringtone.pause();
+    ringtone.currentTime = 0;
+    document.getElementById("callStatusText").textContent = "Em chamada...";
+    document.getElementById("btnAceitar").style.display = "none";
+    
+    if(chamandoAgora) {
+        // 1. Liga o microfone de quem atendeu
+        await obterMediaPrivado();
+
+        // 2. Cria o Peer (Receptor)
+        peer = new SimplePeer({ initiator: false, trickle: false, stream: streamLocal });
+
+        // 3. Gera o sinal de volta para quem ligou
+        peer.on('signal', sinal => {
+            socket.emit("aceitarChamada", { para: chamandoAgora.de, sinal: sinal });
+        });
+
+        // 4. Recebe o som de quem ligou
+        peer.on('stream', streamRemota => {
+            const audioRemoto = new Audio();
+            audioRemoto.srcObject = streamRemota;
+            audioRemoto.play();
+        });
+
+        // 5. Processa o sinal de quem ligou para fechar a conexão
+        peer.signal(chamandoAgora.sinal);
+    }
 }
 
 function recusarChamada() {
@@ -105,6 +162,11 @@ function recusarChamada() {
     ringtone.currentTime = 0;
     document.getElementById("incomingCallScreen").style.display = "none";
     
+    // Para o microfone se estiver ligado
+    if (streamLocal) {
+        streamLocal.getTracks().forEach(t => t.stop());
+    }
+
     if(chamandoAgora) {
         socket.emit("chamadaRecusada", { para: chamandoAgora.de });
         chamandoAgora = null;
@@ -117,19 +179,17 @@ socket.on("chamadaEncerrada", () => {
     ringtone.pause();
     ringtone.currentTime = 0;
     document.getElementById("incomingCallScreen").style.display = "none";
+    if (streamLocal) {
+        streamLocal.getTracks().forEach(t => t.stop());
+    }
     chamandoAgora = null;
 });
 
-function aceitarChamada() {
-    ringtone.pause();
-    ringtone.currentTime = 0;
-    document.getElementById("callStatusText").textContent = "Em chamada...";
-    document.getElementById("btnAceitar").style.display = "none";
-    
-    // Avisa quem ligou que você atendeu
-    if(chamandoAgora) {
-        socket.emit("aceitarChamada", { para: chamandoAgora.de });
-    }
+function abrirTelaChamada(nome, foto, status) {
+    document.getElementById("callerName").textContent = nome;
+    document.getElementById("callerPhoto").src = foto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    document.getElementById("callStatusText").textContent = status;
+    document.getElementById("incomingCallScreen").style.display = "flex";
 }
 
 // --- LÓGICA DE MÍDIA (FOTOS/VÍDEOS) ---
@@ -188,7 +248,7 @@ function cancelarEnvioMedia() {
     }
 }
 
-// --- LÓGICA DO MICROFONE (GRAVAÇÃO) ---
+// --- LÓGICA DO MICROFONE (GRAVAÇÃO DE MENSAGEM DE VOZ) ---
 const audioBtn = document.getElementById("audioControlBtn");
 const messageInput = document.getElementById("messageText");
 const sendTextBtn = document.getElementById("sendMessageBtn");
@@ -317,7 +377,7 @@ document.getElementById("sendAudioBtn").onclick = async () => {
     }, 200);
 };
 
-// --- RESTANTE DAS FUNÇÕES ---
+// --- RESTANTE DAS FUNÇÕES (Sincronização e UI) ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
