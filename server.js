@@ -49,15 +49,15 @@ io.on("connection", (socket) => {
     socket.on("register", (userId) => {
         if(!userId) return;
         socket.userId = userId;
-        usuariosOnline[userId] = socket.id; // Mapeia ID do usuário para o ID do Socket
+        usuariosOnline[userId] = socket.id; 
         
         io.emit("updateStatus", Object.keys(usuariosOnline));
         console.log(`🚀 Usuário ${userId} online.`);
     });
 
-    // --- LÓGICA DE LIGAÇÃO (ADICIONADA AQUI) ---
+    // --- LÓGICA DE LIGAÇÃO (ATUALIZADA) ---
     
-    // Escuta o sinal de ligação e repassa para o socket específico do destino
+    // Escuta o sinal de ligação e repassa para o destino
     socket.on("ligarPara", (dados) => {
         const socketDestino = usuariosOnline[dados.para];
         if (socketDestino) {
@@ -65,7 +65,15 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Escuta quando alguém recusa ou encerra e avisa o outro lado
+    // NOVO: Escuta quando alguém ATENDE e avisa quem ligou
+    socket.on("aceitarChamada", (dados) => {
+        const socketDestino = usuariosOnline[dados.para];
+        if (socketDestino) {
+            io.to(socketDestino).emit("chamadaAceita");
+        }
+    });
+
+    // Escuta quando alguém recusa ou encerra
     socket.on("chamadaRecusada", (dados) => {
         const socketDestino = usuariosOnline[dados.para];
         if (socketDestino) {
