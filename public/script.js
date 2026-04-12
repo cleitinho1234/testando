@@ -6,42 +6,42 @@ const socket = io();
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
+let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 
-// Alternar menu de anexo
-document.getElementById("attachmentBtn").onclick = () => {
-    document.getElementById("attachmentMenu").classList.toggle("hidden");
-};
+// Controle de Timer dos Momentos
+let tempoStatus; 
 
-// Salvar Perfil (Nome e Foto)
-document.getElementById("profileForm").onsubmit = async (e) => {
+function atualizarBadgeIcone() {
+    const counts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
+    const totalNaoLidas = Object.values(counts).reduce((a, b) => a + b, 0);
+    if (navigator.setAppBadge) {
+        if (totalNaoLidas > 0) navigator.setAppBadge(totalNaoLidas).catch(console.error);
+        else navigator.clearAppBadge().catch(console.error);
+    }
+}
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
-    const newName = document.getElementById("username").value;
-    const photoFile = document.getElementById("profilePic").files[0];
-    
-    let photoBase64 = currentUser.photo;
+    deferredPrompt = e;
+    document.getElementById('installBanner').style.display = 'block';
+});
 
-    if (photoFile) {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            photoBase64 = reader.result;
-            await enviarUpdatePerfil(newName, photoBase64);
-        };
-        reader.readAsDataURL(photoFile);
-    } else {
-        await enviarUpdatePerfil(newName, photoBase64);
+document.getElementById('btnInstall').onclick = async () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt = null;
+        document.getElementById('installBanner').style.display = 'none';
     }
 };
 
-async function enviarUpdatePerfil(username, photo) {
-    const res = await fetch(`/updateUser/${currentUser.id}`, {
-        method: "PUT",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ username, photo })
-    });
-    currentUser = await res.json();
-    document.getElementById("profilePreview").src = currentUser.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    alert("Perfil atualizado!");
+function recusarInstalacao() { document.getElementById('installBanner').style.display = 'none'; }
+
+function aplicarTrava(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.addEventListener("touchstart", function() { if (el.scrollTop <= 0) el.scrollTop = 1; }, { passive: true });
 }
 
 window.addEventListener("load", async () => {
@@ -64,28 +64,154 @@ window.addEventListener("load", async () => {
     socket.emit("register", currentUser.id);
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
-    if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
+    if(currentUser.photo) {
+        document.getElementById("profilePreview").src = currentUser.photo;
+        document.getElementById("minhaFotoMomento").src = currentUser.photo;
+    }
 
     renderContacts();
+    loadMomentos(); 
+    atualizarBadgeIcone();
+    
     setInterval(loadMessages, 1500);
+    setInterval(loadMomentos, 30000); 
+    aplicarTrava("messages");
 });
 
-document.getElementById("addFriendBtn").onclick = async () => {
-    const input = document.getElementById("addUserId");
-    const id = input.value.trim();
-    if(!id || id === currentUser.id || contacts.find(c => c.id === id)) return;
+// --- LÓGICA DE MOMENTOS (ESTILO WHATSAPP) ---
 
-    const res = await fetch(`/getUser/${id}`);
-    const user = await res.json();
-    if(!user.error) {
-        contacts.push(user);
-        localStorage.setItem("contacts", JSON.stringify(contacts));
-        renderContacts();
-        input.value = "";
-    } else {
-        alert("Usuário não encontrado");
+async function loadMomentos() {
+    try {
+        const res = await fetch("/getMomentos");
+        const todosMomentos = await res.json();
+        const container = document.getElementById("listaMomentos");
+        container.innerHTML = "";
+
+        const idsContatos = contacts.map(c => c.id);
+        const grupos = {};
+
+        // Agrupando mídias por Usuário
+        todosMomentos.forEach(m => {
+            const souEu = m.userId === currentUser.id;
+            const ehMeuContato = idsContatos.includes(m.userId);
+
+            if (souEu || ehMeuContato) {
+                if (!grupos[m.userId]) {
+                    grupos[m.userId] = {
+                        username: souEu ? "Você" : m.username,
+                        userPhoto: m.userPhoto,
+                        midias: [] 
+                    };
+                }
+                // Adiciona na lista (do mais antigo para o novo)
+                grupos[m.userId].midias.unshift(m.media);
+            }
+        });
+
+        Object.keys(grupos).forEach(userId => {
+            const g = grupos[userId];
+            const item = document.createElement("div");
+            item.className = "momento-item";
+            item.onclick = () => abrirVisualizadorSequencial(g.midias);
+            
+            item.innerHTML = `
+                <div class="momento-aro" style="border-color: ${userId === currentUser.id ? '#075e54' : '#25D366'}">
+                    <img src="${g.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img">
+                </div>
+                <div style="font-size: 11px; margin-top: 5px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${g.username}</div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (err) {
+        console.error("Erro ao carregar momentos:", err);
     }
-};
+}
+
+function abrirVisualizadorSequencial(listaFotos) {
+    let indice = 0;
+    const viewer = document.getElementById("fullScreenViewer");
+    const img = document.getElementById("fullScreenImage");
+    const progressContainer = document.getElementById("statusProgressBar");
+    
+    progressContainer.innerHTML = "";
+    listaFotos.forEach(() => {
+        const segment = document.createElement("div");
+        segment.className = "status-segment";
+        const filler = document.createElement("div");
+        filler.className = "status-filler";
+        segment.appendChild(filler);
+        progressContainer.appendChild(segment);
+    });
+
+    const segmentosHtml = progressContainer.querySelectorAll(".status-segment");
+
+    const mostrar = () => {
+        clearTimeout(tempoStatus);
+
+        if (indice >= listaFotos.length) {
+            fecharFullScreen();
+            return;
+        }
+        
+        img.src = listaFotos[indice];
+        viewer.style.display = "flex";
+
+        segmentosHtml.forEach((seg, i) => {
+            seg.classList.remove("active", "seen");
+            if (i < indice) {
+                seg.classList.add("seen");
+            } else if (i === indice) {
+                seg.style.display = 'none';
+                seg.offsetHeight; 
+                seg.style.display = 'flex';
+                seg.classList.add("active");
+            }
+        });
+        
+        tempoStatus = setTimeout(() => {
+            indice++;
+            mostrar();
+        }, 4000); 
+    };
+
+    mostrar();
+
+    img.onclick = (e) => {
+        e.stopPropagation();
+        indice++;
+        mostrar();
+    };
+}
+
+async function postarNovoMomento(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const base64 = e.target.result;
+        const btnCriar = document.querySelector(".add-momento");
+        btnCriar.style.opacity = "0.5";
+
+        await fetch("/postarMomento", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({
+                userId: currentUser.id,
+                username: currentUser.username,
+                userPhoto: currentUser.photo,
+                media: base64
+            })
+        });
+        
+        btnCriar.style.opacity = "1";
+        input.value = ""; 
+        loadMomentos(); 
+    };
+    reader.readAsDataURL(file);
+}
+
+// --- FIM MOMENTOS ---
 
 document.getElementById("sendPhoto").onchange = function(e) {
     const file = e.target.files[0];
@@ -102,6 +228,16 @@ document.getElementById("sendPhoto").onchange = function(e) {
 function cancelarEnvioFoto() {
     fotoParaEnviar = null;
     document.getElementById("photoPreviewContainer").style.display = "none";
+}
+
+function abrirFullScreen(src) {
+    document.getElementById("fullScreenImage").src = src;
+    document.getElementById("fullScreenViewer").style.display = "flex";
+}
+
+function fecharFullScreen() { 
+    clearTimeout(tempoStatus);
+    document.getElementById("fullScreenViewer").style.display = "none"; 
 }
 
 document.getElementById("sendMessageBtn").onclick = async () => {
@@ -147,15 +283,19 @@ function addMessage(m) {
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts();
+    if (currentChat) {
+        document.getElementById("typingStatus").textContent = listaOnlineGlobal.includes(currentChat.id) ? "Online" : "offline";
+    }
 });
 
 function abrirChat(user) {
     currentChat = user;
+    unreadCounts[user.id] = 0;
+    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    document.getElementById("typingStatus").textContent = listaOnlineGlobal.includes(user.id) ? "Online" : "offline";
     loadMessages();
 }
 
@@ -163,6 +303,28 @@ function voltar() {
     document.getElementById("chatScreen").style.display = "none";
     document.getElementById("home").style.display = "block";
     currentChat = null;
+    renderContacts();
+}
+
+function ativarSelecao(id) {
+    contatoSelecionadoId = id;
+    document.getElementById("headerSelecao").style.display = "flex";
+    renderContacts();
+}
+
+function cancelarSelecao() {
+    contatoSelecionadoId = null;
+    document.getElementById("headerSelecao").style.display = "none";
+    renderContacts();
+}
+
+function abrirModal() { document.getElementById("confirmModal").style.display = "flex"; }
+function fecharModal() { document.getElementById("confirmModal").style.display = "none"; }
+
+function confirmarExclusao() {
+    contacts = contacts.filter(c => c.id !== contatoSelecionadoId);
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+    fecharModal(); cancelarSelecao();
 }
 
 function renderContacts() {
@@ -171,21 +333,49 @@ function renderContacts() {
     contacts.forEach(user => {
         const isOnline = listaOnlineGlobal.includes(user.id);
         const contactEl = document.createElement("div");
-        contactEl.className = "contact";
+        contactEl.className = `contact ${contatoSelecionadoId === user.id ? 'selected' : ''}`;
         contactEl.innerHTML = `
             <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
             <div style="flex:1;">
                 <div style="font-weight:bold;">${user.username}</div>
                 <div style="font-size:11px; color:${isOnline ? '#25D366' : 'gray'}">${isOnline ? '● Online' : '● Offline'}</div>
-            </div>`;
-        contactEl.onclick = () => abrirChat(user);
+            </div>
+        `;
+        let pressTimer;
+        contactEl.ontouchstart = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
+        contactEl.ontouchend = () => clearTimeout(pressTimer);
+        contactEl.onclick = () => { if (contatoSelecionadoId) cancelarSelecao(); else abrirChat(user); };
         div.appendChild(contactEl);
     });
 }
 
-function abrirFullScreen(src) {
-    document.getElementById("fullScreenImage").src = src;
-    document.getElementById("fullScreenViewer").style.display = "flex";
-}
-function fecharFullScreen() { document.getElementById("fullScreenViewer").style.display = "none"; }
-        
+// 🔥 FUNÇÃO ATUALIZADA: Bloqueia auto-add e duplicatas
+document.getElementById("addFriendBtn").onclick = async () => {
+    const id = document.getElementById("addUserId").value.trim();
+    
+    if (!id) return;
+
+    if (id === currentUser.id) {
+        alert("Você não pode adicionar seu próprio ID.");
+        return;
+    }
+
+    const jaExiste = contacts.find(c => c.id === id);
+    if (jaExiste) {
+        alert("Este contato já está na sua lista.");
+        return;
+    }
+
+    const res = await fetch(`/getUser/${id}`);
+    const user = await res.json();
+    
+    if(user.error) {
+        return alert("Usuário não encontrado.");
+    }
+
+    contacts.push(user);
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+    renderContacts();
+    document.getElementById("addUserId").value = "";
+};
+                
