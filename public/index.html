@@ -147,7 +147,6 @@
     object-fit: cover;
   }
 
-  /* --- Estilo para Áudios no Chat --- */
   audio { height: 35px; max-width: 210px; margin: 5px 0; }
 
   #mediaPreviewContainer {
@@ -165,17 +164,35 @@
     border: 2px solid #25D366;
   }
 
-  /* --- INPUT DE CHAT E BARRA DE GRAVAÇÃO --- */
+  /* --- AJUSTE DOS BOTÕES DE ENVIO --- */
   #chatInputContainer { position: relative; background: #f0f0f0; padding: 10px; }
-  
-  #chatInput { display: flex; align-items: center; }
-  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; font-size: 16px; }
+  #chatInput { display: flex; align-items: center; position: relative; }
+  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; font-size: 16px; padding-right: 50px; }
   
   #addMediaBtn { background: none; border: none; color: #075e54; font-size: 30px; margin-right: 10px; cursor: pointer; }
-  #audioControlBtn { background: none; border: none; font-size: 24px; margin-left: 8px; cursor: pointer; color: #555; }
-  #sendMessageBtn { margin-left: 8px; width: 45px; height: 45px; border: none; background: #075e54; color: white; border-radius: 50%; font-size: 20px; cursor: pointer; display: none; }
+  
+  /* Container para os botões que ficam na direita */
+  .input-actions { position: relative; display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; margin-left: 5px; }
+  
+  #audioControlBtn { background: none; border: none; font-size: 24px; cursor: pointer; color: #555; display: flex; }
+  
+  #sendMessageBtn { 
+    position: absolute; 
+    top: 0; left: 0; 
+    width: 100%; height: 100%; 
+    border: none; 
+    background: #075e54; 
+    color: white; 
+    border-radius: 50%; 
+    font-size: 20px; 
+    cursor: pointer; 
+    display: none; /* Controlado pelo JS */
+    align-items: center; 
+    justify-content: center;
+    z-index: 2;
+  }
 
-  /* Barra de Gravação (Sobrepõe o Input) */
+  /* Barra de Gravação */
   #recordBar {
     display: none;
     position: absolute;
@@ -217,7 +234,6 @@
 <div id="home">
   <div class="profile-card">
     <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" title="Clique para mudar a foto">
-    
     <form id="profileForm">
       <input type="text" id="username" placeholder="Seu nome">
       <input type="file" id="profilePic" accept="image/*" style="display: none;">
@@ -233,7 +249,6 @@
     <input type="text" id="addUserId" placeholder="Digite o ID do amigo">
     <button id="addFriendBtn">ADICIONAR AMIGO</button>
   </div>
-  
   <div id="contacts" style="margin-top: 15px;"></div>
 </div>
 
@@ -260,8 +275,10 @@
       
       <input type="text" id="messageText" placeholder="Mensagem" autocomplete="off">
       
-      <button id="audioControlBtn">🎤</button>
-      <button id="sendMessageBtn">➤</button>
+      <div class="input-actions">
+        <button id="audioControlBtn">🎤</button>
+        <button id="sendMessageBtn">➤</button>
+      </div>
     </div>
 
     <div id="recordBar">
