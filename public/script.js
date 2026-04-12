@@ -164,7 +164,6 @@ async function loadMessages() {
     const msgs = await res.json();
     const container = document.getElementById("messages");
 
-    // Lógica de Trava de Rolagem: verifica se o usuário está no final do chat
     const estaNoFinal = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
     
     for (let m of msgs) {
@@ -204,12 +203,10 @@ async function loadMessages() {
 
     const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
     
-    // Só reconstrói o HTML se houver novas mensagens para evitar travamentos
     if (container.children.length !== filtered.length) {
         container.innerHTML = "";
         filtered.forEach(addMessage);
         
-        // Só rola para baixo se o usuário já estava acompanhando o final
         if (estaNoFinal) {
             container.scrollTop = container.scrollHeight;
         }
@@ -227,9 +224,9 @@ function addMessage(m) {
     let mediaHtml = "";
     if (m.media) {
         if (m.media.type === 'image') {
-            mediaHtml = `<img src="${m.media.data}" style="max-width:100%; border-radius:8px; display:block; margin-bottom:5px;">`;
+            mediaHtml = `<img src="${m.media.data}">`; // Estilo agora controlado pelo CSS no HTML
         } else {
-            mediaHtml = `<video src="${m.media.data}" controls style="max-width:100%; border-radius:8px; display:block; margin-bottom:5px;"></video>`;
+            mediaHtml = `<video src="${m.media.data}" controls></video>`;
         }
     }
 
@@ -286,7 +283,6 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     });
     
     await loadMessages();
-    // Força rolagem para baixo ao enviar mensagem própria
     const container = document.getElementById("messages");
     container.scrollTop = container.scrollHeight;
 };
