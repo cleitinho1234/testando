@@ -99,6 +99,7 @@ const audioBtn = document.getElementById("audioControlBtn");
 const messageInput = document.getElementById("messageText");
 const sendTextBtn = document.getElementById("sendMessageBtn");
 const recordBar = document.getElementById("recordBar");
+const previewAudioBtn = document.getElementById("previewAudioBtn"); // Novo botão
 
 // Troca Mic por Seta ao digitar
 messageInput.oninput = () => {
@@ -124,6 +125,8 @@ audioBtn.onclick = async () => {
 
         mediaRecorder.start();
         recordBar.style.display = "flex";
+        previewAudioBtn.style.display = "none"; // Garante que comece escondido
+        document.getElementById("pauseRecord").style.display = "block";
         iniciarTimer();
     } catch (err) {
         alert("Para mandar áudio, você precisa permitir o microfone!");
@@ -142,12 +145,27 @@ function iniciarTimer() {
     }, 1000);
 }
 
-// Pausa para escutar (Para a gravação mas não envia)
+// Pausa para escutar
 document.getElementById("pauseRecord").onclick = () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
         clearInterval(timerInterval);
-        document.getElementById("pauseRecord").textContent = "✅";
+        
+        // Esconde pausa e mostra o Play (Preview)
+        document.getElementById("pauseRecord").style.display = "none";
+        previewAudioBtn.style.display = "block";
+    }
+};
+
+// Lógica para ouvir o áudio antes de enviar
+previewAudioBtn.onclick = () => {
+    if (audioBlob) {
+        const url = URL.createObjectURL(audioBlob);
+        const previewAudio = new Audio(url);
+        previewAudio.play();
+        
+        previewAudioBtn.textContent = "🔊";
+        previewAudio.onended = () => { previewAudioBtn.textContent = "▶️"; };
     }
 };
 
@@ -156,7 +174,8 @@ document.getElementById("deleteAudio").onclick = () => {
     pararMicrofone();
     recordBar.style.display = "none";
     clearInterval(timerInterval);
-    document.getElementById("pauseRecord").textContent = "⏸️";
+    previewAudioBtn.style.display = "none";
+    previewAudioBtn.textContent = "▶️";
     audioBlob = null;
 };
 
@@ -188,8 +207,9 @@ document.getElementById("sendAudioBtn").onclick = async () => {
             });
             
             recordBar.style.display = "none";
+            previewAudioBtn.style.display = "none";
             pararMicrofone();
-            document.getElementById("pauseRecord").textContent = "⏸️";
+            audioBlob = null;
             loadMessages();
         };
     }, 300);
