@@ -9,7 +9,7 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 let mediaParaEnviar = null; 
 
-// CONTROLE DE PERFORMANCE: Impede que mensagens já exibidas sejam processadas de novo
+// CONTROLE DE PERFORMANCE: Essencial para não processar a mesma mensagem pesada várias vezes
 let mensagensExibidasIds = new Set();
 
 // --- VARIÁVEIS PARA ÁUDIO ---
@@ -55,11 +55,11 @@ window.addEventListener("load", async () => {
     };
 
     renderContacts();
-    // Intervalo de segurança para mensagens
-    setInterval(loadMessages, 2000);
+    // Reduzi a frequência do timer para poupar bateria e CPU
+    setInterval(loadMessages, 3000);
 });
 
-// --- LÓGICA DE MÍDIA ---
+// --- LÓGICA DE MÍDIA COM COMPRESSÃO (PARA NÃO ENGASGAR) ---
 document.getElementById("addMediaBtn").onclick = () => {
     document.getElementById("mediaInput").click();
 };
@@ -67,13 +67,31 @@ document.getElementById("addMediaBtn").onclick = () => {
 document.getElementById("mediaInput").onchange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = (ev) => {
-        mediaParaEnviar = {
-            data: ev.target.result,
-            type: file.type.startsWith('image') ? 'image' : 'video'
-        };
-        exibirPreviewMedia();
+        if (file.type.startsWith('image')) {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const MAX_WIDTH = 600; // Redimensiona para ser leve
+                const scale = MAX_WIDTH / img.width;
+                canvas.width = MAX_WIDTH;
+                canvas.height = img.height * scale;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                mediaParaEnviar = {
+                    data: canvas.toDataURL("image/jpeg", 0.6), // 60% de qualidade = super rápido
+                    type: 'image'
+                };
+                exibirPreviewMedia();
+            };
+            img.src = ev.target.result;
+        } else {
+            mediaParaEnviar = { data: ev.target.result, type: file.type.startsWith('video') ? 'video' : 'audio' };
+            exibirPreviewMedia();
+        }
     };
     reader.readAsDataURL(file);
 };
@@ -83,30 +101,28 @@ function exibirPreviewMedia() {
     const content = document.getElementById("mediaPreviewContent");
     container.style.display = "flex";
     if (mediaParaEnviar.type === 'image') {
-        content.innerHTML = `<img src="${mediaParaEnviar.data}">`;
+        content.innerHTML = `<img src="${mediaParaEnviar.data}" style="max-height:100px; border-radius:5px;">`;
     } else if (mediaParaEnviar.type === 'video') {
-        content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
+        content.innerHTML = `<video src="${mediaParaEnviar.data}" style="max-height:100px;"></video>`;
     }
-    audioBtn.style.display = "none";
-    sendTextBtn.style.display = "flex";
+    document.getElementById("audioControlBtn").style.display = "none";
+    document.getElementById("sendMessageBtn").style.display = "flex";
 }
 
 function cancelarEnvioMedia() {
     mediaParaEnviar = null;
     document.getElementById("mediaPreviewContainer").style.display = "none";
     document.getElementById("mediaInput").value = "";
-    if (messageInput.value.trim() === "") {
-        audioBtn.style.display = "flex";
-        sendTextBtn.style.display = "none";
+    if (document.getElementById("messageText").value.trim() === "") {
+        document.getElementById("audioControlBtn").style.display = "flex";
+        document.getElementById("sendMessageBtn").style.display = "none";
     }
 }
 
-// --- LÓGICA DO MICROFONE ---
+// --- MICROFONE ---
 const audioBtn = document.getElementById("audioControlBtn");
 const messageInput = document.getElementById("messageText");
 const sendTextBtn = document.getElementById("sendMessageBtn");
-const recordBar = document.getElementById("recordBar");
-const previewAudioBtn = document.getElementById("previewAudioBtn");
 
 messageInput.oninput = () => {
     const temTexto = messageInput.value.trim() !== "";
@@ -127,12 +143,12 @@ audioBtn.onclick = async () => {
         mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
         mediaRecorder.onstop = () => { audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); };
         mediaRecorder.start();
-        recordBar.style.display = "flex";
-        previewAudioBtn.style.display = "none"; 
+        document.getElementById("recordBar").style.display = "flex";
+        document.getElementById("previewAudioBtn").style.display = "none"; 
         document.getElementById("pauseRecord").style.display = "block";
         iniciarTimer();
     } catch (err) {
-        alert("Permita o microfone nas configurações!");
+        alert("Permita o microfone!");
     }
 };
 
@@ -160,27 +176,9 @@ document.getElementById("pauseRecord").onclick = () => {
         pararMicrofone();
         clearInterval(timerInterval);
         document.getElementById("pauseRecord").style.display = "none";
-        previewAudioBtn.style.display = "block";
-        previewAudioBtn.textContent = "▶️";
+        document.getElementById("previewAudioBtn").style.display = "block";
+        document.getElementById("previewAudioBtn").textContent = "▶️";
     }
-};
-
-previewAudioBtn.onclick = () => {
-    if (audioBlob) {
-        const url = URL.createObjectURL(audioBlob);
-        const previewAudio = new Audio(url);
-        previewAudio.play();
-        previewAudioBtn.textContent = "🔊";
-        previewAudio.onended = () => { previewAudioBtn.textContent = "▶️"; };
-    }
-};
-
-document.getElementById("deleteAudio").onclick = () => {
-    if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
-    pararMicrofone();
-    recordBar.style.display = "none";
-    clearInterval(timerInterval);
-    audioBlob = null;
 };
 
 document.getElementById("sendAudioBtn").onclick = async () => {
@@ -193,85 +191,33 @@ document.getElementById("sendAudioBtn").onclick = async () => {
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = async () => {
-            const payload = {
-                fromId: currentUser.id,
-                toId: currentChat.id,
-                text: "",
-                media: { data: reader.result, type: 'audio' }
-            };
-            await fetch("/sendMessage", {
-                method: "POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify(payload)
-            });
-            recordBar.style.display = "none";
+            const payload = { fromId: currentUser.id, toId: currentChat.id, text: "", media: { data: reader.result, type: 'audio' } };
+            // Envio otimista para áudio também
+            addMessage({...payload, timestamp: Date.now()});
+            fetch("/sendMessage", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
+            document.getElementById("recordBar").style.display = "none";
             audioBlob = null;
-            loadMessages();
         };
     }, 200);
 };
 
-// --- CONTATOS E SOCKETS ---
-socket.on("updateStatus", (listaOnline) => {
-    listaOnlineGlobal = listaOnline;
-    renderContacts();
-});
+// --- MENSAGENS E PERFORMANCE ---
 
-function renderContacts() {
-    const div = document.getElementById("contacts");
-    div.innerHTML = "";
-    contacts.forEach(user => {
-        const count = unreadCounts[user.id] || 0;
-        const isOnline = listaOnlineGlobal.includes(user.id);
-        const contactEl = document.createElement("div");
-        contactEl.className = `contact ${contatoSelecionadoId === user.id ? 'selected' : ''}`;
-        contactEl.style.display = "flex";
-        contactEl.style.alignItems = "center";
-        contactEl.innerHTML = `
-            <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" loading="lazy" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
-            <div style="flex:1;">
-                <div style="font-weight:bold;">${user.username}</div>
-                <div style="font-size:11px; color:${isOnline ? '#25D366' : 'gray'}">${isOnline ? '● Online' : '● Offline'}</div>
-            </div>
-            ${count > 0 ? `<span style="background:red;color:white;border-radius:50%;padding:2px 8px;font-size:12px;">${count}</span>` : ""}
-        `;
-        contactEl.onclick = () => { if (!contatoSelecionadoId) abrirChat(user); };
-        div.appendChild(contactEl);
-    });
-}
-
-// --- MENSAGENS OTIMIZADAS ---
 async function loadMessages() {
+    if (!currentChat) return;
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
     const container = document.getElementById("messages");
-    const estaNoFinal = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
-    
-    // Atualiza contatos e notificações
-    msgs.forEach(m => {
-        if (m.timestamp > lastTimestamp) {
-            lastTimestamp = m.timestamp;
-            if (m.toId == currentUser.id && (!currentChat || currentChat.id != m.fromId)) {
-                unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
-            }
-        }
-    });
 
-    localStorage.setItem("lastTimestamp", lastTimestamp);
-    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    renderContacts();
-
-    if (!currentChat) return;
-
-    // Adiciona apenas o que ainda não está na tela
-    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
+    // FILTRO LEVE: Pega apenas as últimas 15 mensagens do chat atual
+    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id)).slice(-15);
     
     filtered.forEach(m => {
         const msgId = m._id || m.timestamp;
         if (!mensagensExibidasIds.has(msgId)) {
             addMessage(m);
             mensagensExibidasIds.add(msgId);
-            if (estaNoFinal) container.scrollTop = container.scrollHeight;
+            container.scrollTop = container.scrollHeight;
         }
     });
 }
@@ -280,21 +226,23 @@ function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+    
     const date = new Date(m.timestamp);
     const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
 
     let mediaHtml = "";
     if (m.media) {
-        if (m.media.type === 'image') mediaHtml = `<img src="${m.media.data}" loading="lazy" onclick="abrirFullscreen('${m.media.data}', 'image')">`;
-        else if (m.media.type === 'video') mediaHtml = `<video src="${m.media.data}" controls preload="metadata"></video>`;
-        else if (m.media.type === 'audio') mediaHtml = `<audio src="${m.media.data}" controls></audio>`;
+        // Estilos fixos evitam que o navegador "re-calcule" a tela toda hora
+        if (m.media.type === 'image') mediaHtml = `<img src="${m.media.data}" style="width:200px; border-radius:8px;" loading="lazy" onclick="abrirFullscreen('${m.media.data}', 'image')">`;
+        else if (m.media.type === 'video') mediaHtml = `<video src="${m.media.data}" style="width:200px;" controls preload="none"></video>`;
+        else if (m.media.type === 'audio') mediaHtml = `<audio src="${m.media.data}" style="width:200px;" controls></audio>`;
     }
 
     div.innerHTML = `
         <div class="bubble">
             ${mediaHtml}
-            <div class="msg-body">${m.text || ""}</div>
-            <span class="time">${timeStr}</span>
+            ${m.text ? `<div class="msg-body">${m.text}</div>` : ""}
+            <span class="time" style="font-size:10px; opacity:0.6; display:block; text-align:right;">${timeStr}</span>
         </div>
     `;
     container.appendChild(div);
@@ -303,7 +251,6 @@ function addMessage(m) {
 function abrirChat(user) {
     currentChat = user;
     mensagensExibidasIds.clear(); 
-    unreadCounts[user.id] = 0; 
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
@@ -318,36 +265,67 @@ function voltar() {
     currentChat = null;
     mensagensExibidasIds.clear();
     cancelarEnvioMedia();
-    renderContacts();
 }
 
+// ENVIO INSTANTÂNEO (INTERFACE OTIMISTA)
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
     if((!text && !mediaParaEnviar) || !currentChat) return;
     
-    const payload = { fromId: currentUser.id, toId: currentChat.id, text, media: mediaParaEnviar };
+    const payload = { fromId: currentUser.id, toId: currentChat.id, text, media: mediaParaEnviar, timestamp: Date.now() };
+    
+    // 1. Mostra na tela na mesma hora
+    addMessage(payload);
+    document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+
+    // 2. Limpa tudo para o usuário sentir velocidade
     input.value = "";
-    audioBtn.style.display = "flex";
-    sendTextBtn.style.display = "none";
     cancelarEnvioMedia(); 
     
-    await fetch("/sendMessage", {
+    // 3. Envia para o servidor em "silêncio"
+    fetch("/sendMessage", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify(payload)
     });
-    loadMessages();
 };
 
-// Funções de perfil e fullscreen mantidas conforme original...
+function renderContacts() {
+    const div = document.getElementById("contacts");
+    div.innerHTML = "";
+    contacts.forEach(user => {
+        const isOnline = listaOnlineGlobal.includes(user.id);
+        const contactEl = document.createElement("div");
+        contactEl.className = `contact`;
+        contactEl.style.display = "flex";
+        contactEl.style.alignItems = "center";
+        contactEl.style.padding = "10px";
+        contactEl.innerHTML = `
+            <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" loading="lazy" style="width:40px;height:40px;border-radius:50%;margin-right:10px;object-fit:cover;">
+            <div style="flex:1;">
+                <div style="font-weight:bold;">${user.username}</div>
+                <div style="font-size:11px; color:${isOnline ? '#25D366' : 'gray'}">${isOnline ? '● Online' : '● Offline'}</div>
+            </div>
+        `;
+        contactEl.onclick = () => abrirChat(user);
+        div.appendChild(contactEl);
+    });
+}
+
 function abrirFullscreen(src, type) {
     const modal = document.getElementById("fullScreenModal");
     const content = document.getElementById("fullScreenContent");
-    content.innerHTML = type === 'image' ? `<img src="${src}">` : `<video src="${src}" controls autoplay></video>`;
+    content.innerHTML = type === 'image' ? `<img src="${src}" style="max-width:100%;">` : `<video src="${src}" controls autoplay></video>`;
     modal.style.display = "flex";
 }
+
 function fecharFullscreen() { 
     document.getElementById("fullScreenModal").style.display = "none";
     document.getElementById("fullScreenContent").innerHTML = "";
 }
+
+socket.on("updateStatus", (listaOnline) => {
+    listaOnlineGlobal = listaOnline;
+    renderContacts();
+});
