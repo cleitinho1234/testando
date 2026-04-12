@@ -9,18 +9,12 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 let mediaParaEnviar = null; 
 
-// --- VARIÁVEIS PARA ÁUDIO E LIGAÇÃO ---
+// --- VARIÁVEIS PARA ÁUDIO ---
 let mediaRecorder;
 let audioChunks = [];
 let audioBlob;
 let timerInterval;
 let seconds = 0;
-const ringtone = document.getElementById("ringtone");
-let chamandoAgora = null;
-
-// VARIÁVEIS WebRTC
-let peer = null;
-let streamLocal = null;
 
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
@@ -46,13 +40,16 @@ window.addEventListener("load", async () => {
 
     const preview = document.getElementById("profilePreview");
     const fileInput = document.getElementById("profilePic");
+
     preview.onclick = () => fileInput.click();
 
     fileInput.onchange = (e) => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = (ev) => { preview.src = ev.target.result; };
+            reader.onload = (ev) => {
+                preview.src = ev.target.result;
+            };
             reader.readAsDataURL(file);
         }
     };
@@ -61,122 +58,232 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- LÓGICA DE LIGAÇÃO E VOZ WebRTC ---
+// --- LÓGICA DE MÍDIA (FOTOS/VÍDEOS) ---
+document.getElementById("addMediaBtn").onclick = () => {
+    document.getElementById("mediaInput").click();
+};
 
-async function obterMediaPrivado() {
-    try {
-        if (streamLocal) streamLocal.getTracks().forEach(t => t.stop());
-        streamLocal = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        return streamLocal;
-    } catch (err) {
-        alert("Erro ao acessar microfone: " + err);
-        return null;
+document.getElementById("mediaInput").onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        mediaParaEnviar = {
+            data: ev.target.result,
+            type: file.type.startsWith('image') ? 'image' : 'video'
+        };
+
+        exibirPreviewMedia();
+    };
+    reader.readAsDataURL(file);
+};
+
+function exibirPreviewMedia() {
+    const container = document.getElementById("mediaPreviewContainer");
+    const content = document.getElementById("mediaPreviewContent");
+    
+    container.style.display = "flex";
+    
+    if (mediaParaEnviar.type === 'image') {
+        content.innerHTML = `<img src="${mediaParaEnviar.data}">`;
+    } else if (mediaParaEnviar.type === 'video') {
+        content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
+    } else if (mediaParaEnviar.type === 'audio') {
+        content.innerHTML = `
+            <div style="display:flex; align-items:center; background:#fff; padding:5px 10px; border-radius:8px; border:1px solid #ddd;">
+                <span style="font-size:20px; margin-right:10px;">🎵</span>
+                <span style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    ${mediaParaEnviar.name || 'Áudio Externo'}
+                </span>
+            </div>`;
+    }
+
+    audioBtn.style.display = "none";
+    sendTextBtn.style.display = "flex";
+}
+
+function cancelarEnvioMedia() {
+    mediaParaEnviar = null;
+    document.getElementById("mediaPreviewContainer").style.display = "none";
+    document.getElementById("mediaInput").value = "";
+
+    if (messageInput.value.trim() === "") {
+        audioBtn.style.display = "flex";
+        sendTextBtn.style.display = "none";
     }
 }
 
-async function iniciarChamada() {
-    if (!currentChat) return;
-    const stream = await obterMediaPrivado();
-    if (!stream) return;
-    if (peer) peer.destroy();
+// --- LÓGICA DO MICROFONE (GRAVAÇÃO) ---
+const audioBtn = document.getElementById("audioControlBtn");
+const messageInput = document.getElementById("messageText");
+const sendTextBtn = document.getElementById("sendMessageBtn");
+const recordBar = document.getElementById("recordBar");
+const previewAudioBtn = document.getElementById("previewAudioBtn");
 
-    peer = new SimplePeer({ initiator: true, trickle: false, stream: streamLocal });
+messageInput.oninput = () => {
+    const temTexto = messageInput.value.trim() !== "";
+    if (temTexto || mediaParaEnviar) {
+        audioBtn.style.display = "none";
+        sendTextBtn.style.display = "flex";
+    } else {
+        audioBtn.style.display = "flex";
+        sendTextBtn.style.display = "none";
+    }
+};
 
-    peer.on('signal', sinal => {
-        socket.emit("ligarPara", {
-            de: currentUser.id,
-            deNome: currentUser.username,
-            deFoto: currentUser.photo,
-            para: currentChat.id,
-            sinal: sinal 
-        });
-    });
+audioBtn.onclick = async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
 
-    peer.on('stream', streamRemota => {
-        const audioRemoto = new Audio();
-        audioRemoto.srcObject = streamRemota;
-        audioRemoto.play();
-    });
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunks.push(e.data);
+        };
 
-    abrirTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
-    document.getElementById("btnAceitar").style.display = "none";
-    ringtone.play().catch(e => console.log("Áudio bloqueado"));
+        mediaRecorder.onstop = () => {
+            audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        };
+
+        mediaRecorder.start();
+        recordBar.style.display = "flex";
+        previewAudioBtn.style.display = "none"; 
+        document.getElementById("pauseRecord").style.display = "block";
+        iniciarTimer();
+    } catch (err) {
+        alert("Para mandar áudio, você precisa permitir o microfone!");
+    }
+};
+
+function iniciarTimer() {
+    seconds = 0;
+    document.getElementById("recordTimer").textContent = "0:00";
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        seconds++;
+        let m = Math.floor(seconds / 60);
+        let s = seconds % 60;
+        document.getElementById("recordTimer").textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    }, 1000);
 }
 
-socket.on("recebendoLigacao", (dados) => {
-    chamandoAgora = dados;
-    abrirTelaChamada(dados.deNome, dados.deFoto, "Recebendo chamada...");
-    document.getElementById("btnAceitar").style.display = "flex";
-    ringtone.play().catch(e => console.log("Áudio bloqueado"));
+function pararMicrofone() {
+    if (mediaRecorder && mediaRecorder.stream) {
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+}
+
+document.getElementById("pauseRecord").onclick = () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        pararMicrofone();
+        clearInterval(timerInterval);
+        document.getElementById("pauseRecord").style.display = "none";
+        previewAudioBtn.style.display = "block";
+        previewAudioBtn.textContent = "▶️";
+    }
+};
+
+previewAudioBtn.onclick = () => {
+    if (audioBlob) {
+        const url = URL.createObjectURL(audioBlob);
+        const previewAudio = new Audio(url);
+        previewAudio.play();
+        
+        previewAudioBtn.textContent = "🔊";
+        previewAudio.onended = () => { previewAudioBtn.textContent = "▶️"; };
+    }
+};
+
+document.getElementById("deleteAudio").onclick = () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+    }
+    pararMicrofone();
+    recordBar.style.display = "none";
+    clearInterval(timerInterval);
+    previewAudioBtn.style.display = "none";
+    previewAudioBtn.textContent = "▶️";
+    audioBlob = null;
+};
+
+document.getElementById("sendAudioBtn").onclick = async () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        pararMicrofone();
+    }
+
+    setTimeout(async () => {
+        if (!audioBlob) return;
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+            const base64Audio = reader.result;
+            
+            const payload = {
+                fromId: currentUser.id,
+                toId: currentChat.id,
+                text: "",
+                media: { data: base64Audio, type: 'audio' }
+            };
+
+            await fetch("/sendMessage", {
+                method: "POST",
+                headers: {"Content-Type":"application/json"},
+                body: JSON.stringify(payload)
+            });
+            
+            recordBar.style.display = "none";
+            previewAudioBtn.style.display = "none";
+            audioBlob = null;
+            loadMessages();
+        };
+    }, 200);
+};
+
+// --- RESTANTE DAS FUNÇÕES (SOCKETS, CONTACTS, ETC) ---
+
+socket.on("userUpdated", (dados) => {
+    const index = contacts.findIndex(c => c.id == dados.id);
+    if (index !== -1) {
+        contacts[index].username = dados.username;
+        contacts[index].photo = dados.photo;
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+    }
 });
 
-socket.on("chamadaAceita", (dados) => {
-    ringtone.pause();
-    ringtone.currentTime = 0;
-    document.getElementById("callStatusText").textContent = "Em chamada...";
-    if (dados && dados.sinal && peer) peer.signal(dados.sinal);
+socket.on("updateStatus", (listaOnline) => {
+    listaOnlineGlobal = listaOnline;
+    renderContacts();
 });
 
-async function aceitarChamada() {
-    if(!chamandoAgora) return;
-    ringtone.pause();
-    ringtone.currentTime = 0;
-    document.getElementById("btnAceitar").style.display = "none";
-    
-    const stream = await obterMediaPrivado();
-    if (!stream) return;
-    if (peer) peer.destroy();
-
-    peer = new SimplePeer({ initiator: false, trickle: false, stream: streamLocal });
-
-    peer.on('signal', sinal => {
-        socket.emit("aceitarChamada", { para: chamandoAgora.de, sinal: sinal });
-        document.getElementById("callStatusText").textContent = "Em chamada...";
-    });
-
-    peer.on('stream', streamRemota => {
-        const audioRemoto = new Audio();
-        audioRemoto.srcObject = streamRemota;
-        audioRemoto.play();
-    });
-
-    peer.signal(chamandoAgora.sinal);
+function ativarSelecao(id) {
+    contatoSelecionadoId = id;
+    document.getElementById("headerSelecao").style.display = "flex";
+    renderContacts();
 }
 
-function recusarChamada() {
-    ringtone.pause();
-    ringtone.currentTime = 0;
-    document.getElementById("incomingCallScreen").style.display = "none";
-    if (streamLocal) streamLocal.getTracks().forEach(t => t.stop());
-    
-    const destino = chamandoAgora ? chamandoAgora.de : (currentChat ? currentChat.id : null);
-    if (destino) socket.emit("chamadaRecusada", { para: destino });
-    
-    if (peer) { peer.destroy(); peer = null; }
-    chamandoAgora = null;
+function cancelarSelecao() {
+    contatoSelecionadoId = null;
+    document.getElementById("headerSelecao").style.display = "none";
+    renderContacts();
 }
 
-socket.on("chamadaEncerrada", () => {
-    ringtone.pause();
-    ringtone.currentTime = 0;
-    document.getElementById("incomingCallScreen").style.display = "none";
-    if (streamLocal) streamLocal.getTracks().forEach(t => t.stop());
-    if (peer) { peer.destroy(); peer = null; }
-    chamandoAgora = null;
-});
+function abrirModal() { document.getElementById("confirmModal").style.display = "flex"; }
+function fecharModal() { document.getElementById("confirmModal").style.display = "none"; }
 
-function abrirTelaChamada(nome, foto, status) {
-    document.getElementById("callerName").textContent = nome;
-    document.getElementById("callerPhoto").src = foto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    document.getElementById("callStatusText").textContent = status;
-    document.getElementById("incomingCallScreen").style.display = "flex";
+function confirmarExclusao() {
+    contacts = contacts.filter(c => c.id !== contatoSelecionadoId);
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+    fecharModal();
+    cancelarSelecao();
 }
-
-// --- GESTÃO DE CONTATOS E INTERFACE ---
 
 function renderContacts() {
     const div = document.getElementById("contacts");
-    if(!div) return;
     div.innerHTML = "";
     contacts.forEach(user => {
         const count = unreadCounts[user.id] || 0;
@@ -199,7 +306,9 @@ function renderContacts() {
         let pressTimer;
         contactEl.onmousedown = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
         contactEl.onmouseup = () => clearTimeout(pressTimer);
-        
+        contactEl.ontouchstart = () => pressTimer = setTimeout(() => ativarSelecao(user.id), 800);
+        contactEl.ontouchend = () => clearTimeout(pressTimer);
+
         contactEl.onclick = () => {
             if (contatoSelecionadoId) cancelarSelecao();
             else abrirChat(user);
@@ -208,46 +317,37 @@ function renderContacts() {
     });
 }
 
-function ativarSelecao(id) {
-    contatoSelecionadoId = id;
-    document.getElementById("headerSelecao").style.display = "flex";
-    renderContacts();
-}
-
-function cancelarSelecao() {
-    contatoSelecionadoId = null;
-    document.getElementById("headerSelecao").style.display = "none";
-    renderContacts();
-}
-
-// Funções globais para botões do HTML
-window.abrirModal = () => document.getElementById("confirmModal").style.display = "flex";
-window.fecharModal = () => document.getElementById("confirmModal").style.display = "none";
-window.confirmarExclusao = () => {
-    contacts = contacts.filter(c => c.id !== contatoSelecionadoId);
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    fecharModal();
-    cancelarSelecao();
-};
-
 async function loadMessages() {
-    if (!currentUser) return;
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
     const container = document.getElementById("messages");
 
+    const estaNoFinal = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+    
     for (let m of msgs) {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
+            
             if (m.toId == currentUser.id) {
-                const idx = contacts.findIndex(c => c.id == m.fromId);
-                if (idx === -1) {
-                    const rU = await fetch(`/getUser/${m.fromId}`);
-                    const nU = await rU.json();
-                    if (!nU.error) contacts.unshift(nU);
+                const index = contacts.findIndex(c => c.id == m.fromId);
+                if (index === -1) {
+                    const resUser = await fetch(`/getUser/${m.fromId}`);
+                    const newUser = await resUser.json();
+                    if (!newUser.error) contacts.unshift(newUser); 
+                } else {
+                    const contatoMovido = contacts.splice(index, 1)[0];
+                    contacts.unshift(contatoMovido);
                 }
+
                 if (!currentChat || currentChat.id != m.fromId) {
                     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
+                }
+            } 
+            else if (m.fromId == currentUser.id) {
+                const index = contacts.findIndex(c => c.id == m.toId);
+                if (index !== -1) {
+                    const contatoMovido = contacts.splice(index, 1)[0];
+                    contacts.unshift(contatoMovido);
                 }
             }
         }
@@ -258,24 +358,87 @@ async function loadMessages() {
     localStorage.setItem("contacts", JSON.stringify(contacts));
     renderContacts();
 
-    if (currentChat) {
-        const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
-        if (container.children.length !== filtered.length) {
-            container.innerHTML = "";
-            filtered.forEach(addMessage);
+    if (!currentChat) return;
+
+    const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
+    
+    if (container.children.length !== filtered.length) {
+        container.innerHTML = "";
+        filtered.forEach(addMessage);
+        
+        if (estaNoFinal) {
             container.scrollTop = container.scrollHeight;
         }
     }
 }
 
+function addMessage(m) {
+    const container = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+    
+    const date = new Date(m.timestamp);
+    const hora = date.getHours().toString().padStart(2, '0');
+    const min = date.getMinutes().toString().padStart(2, '0');
+
+    let mediaHtml = "";
+    if (m.media) {
+        if (m.media.type === 'image') {
+            mediaHtml = `<img src="${m.media.data}" onclick="abrirFullscreen('${m.media.data}', 'image')" style="cursor:pointer;">`; 
+        } else if (m.media.type === 'video') {
+            mediaHtml = `<video src="${m.media.data}" controls onclick="abrirFullscreen('${m.media.data}', 'video')" style="cursor:pointer;"></video>`;
+        } else if (m.media.type === 'audio') {
+            mediaHtml = `<audio src="${m.media.data}" controls style="max-width:100%;"></audio>`;
+        }
+    }
+
+    let textoOriginal = m.text || "";
+    let textoHTML = textoOriginal;
+    let botaoLerMais = "";
+    const LIMITE = 400; 
+
+    if (textoOriginal.length > LIMITE) {
+        const resumo = textoOriginal.substring(0, LIMITE);
+        textoHTML = `
+            <span class="resumo">${resumo}...</span>
+            <span class="completo" style="display:none">${textoOriginal}</span>
+        `;
+        botaoLerMais = `<div class="btn-ler-mais" style="color:#007bff; cursor:pointer; font-weight:bold; font-size:13px; margin-top:5px;">Ler mais</div>`;
+    }
+
+    div.innerHTML = `
+        <div class="bubble">
+            ${mediaHtml}
+            <div class="msg-body">${textoHTML}</div>
+            ${botaoLerMais}
+            <span class="time">${hora}:${min}</span>
+        </div>
+    `;
+
+    if (botaoLerMais) {
+        const btn = div.querySelector(".btn-ler-mais");
+        btn.onclick = () => {
+            div.querySelector(".resumo").style.display = "none";
+            div.querySelector(".completo").style.display = "inline";
+            btn.remove();
+        };
+    }
+
+    container.appendChild(div);
+}
+
 function abrirChat(user) {
     currentChat = user;
-    unreadCounts[user.id] = 0;
+    unreadCounts[user.id] = 0; 
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    const estaOnline = listaOnlineGlobal.includes(user.id);
+    document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
+    
+    document.getElementById("messages").innerHTML = "";
     loadMessages();
 }
 
@@ -283,42 +446,140 @@ function voltar() {
     document.getElementById("chatScreen").style.display = "none";
     document.getElementById("home").style.display = "block";
     currentChat = null;
+    cancelarEnvioMedia();
     renderContacts();
 }
 
-function addMessage(m) {
-    const container = document.getElementById("messages");
-    const div = document.createElement("div");
-    div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    const date = new Date(m.timestamp);
-    const hora = `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-    
-    let mediaHtml = "";
-    if (m.media) {
-        if (m.media.type === 'audio') mediaHtml = `<audio src="${m.media.data}" controls></audio>`;
-        else if (m.media.type === 'image') mediaHtml = `<img src="${m.media.data}" style="max-width:200px; border-radius:10px;">`;
-    }
-
-    div.innerHTML = `<div class="bubble">${mediaHtml}<div>${m.text || ""}</div><span class="time">${hora}</span></div>`;
-    container.appendChild(div);
-}
-
-socket.on("updateStatus", (lista) => {
-    listaOnlineGlobal = lista;
-    renderContacts();
-});
-
-// Envio de Texto
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
-    if(!text || !currentChat) return;
+    
+    if((!text && !mediaParaEnviar) || !currentChat) return;
+    
+    const payload = { 
+        fromId: currentUser.id, 
+        toId: currentChat.id, 
+        text: text,
+        media: mediaParaEnviar 
+    };
+
+    input.value = "";
+    audioBtn.style.display = "flex";
+    sendTextBtn.style.display = "none";
+    cancelarEnvioMedia(); 
     
     await fetch("/sendMessage", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
+        body: JSON.stringify(payload)
     });
-    input.value = "";
-    loadMessages();
+    
+    await loadMessages();
+    const container = document.getElementById("messages");
+    container.scrollTop = container.scrollHeight;
+};
+
+document.getElementById("addFriendBtn").onclick = async () => {
+    const id = document.getElementById("addUserId").value.trim();
+    if(!id || id == currentUser.id) return;
+    const res = await fetch(`/getUser/${id}`);
+    const user = await res.json();
+    if(user.error) return alert("Não encontrado");
+    if(!contacts.some(c => c.id == id)) {
+        contacts.unshift(user); 
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+    }
+    document.getElementById("addUserId").value = "";
+};
+
+document.getElementById("profileForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const nome = document.getElementById("username").value.trim();
+    const file = document.getElementById("profilePic").files[0];
+    if (!nome) return alert("Digite um nome!");
+    
+    const salvar = async (fotoFinal) => {
+        const res = await fetch("/saveProfile", {
+            method: "POST", 
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoFinal })
+        });
+        
+        if (res.ok) {
+            currentUser.username = nome; 
+            currentUser.photo = fotoFinal;
+            if (fotoFinal) document.getElementById("profilePreview").src = fotoFinal;
+            socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: fotoFinal });
+            alert("Perfil Salvo!");
+            renderContacts();
+        }
+    };
+    
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const MAX_WIDTH = 300; 
+                const scaleSize = MAX_WIDTH / img.width;
+                canvas.width = MAX_WIDTH;
+                canvas.height = img.height * scaleSize;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+                salvar(compressedBase64);
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    } else {
+        salvar(currentUser.photo);
+    }
+};
+
+function abrirFullscreen(src, type) {
+    const modal = document.getElementById("fullScreenModal");
+    const content = document.getElementById("fullScreenContent");
+    
+    if (type === 'image') {
+        content.innerHTML = `<img src="${src}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+    } else if (type === 'video') {
+        content.innerHTML = `<video src="${src}" controls autoplay style="max-width:100%; max-height:100%;"></video>`;
+    }
+    
+    modal.style.display = "flex";
+}
+
+function fecharFullscreen() {
+    const modal = document.getElementById("fullScreenModal");
+    const content = document.getElementById("fullScreenContent");
+    content.innerHTML = ""; 
+    modal.style.display = "none";
+}
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(err => console.log(err));
+}
+
+let deferredPrompt;
+const installBanner = document.getElementById("installBanner");
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (!window.matchMedia('(display-mode: standalone)').matches) {
+        installBanner.style.display = "block";
+    }
+});
+
+installBanner.onclick = () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(() => {
+            installBanner.style.display = "none";
+            deferredPrompt = null;
+        });
+    }
 };
