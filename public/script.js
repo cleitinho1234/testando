@@ -8,6 +8,7 @@ let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 let mediaParaEnviar = null; 
+let mensagensExibidasIds = new Set(); // Controle para evitar rebuild desnecessário
 
 // --- NOVAS VARIÁVEIS PARA ÁUDIO ---
 let mediaRecorder;
@@ -55,7 +56,8 @@ window.addEventListener("load", async () => {
     };
 
     renderContacts();
-    setInterval(loadMessages, 1500);
+    // Aumentado para 3 segundos para poupar CPU, já que o Socket cuida do tempo real
+    setInterval(loadMessages, 3000); 
 });
 
 // --- LÓGICA DE MÍDIA (FOTOS/VÍDEOS) ---
@@ -199,10 +201,12 @@ document.getElementById("sendAudioBtn").onclick = async () => {
                 fromId: currentUser.id,
                 toId: currentChat.id,
                 text: "",
-                media: { data: base64Audio, type: 'audio' }
+                media: { data: base64Audio, type: 'audio' },
+                timestamp: Date.now()
             };
 
-            await fetch("/sendMessage", {
+            // Envia e limpa interface local
+            fetch("/sendMessage", {
                 method: "POST",
                 headers: {"Content-Type":"application/json"},
                 body: JSON.stringify(payload)
@@ -212,7 +216,7 @@ document.getElementById("sendAudioBtn").onclick = async () => {
             previewAudioBtn.style.display = "none";
             pararMicrofone();
             audioBlob = null;
-            loadMessages();
+            addMessage(payload); // Adiciona na tela na hora
         };
     }, 300);
 };
@@ -298,12 +302,15 @@ function renderContacts() {
 }
 
 async function loadMessages() {
+    if (!currentChat || !currentUser) return;
+
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
     const container = document.getElementById("messages");
 
     const estaNoFinal = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
     
+    // Processamento de notificações e novos contatos
     for (let m of msgs) {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
@@ -338,13 +345,21 @@ async function loadMessages() {
     localStorage.setItem("contacts", JSON.stringify(contacts));
     renderContacts();
 
-    if (!currentChat) return;
-
+    // FILTRO DE EXIBIÇÃO OTIMIZADO
     const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
     
-    if (container.children.length !== filtered.length) {
+    // Só reconstrói a tela se o número de mensagens mudou (evita lag de re-renderização)
+    if (mensagensExibidasIds.size !== filtered.length) {
         container.innerHTML = "";
-        filtered.forEach(addMessage);
+        mensagensExibidasIds.clear();
+        
+        // Pega apenas as últimas 30 mensagens para não pesar o navegador
+        const ultimasTrinta = filtered.slice(-30);
+        
+        ultimasTrinta.forEach(m => {
+            addMessage(m);
+            mensagensExibidasIds.add(m.timestamp);
+        });
         
         if (estaNoFinal) {
             container.scrollTop = container.scrollHeight;
@@ -364,7 +379,6 @@ function addMessage(m) {
     let mediaHtml = "";
     if (m.media) {
         if (m.media.type === 'image') {
-            // Chamada para abrir fullscreen ao clicar
             mediaHtml = `<img src="${m.media.data}" onclick="abrirFullscreen('${m.media.data}', 'image')" style="cursor:pointer;">`; 
         } else if (m.media.type === 'video') {
             mediaHtml = `<video src="${m.media.data}" controls onclick="abrirFullscreen('${m.media.data}', 'video')" style="cursor:pointer;"></video>`;
@@ -420,6 +434,7 @@ function abrirChat(user) {
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
     
     document.getElementById("messages").innerHTML = "";
+    mensagensExibidasIds.clear(); // Limpa o cache para forçar carregamento do novo chat
     loadMessages();
 }
 
@@ -431,6 +446,7 @@ function voltar() {
     renderContacts();
 }
 
+// ENVIO OTIMIZADO (REATIVO)
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
@@ -441,23 +457,27 @@ document.getElementById("sendMessageBtn").onclick = async () => {
         fromId: currentUser.id, 
         toId: currentChat.id, 
         text: text,
-        media: mediaParaEnviar 
+        media: mediaParaEnviar,
+        timestamp: Date.now()
     };
 
+    // Mostra na tela na hora
+    addMessage(payload);
+    const container = document.getElementById("messages");
+    container.scrollTop = container.scrollHeight;
+
+    // Limpa campos imediatamente
     input.value = "";
     audioBtn.style.display = "flex";
     sendTextBtn.style.display = "none";
     cancelarEnvioMedia(); 
     
-    await fetch("/sendMessage", {
+    // Envia em background
+    fetch("/sendMessage", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify(payload)
     });
-    
-    await loadMessages();
-    const container = document.getElementById("messages");
-    container.scrollTop = container.scrollHeight;
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
