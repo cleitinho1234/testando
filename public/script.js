@@ -12,31 +12,46 @@ let statusInterval;
 let deferredPrompt;
 
 window.addEventListener('beforeinstallprompt', (e) => {
+    // Impede o navegador de mostrar o prompt automático
     e.preventDefault();
+    // Guarda o evento para ser disparado pelo nosso botão
     deferredPrompt = e;
+    
+    // Mostra o botão de instalação se ele existir
     const btnInstalar = document.getElementById('btnInstalarPWA');
-    if (btnInstalar) btnInstalar.style.display = 'block';
+    if (btnInstalar) {
+        btnInstalar.style.display = 'block';
+    }
 });
 
 async function instalarMiniZap() {
     if (!deferredPrompt) return;
+    
+    // Mostra o prompt de instalação
     deferredPrompt.prompt();
+    
     const { outcome } = await deferredPrompt.userChoice;
+    
     if (outcome === 'accepted') {
+        console.log('Usuário aceitou a instalação');
         const btnInstalar = document.getElementById('btnInstalarPWA');
         if (btnInstalar) btnInstalar.style.display = 'none';
     }
+    
     deferredPrompt = null;
 }
 
+// Detecta se o app foi instalado por outros meios e esconde o botão
 window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
     const btnInstalar = document.getElementById('btnInstalarPWA');
     if (btnInstalar) btnInstalar.style.display = 'none';
+    console.log('Mini Zap instalado');
 });
 
 // --- INICIALIZAÇÃO ---
 window.addEventListener("load", async () => {
+    // Segurança contra IDs corrompidos
     if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
         localStorage.clear();
     }
@@ -44,6 +59,7 @@ window.addEventListener("load", async () => {
     let localUser = localStorage.getItem("myUserObject");
     let savedId = localStorage.getItem("userId");
 
+    // Tenta recuperar o usuário do LocalStorage primeiro para não perder os dados
     if (localUser) {
         currentUser = JSON.parse(localUser);
     } else if (savedId) {
@@ -52,6 +68,7 @@ window.addEventListener("load", async () => {
         if (!user.error) currentUser = user;
     }
 
+    // Se realmente não existir, cria um novo
     if (!currentUser) {
         const res = await fetch("/api/user", {
             method: "POST",
@@ -63,15 +80,19 @@ window.addEventListener("load", async () => {
         localStorage.setItem("myUserObject", JSON.stringify(currentUser));
     }
 
+    // Vincula ao Socket e preenche a interface
     socket.emit("register", currentUser.id);
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
     
     if(currentUser.photo) {
         document.getElementById("profilePreview").src = currentUser.photo;
-        if(document.getElementById("myMomentPhoto")) document.getElementById("myMomentPhoto").src = currentUser.photo;
+        if(document.getElementById("myMomentPhoto")) {
+            document.getElementById("myMomentPhoto").src = currentUser.photo;
+        }
     }
 
+    // Renderiza o que já temos salvo
     renderContacts();
     loadMoments(); 
     setInterval(loadMessages, 1500);
