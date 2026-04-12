@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Aumentado para 50mb para garantir que fotos de perfil grandes não deem erro 413
+// Aumentado para 50mb para garantir que fotos de perfil e momentos não deem erro
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static("public"));
@@ -43,7 +43,7 @@ io.on("connection", (socket) => {
     });
 });
 
-// --- ROTAS PRINCIPAIS ---
+// --- ROTAS DE USUÁRIO ---
 
 app.post("/api/user", async (req, res) => {
     const id = Math.floor(1000 + Math.random() * 9000).toString();
@@ -70,15 +70,44 @@ app.get("/api/user/:id", async (req, res) => {
     res.json(user || { error: "Não encontrado" });
 });
 
-// --- LÓGICA DE MENSAGENS COM AUTO-ADD ---
+// --- ROTA DE MOMENTOS (STATUS) ---
+
+// Postar um novo momento
+app.post("/api/moments", async (req, res) => {
+    try {
+        const novoMomento = await Moment.create({
+            ...req.body,
+            timestamp: Date.now()
+        });
+        // Avisa a todos os usuários que há um novo status no ar
+        io.emit("newMoment", novoMomento);
+        res.json(novoMomento);
+    } catch (err) {
+        res.status(500).json({ error: "Erro ao postar momento" });
+    }
+});
+
+// Buscar momentos das últimas 24 horas
+app.get("/api/moments", async (req, res) => {
+    const umDiaAtras = Date.now() - (24 * 60 * 60 * 1000);
+    try {
+        const momentos = await Moment.find({ 
+            timestamp: { $gt: umDiaAtras } 
+        }).sort({ timestamp: -1 });
+        res.json(momentos);
+    } catch (err) {
+        res.status(500).json({ error: "Erro ao buscar momentos" });
+    }
+});
+
+// --- LÓGICA DE MENSAGENS ---
+
 app.post("/api/messages", async (req, res) => {
     const { fromId, toId, text } = req.body;
     const msg = await Message.create({ fromId, toId, text, timestamp: Date.now() });
 
-    // Busca os dados de quem enviou para o destinatário saber quem é
     const sender = await User.findOne({ id: fromId });
 
-    // Se o destinatário estiver online, envia a mensagem e os dados do remetente via Socket
     if (onlineUsers[toId]) {
         io.to(onlineUsers[toId]).emit("receiveMessage", {
             msg,
@@ -89,7 +118,6 @@ app.post("/api/messages", async (req, res) => {
             }
         });
     }
-
     res.json(msg);
 });
 
