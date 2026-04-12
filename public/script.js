@@ -60,7 +60,7 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- LÓGICA DE LIGAÇÃO (NOVA) ---
+// --- LÓGICA DE LIGAÇÃO (CORRIGIDA) ---
 
 function iniciarChamada() {
     if (!currentChat) return;
@@ -76,14 +76,21 @@ function iniciarChamada() {
     document.getElementById("btnAceitar").style.display = "none";
     
     socket.emit("ligarPara", dadosChamada);
-    ringtone.play().catch(e => console.log("Áudio bloqueado pelo navegador"));
+    ringtone.play().catch(e => console.log("Áudio bloqueado"));
 }
 
 socket.on("recebendoLigacao", (dados) => {
     chamandoAgora = dados;
     abrirTelaChamada(dados.deNome, dados.deFoto, "Recebendo chamada...");
     document.getElementById("btnAceitar").style.display = "flex";
-    ringtone.play().catch(e => console.log("Áudio bloqueado pelo navegador"));
+    ringtone.play().catch(e => console.log("Áudio bloqueado"));
+});
+
+// NOVO: Escuta quando o outro lado aceita a chamada
+socket.on("chamadaAceita", () => {
+    ringtone.pause();
+    ringtone.currentTime = 0;
+    document.getElementById("callStatusText").textContent = "Em chamada...";
 });
 
 function abrirTelaChamada(nome, foto, status) {
@@ -115,8 +122,14 @@ socket.on("chamadaEncerrada", () => {
 
 function aceitarChamada() {
     ringtone.pause();
+    ringtone.currentTime = 0;
     document.getElementById("callStatusText").textContent = "Em chamada...";
-    // Aqui no futuro você pode adicionar a lógica de voz WebRTC
+    document.getElementById("btnAceitar").style.display = "none";
+    
+    // Avisa quem ligou que você atendeu
+    if(chamandoAgora) {
+        socket.emit("aceitarChamada", { para: chamandoAgora.de });
+    }
 }
 
 // --- LÓGICA DE MÍDIA (FOTOS/VÍDEOS) ---
