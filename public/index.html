@@ -98,50 +98,58 @@
   #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; }
   #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
   
-  /* --- AJUSTE NO CONTAINER DE MENSAGENS --- */
   #messages { 
     flex: 1; 
     overflow-y: auto; 
-    overflow-x: hidden; /* Impede scroll lateral */
     padding: 10px; 
     display: flex; 
     flex-direction: column; 
+    overflow-x: hidden;
   }
   
+  /* --- AJUSTE NAS BOLHAS (PARA NÃO FICAR HORRÍVEL) --- */
   .message { display: flex; margin: 5px 0; width: 100%; }
   .me { justify-content: flex-end; }
   .other { justify-content: flex-start; }
   
-  /* --- AJUSTE NAS BOLHAS PARA NÃO SEGUIREM RETO --- */
   .bubble { 
-    padding: 10px; 
+    padding: 8px 12px; 
     border-radius: 10px; 
-    max-width: 80%; /* Garante que a bolha não ocupe a largura toda */
+    width: fit-content; /* A caixa segue o tamanho do texto */
+    max-width: 80%; 
     position: relative; 
     box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
-    
-    /* Regras de quebra de texto */
-    word-wrap: break-word; 
-    word-break: break-word; 
-    white-space: pre-wrap; 
+    display: flex;
+    flex-direction: column;
+    word-wrap: break-word;
+    word-break: break-word;
+    white-space: pre-wrap;
   }
 
   .me .bubble { background: #dcf8c6; border-top-right-radius: 0; }
   .other .bubble { background: white; border-top-left-radius: 0; }
+  
+  .msg-body { margin-bottom: 2px; line-height: 1.4; }
+
+  .time { 
+    font-size: 10px; 
+    color: #888; 
+    align-self: flex-end; 
+    margin-top: 2px;
+    margin-left: 10px;
+  }
 
   /* --- ÁREA DE MÍDIA --- */
   .bubble img, .bubble video {
-    max-width: 100%; /* Ocupa o máximo da bolha mas não sai dela */
-    max-height: 250px; 
-    width: auto;
-    height: auto;
+    max-width: 100%;
+    max-height: 250px;
     border-radius: 8px;
     display: block;
     margin: 5px 0;
     object-fit: cover;
   }
 
-  /* --- Área de Pré-visualização de Mídia --- */
+  /* --- Pré-visualização --- */
   #mediaPreviewContainer {
     display: none;
     padding: 10px;
@@ -167,15 +175,12 @@
     font-size: 30px;
     margin-right: 10px;
     cursor: pointer;
-    line-height: 1;
   }
 
-  #chatInput button#sendMessageBtn { margin-left: 8px; width: 45px; height: 45px; border: none; background: #075e54; color: white; border-radius: 50%; font-size: 20px; cursor: pointer; }
+  #sendMessageBtn { margin-left: 8px; width: 45px; height: 45px; border: none; background: #075e54; color: white; border-radius: 50%; font-size: 20px; cursor: pointer; }
   
   .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   .contact.selected { background: #d1e7dd !important; }
-
-  .time { font-size: 10px; color: #888; margin-left: 10px; float: right; margin-top: 5px; }
 
   #confirmModal { 
     display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -259,6 +264,26 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="script.js"></script>
+
+<script>
+  const previewImg = document.getElementById('profilePreview');
+  const fileInp = document.getElementById('profilePic');
+
+  previewImg.addEventListener('click', () => {
+    fileInp.click();
+  });
+
+  fileInp.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        previewImg.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+</script>
 
 </body>
 </html>
