@@ -7,15 +7,6 @@ let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
-let mediaParaEnviar = null; 
-let mensagensExibidasIds = new Set(); // Controle para evitar rebuild desnecessário
-
-// --- NOVAS VARIÁVEIS PARA ÁUDIO ---
-let mediaRecorder;
-let audioChunks = [];
-let audioBlob;
-let timerInterval;
-let seconds = 0;
 
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
@@ -56,178 +47,8 @@ window.addEventListener("load", async () => {
     };
 
     renderContacts();
-    // Aumentado para 3 segundos para poupar CPU, já que o Socket cuida do tempo real
-    setInterval(loadMessages, 3000); 
+    setInterval(loadMessages, 1500);
 });
-
-// --- LÓGICA DE MÍDIA (FOTOS/VÍDEOS) ---
-document.getElementById("addMediaBtn").onclick = () => {
-    document.getElementById("mediaInput").click();
-};
-
-document.getElementById("mediaInput").onchange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        mediaParaEnviar = {
-            data: ev.target.result,
-            type: file.type.startsWith('image') ? 'image' : 'video'
-        };
-
-        const container = document.getElementById("mediaPreviewContainer");
-        const content = document.getElementById("mediaPreviewContent");
-        
-        container.style.display = "flex";
-        
-        if (mediaParaEnviar.type === 'image') {
-            content.innerHTML = `<img src="${mediaParaEnviar.data}">`;
-        } else {
-            content.innerHTML = `<video src="${mediaParaEnviar.data}"></video>`;
-        }
-
-        audioBtn.style.display = "none";
-        sendTextBtn.style.display = "flex";
-    };
-    reader.readAsDataURL(file);
-};
-
-function cancelarEnvioMedia() {
-    mediaParaEnviar = null;
-    document.getElementById("mediaPreviewContainer").style.display = "none";
-    document.getElementById("mediaInput").value = "";
-
-    if (messageInput.value.trim() === "") {
-        audioBtn.style.display = "flex";
-        sendTextBtn.style.display = "none";
-    }
-}
-
-// --- LÓGICA DO MICROFONE (ÁUDIO) ---
-const audioBtn = document.getElementById("audioControlBtn");
-const messageInput = document.getElementById("messageText");
-const sendTextBtn = document.getElementById("sendMessageBtn");
-const recordBar = document.getElementById("recordBar");
-const previewAudioBtn = document.getElementById("previewAudioBtn");
-
-messageInput.oninput = () => {
-    const temTexto = messageInput.value.trim() !== "";
-    if (temTexto || mediaParaEnviar) {
-        audioBtn.style.display = "none";
-        sendTextBtn.style.display = "flex";
-    } else {
-        audioBtn.style.display = "flex";
-        sendTextBtn.style.display = "none";
-    }
-};
-
-audioBtn.onclick = async () => {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-
-        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-        mediaRecorder.onstop = () => {
-            audioBlob = new Blob(audioChunks, { type: 'audio/ogg; codecs=opus' });
-        };
-
-        mediaRecorder.start();
-        recordBar.style.display = "flex";
-        previewAudioBtn.style.display = "none"; 
-        document.getElementById("pauseRecord").style.display = "block";
-        iniciarTimer();
-    } catch (err) {
-        alert("Para mandar áudio, você precisa permitir o microfone!");
-    }
-};
-
-function iniciarTimer() {
-    seconds = 0;
-    document.getElementById("recordTimer").textContent = "0:00";
-    clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-        seconds++;
-        let m = Math.floor(seconds / 60);
-        let s = seconds % 60;
-        document.getElementById("recordTimer").textContent = `${m}:${s.toString().padStart(2, '0')}`;
-    }, 1000);
-}
-
-document.getElementById("pauseRecord").onclick = () => {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-        clearInterval(timerInterval);
-        document.getElementById("pauseRecord").style.display = "none";
-        previewAudioBtn.style.display = "block";
-    }
-};
-
-previewAudioBtn.onclick = () => {
-    if (audioBlob) {
-        const url = URL.createObjectURL(audioBlob);
-        const previewAudio = new Audio(url);
-        previewAudio.play();
-        
-        previewAudioBtn.textContent = "🔊";
-        previewAudio.onended = () => { previewAudioBtn.textContent = "▶️"; };
-    }
-};
-
-document.getElementById("deleteAudio").onclick = () => {
-    pararMicrofone();
-    recordBar.style.display = "none";
-    clearInterval(timerInterval);
-    previewAudioBtn.style.display = "none";
-    previewAudioBtn.textContent = "▶️";
-    audioBlob = null;
-};
-
-document.getElementById("sendAudioBtn").onclick = async () => {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-    }
-
-    setTimeout(async () => {
-        if (!audioBlob) return;
-        
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = async () => {
-            const base64Audio = reader.result;
-            
-            const payload = {
-                fromId: currentUser.id,
-                toId: currentChat.id,
-                text: "",
-                media: { data: base64Audio, type: 'audio' },
-                timestamp: Date.now()
-            };
-
-            // Envia e limpa interface local
-            fetch("/sendMessage", {
-                method: "POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify(payload)
-            });
-            
-            recordBar.style.display = "none";
-            previewAudioBtn.style.display = "none";
-            pararMicrofone();
-            audioBlob = null;
-            addMessage(payload); // Adiciona na tela na hora
-        };
-    }, 300);
-};
-
-function pararMicrofone() {
-    if (mediaRecorder && mediaRecorder.stream) {
-        mediaRecorder.stream.getTracks().forEach(track => track.stop());
-    }
-}
-
-// --- RESTANTE DAS FUNÇÕES ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
@@ -302,15 +123,9 @@ function renderContacts() {
 }
 
 async function loadMessages() {
-    if (!currentChat || !currentUser) return;
-
     const res = await fetch(`/getMessages/${currentUser.id}`);
     const msgs = await res.json();
-    const container = document.getElementById("messages");
-
-    const estaNoFinal = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
     
-    // Processamento de notificações e novos contatos
     for (let m of msgs) {
         if (m.timestamp > lastTimestamp) {
             lastTimestamp = m.timestamp;
@@ -325,8 +140,7 @@ async function loadMessages() {
                     const contatoMovido = contacts.splice(index, 1)[0];
                     contacts.unshift(contatoMovido);
                 }
-
-                if (!currentChat || currentChat.id != m.fromId) {
+                if (currentChat?.id !== m.fromId) {
                     unreadCounts[m.fromId] = (unreadCounts[m.fromId] || 0) + 1;
                 }
             } 
@@ -345,86 +159,33 @@ async function loadMessages() {
     localStorage.setItem("contacts", JSON.stringify(contacts));
     renderContacts();
 
-    // FILTRO DE EXIBIÇÃO OTIMIZADO
+    if (!currentChat) return;
     const filtered = msgs.filter(m => (m.fromId == currentUser.id && m.toId == currentChat.id) || (m.fromId == currentChat.id && m.toId == currentUser.id));
-    
-    // Só reconstrói a tela se o número de mensagens mudou (evita lag de re-renderização)
-    if (mensagensExibidasIds.size !== filtered.length) {
-        container.innerHTML = "";
-        mensagensExibidasIds.clear();
-        
-        // Pega apenas as últimas 30 mensagens para não pesar o navegador
-        const ultimasTrinta = filtered.slice(-30);
-        
-        ultimasTrinta.forEach(m => {
-            addMessage(m);
-            mensagensExibidasIds.add(m.timestamp);
-        });
-        
-        if (estaNoFinal) {
-            container.scrollTop = container.scrollHeight;
-        }
-    }
+    const container = document.getElementById("messages");
+    container.innerHTML = "";
+    filtered.forEach(addMessage);
+    container.scrollTop = container.scrollHeight;
 }
 
 function addMessage(m) {
     const container = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-    
     const date = new Date(m.timestamp);
     const hora = date.getHours().toString().padStart(2, '0');
     const min = date.getMinutes().toString().padStart(2, '0');
-
-    let mediaHtml = "";
-    if (m.media) {
-        if (m.media.type === 'image') {
-            mediaHtml = `<img src="${m.media.data}" onclick="abrirFullscreen('${m.media.data}', 'image')" style="cursor:pointer;">`; 
-        } else if (m.media.type === 'video') {
-            mediaHtml = `<video src="${m.media.data}" controls onclick="abrirFullscreen('${m.media.data}', 'video')" style="cursor:pointer;"></video>`;
-        } else if (m.media.type === 'audio') {
-            mediaHtml = `<audio src="${m.media.data}" controls style="max-width:100%;"></audio>`;
-        }
-    }
-
-    let textoOriginal = m.text || "";
-    let textoHTML = textoOriginal;
-    let botaoLerMais = "";
-    const LIMITE = 400; 
-
-    if (textoOriginal.length > LIMITE) {
-        const resumo = textoOriginal.substring(0, LIMITE);
-        textoHTML = `
-            <span class="resumo">${resumo}...</span>
-            <span class="completo" style="display:none">${textoOriginal}</span>
-        `;
-        botaoLerMais = `<div class="btn-ler-mais" style="color:#007bff; cursor:pointer; font-weight:bold; font-size:13px; margin-top:5px;">Ler mais</div>`;
-    }
-
     div.innerHTML = `
         <div class="bubble">
-            ${mediaHtml}
-            <div class="msg-body">${textoHTML}</div>
-            ${botaoLerMais}
+            ${m.text}
             <span class="time">${hora}:${min}</span>
         </div>
     `;
-
-    if (botaoLerMais) {
-        const btn = div.querySelector(".btn-ler-mais");
-        btn.onclick = () => {
-            div.querySelector(".resumo").style.display = "none";
-            div.querySelector(".completo").style.display = "inline";
-            btn.remove();
-        };
-    }
-
     container.appendChild(div);
 }
 
 function abrirChat(user) {
     currentChat = user;
-    unreadCounts[user.id] = 0; 
+    unreadCounts[user.id] = 0;
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
@@ -432,9 +193,6 @@ function abrirChat(user) {
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     const estaOnline = listaOnlineGlobal.includes(user.id);
     document.getElementById("typingStatus").textContent = estaOnline ? "Online" : "offline";
-    
-    document.getElementById("messages").innerHTML = "";
-    mensagensExibidasIds.clear(); // Limpa o cache para forçar carregamento do novo chat
     loadMessages();
 }
 
@@ -442,42 +200,20 @@ function voltar() {
     document.getElementById("chatScreen").style.display = "none";
     document.getElementById("home").style.display = "block";
     currentChat = null;
-    cancelarEnvioMedia();
     renderContacts();
 }
 
-// ENVIO OTIMIZADO (REATIVO)
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
-    
-    if((!text && !mediaParaEnviar) || !currentChat) return;
-    
-    const payload = { 
-        fromId: currentUser.id, 
-        toId: currentChat.id, 
-        text: text,
-        media: mediaParaEnviar,
-        timestamp: Date.now()
-    };
-
-    // Mostra na tela na hora
-    addMessage(payload);
-    const container = document.getElementById("messages");
-    container.scrollTop = container.scrollHeight;
-
-    // Limpa campos imediatamente
+    if(!text || !currentChat) return;
     input.value = "";
-    audioBtn.style.display = "flex";
-    sendTextBtn.style.display = "none";
-    cancelarEnvioMedia(); 
-    
-    // Envia em background
-    fetch("/sendMessage", {
+    await fetch("/sendMessage", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
     });
+    loadMessages(); 
 };
 
 document.getElementById("addFriendBtn").onclick = async () => {
@@ -540,49 +276,48 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- FUNÇÕES DE TELA CHEIA (FULLSCREEN) ---
-function abrirFullscreen(src, type) {
-    const modal = document.getElementById("fullScreenModal");
-    const content = document.getElementById("fullScreenContent");
-    
-    if (type === 'image') {
-        content.innerHTML = `<img src="${src}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
-    } else if (type === 'video') {
-        content.innerHTML = `<video src="${src}" controls autoplay style="max-width:100%; max-height:100%;"></video>`;
-    }
-    
-    modal.style.display = "flex";
-}
-
-function fecharFullscreen() {
-    const modal = document.getElementById("fullScreenModal");
-    const content = document.getElementById("fullScreenContent");
-    content.innerHTML = ""; 
-    modal.style.display = "none";
-}
-
-// --- PWA ---
+// --- LÓGICA DE INSTALAÇÃO (PWA) COM BOTÃO SUPERIOR ---
 let deferredPrompt;
 const installBanner = document.getElementById("installBanner");
 
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(err => console.log(err));
+    navigator.serviceWorker.register('/sw.js')
+        .then(() => console.log("Service Worker OK"))
+        .catch(err => console.log("Erro no SW:", err));
 }
 
 window.addEventListener('beforeinstallprompt', (e) => {
+    // 1. Previne o banner automático do navegador
     e.preventDefault();
+    
+    // 2. Guarda o evento
     deferredPrompt = e;
-    if (!window.matchMedia('(display-mode: standalone)').matches) {
+
+    // 3. Só mostra o botão se NÃO estiver rodando já como app
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    if (!isStandalone) {
         installBanner.style.display = "block";
     }
 });
 
+// 4. Ação ao clicar no banner verde
 installBanner.onclick = () => {
     if (deferredPrompt) {
+        // Dispara o prompt oficial de instalação
         deferredPrompt.prompt();
-        deferredPrompt.userChoice.then(() => {
-            installBanner.style.display = "none";
+
+        deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('Usuário aceitou instalar');
+                installBanner.style.display = "none";
+            }
             deferredPrompt = null;
         });
     }
 };
+
+// 5. Esconde o banner se a pessoa instalar por outros meios
+window.addEventListener('appinstalled', () => {
+    installBanner.style.display = "none";
+    deferredPrompt = null;
+});
