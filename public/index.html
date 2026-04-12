@@ -169,8 +169,7 @@
   #chatInput { display: flex; align-items: center; position: relative; }
   #chatInput input[type="text"] { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; background: white; font-size: 16px; padding-right: 50px; }
   
-  #addMediaBtn, #addAudioFileBtn { background: none; border: none; color: #075e54; font-size: 26px; cursor: pointer; margin-right: 5px; }
-  #addAudioFileBtn { font-size: 24px; } 
+  #addMediaBtn { background: none; border: none; color: #075e54; font-size: 26px; cursor: pointer; margin-right: 5px; }
   
   .input-actions { position: relative; display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; margin-left: 5px; }
   
@@ -278,9 +277,6 @@
     <div id="chatInput">
       <button id="addMediaBtn">+</button>
       <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none;">
-
-      <button id="addAudioFileBtn">🎵</button>
-      <input type="file" id="audioFileInput" accept="audio/mpeg,audio/wav,audio/ogg,audio/*" style="display:none;">
       
       <input type="text" id="messageText" placeholder="Mensagem" autocomplete="off">
       
