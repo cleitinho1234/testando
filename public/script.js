@@ -79,29 +79,6 @@ document.getElementById("mediaInput").onchange = (e) => {
     reader.readAsDataURL(file);
 };
 
-// --- NOVA LÓGICA: ENVIAR ARQUIVO DE ÁUDIO/MÚSICA ---
-document.getElementById("addAudioFileBtn").onclick = (e) => {
-    // Limpamos o valor para garantir que o evento 'onchange' dispare sempre
-    document.getElementById("audioFileInput").value = "";
-    document.getElementById("audioFileInput").click();
-};
-
-document.getElementById("audioFileInput").onchange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        mediaParaEnviar = {
-            data: ev.target.result,
-            type: 'audio',
-            name: file.name
-        };
-        exibirPreviewMedia();
-    };
-    reader.readAsDataURL(file);
-};
-
 function exibirPreviewMedia() {
     const container = document.getElementById("mediaPreviewContainer");
     const content = document.getElementById("mediaPreviewContent");
@@ -117,7 +94,7 @@ function exibirPreviewMedia() {
             <div style="display:flex; align-items:center; background:#fff; padding:5px 10px; border-radius:8px; border:1px solid #ddd;">
                 <span style="font-size:20px; margin-right:10px;">🎵</span>
                 <span style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                    ${mediaParaEnviar.name}
+                    ${mediaParaEnviar.name || 'Áudio Externo'}
                 </span>
             </div>`;
     }
@@ -130,7 +107,6 @@ function cancelarEnvioMedia() {
     mediaParaEnviar = null;
     document.getElementById("mediaPreviewContainer").style.display = "none";
     document.getElementById("mediaInput").value = "";
-    document.getElementById("audioFileInput").value = "";
 
     if (messageInput.value.trim() === "") {
         audioBtn.style.display = "flex";
@@ -162,9 +138,12 @@ audioBtn.onclick = async () => {
         mediaRecorder = new MediaRecorder(stream);
         audioChunks = [];
 
-        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunks.push(e.data);
+        };
+
         mediaRecorder.onstop = () => {
-            audioBlob = new Blob(audioChunks, { type: 'audio/ogg; codecs=opus' });
+            audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         };
 
         mediaRecorder.start();
@@ -189,12 +168,20 @@ function iniciarTimer() {
     }, 1000);
 }
 
+function pararMicrofone() {
+    if (mediaRecorder && mediaRecorder.stream) {
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+}
+
 document.getElementById("pauseRecord").onclick = () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
+        pararMicrofone();
         clearInterval(timerInterval);
         document.getElementById("pauseRecord").style.display = "none";
         previewAudioBtn.style.display = "block";
+        previewAudioBtn.textContent = "▶️";
     }
 };
 
@@ -210,6 +197,9 @@ previewAudioBtn.onclick = () => {
 };
 
 document.getElementById("deleteAudio").onclick = () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+    }
     pararMicrofone();
     recordBar.style.display = "none";
     clearInterval(timerInterval);
@@ -221,6 +211,7 @@ document.getElementById("deleteAudio").onclick = () => {
 document.getElementById("sendAudioBtn").onclick = async () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
+        pararMicrofone();
     }
 
     setTimeout(async () => {
@@ -246,18 +237,11 @@ document.getElementById("sendAudioBtn").onclick = async () => {
             
             recordBar.style.display = "none";
             previewAudioBtn.style.display = "none";
-            pararMicrofone();
             audioBlob = null;
             loadMessages();
         };
-    }, 300);
+    }, 200);
 };
-
-function pararMicrofone() {
-    if (mediaRecorder && mediaRecorder.stream) {
-        mediaRecorder.stream.getTracks().forEach(track => track.stop());
-    }
-}
 
 // --- RESTANTE DAS FUNÇÕES (SOCKETS, CONTACTS, ETC) ---
 
