@@ -6,25 +6,27 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-// 1. LIMITES AUMENTADOS
+// 1. LIMITES PARA SUPORTAR MÍDIA (ÁUDIO/FOTOS)
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-    maxHttpBufferSize: 5e7 // 50MB
+    maxHttpBufferSize: 5e7 // 50MB para garantir o tráfego de buffers grandes
 });
 
 app.use(express.static(path.join(__dirname, "public")));
 
 // ==========================
 // Conexão MongoDB
+// ==========================
 mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZap?retryWrites=true&w=majority")
   .then(() => console.log("✅ Mongo conectado com sucesso"))
   .catch(err => console.error("❌ Erro ao conectar no Mongo:", err));
 
 // ==========================
 // Modelos
+// ==========================
 const User = mongoose.model("User", {
     id: { type: String, unique: true },
     username: String,
@@ -35,17 +37,18 @@ const Message = mongoose.model("Message", {
     fromId: String,
     toId: String,
     text: String,
-    media: Object,
+    media: Object, // Armazena { data: base64, type: 'image'|'video'|'audio' }
     timestamp: { type: Number, default: Date.now }
 });
 
 // ==========================
 // Lógica de Status e Chamadas em Tempo Real
+// ==========================
 let usuariosOnline = {}; 
 
 io.on("connection", (socket) => {
     
-    // REGISTRO
+    // REGISTRO DE USUÁRIO
     socket.on("register", (userId) => {
         if(!userId) return;
         socket.userId = userId;
@@ -55,18 +58,17 @@ io.on("connection", (socket) => {
         console.log(`🚀 Usuário ${userId} online.`);
     });
 
-    // --- LÓGICA DE LIGAÇÃO E VOZ (ATUALIZADA) ---
+    // --- LÓGICA DE LIGAÇÃO WebRTC ---
     
-    // Escuta o sinal de ligação e repassa para o destino
+    // Inicia a chamada enviando o sinal do Peer A para o Peer B
     socket.on("ligarPara", (dados) => {
         const socketDestino = usuariosOnline[dados.para];
         if (socketDestino) {
-            // Repassa os dados incluindo o 'sinal' do WebRTC
             io.to(socketDestino).emit("recebendoLigacao", dados);
         }
     });
 
-    // Escuta quando alguém ATENDE e avisa quem ligou, enviando o sinal de volta
+    // Peer B aceita e envia seu sinal de volta para o Peer A
     socket.on("aceitarChamada", (dados) => {
         const socketDestino = usuariosOnline[dados.para];
         if (socketDestino) {
@@ -74,7 +76,7 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Escuta quando alguém recusa ou encerra
+    // Notifica encerramento ou recusa para a outra parte
     socket.on("chamadaRecusada", (dados) => {
         const socketDestino = usuariosOnline[dados.para];
         if (socketDestino) {
@@ -82,7 +84,7 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Evento genérico para troca de sinais WebRTC (caso precise durante a chamada)
+    // Canal genérico para troca de sinais adicionais (se necessário)
     socket.on("enviarSinal", (dados) => {
         const socketDestino = usuariosOnline[dados.para];
         if (socketDestino) {
@@ -93,8 +95,7 @@ io.on("connection", (socket) => {
         }
     });
 
-    // --------------------------------------------
-
+    // Atualização visual de perfil (Username/Foto) em tempo real
     socket.on("updateProfileVisual", (dados) => {
         socket.broadcast.emit("userUpdated", dados);
     });
@@ -110,6 +111,9 @@ io.on("connection", (socket) => {
 
 // ==========================
 // Rotas API
+// ==========================
+
+// Criar novo usuário com ID de 4 dígitos único
 app.post("/user", async (req, res) => {
     try {
         const { username, photo } = req.body;
@@ -128,6 +132,7 @@ app.post("/user", async (req, res) => {
     }
 });
 
+// Salvar/Editar Perfil
 app.post("/saveProfile", async (req, res) => {
     try {
         const { id, username, photo } = req.body;
@@ -138,6 +143,7 @@ app.post("/saveProfile", async (req, res) => {
     }
 });
 
+// Buscar dados de um contato pelo ID
 app.get("/getUser/:id", async (req, res) => {
     try {
         const user = await User.findOne({ id: req.params.id });
@@ -148,6 +154,7 @@ app.get("/getUser/:id", async (req, res) => {
     }
 });
 
+// Salvar mensagem no Banco
 app.post("/sendMessage", async (req, res) => {
     try {
         const { fromId, toId, text, media } = req.body;
@@ -168,6 +175,7 @@ app.post("/sendMessage", async (req, res) => {
     }
 });
 
+// Buscar histórico de mensagens (Limite de 200 para performance)
 app.get("/getMessages/:id", async (req, res) => {
     try {
         const msgs = await Message.find({
@@ -179,5 +187,9 @@ app.get("/getMessages/:id", async (req, res) => {
     }
 });
 
+// Inicialização do Servidor
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🌍 Servidor em: http://localhost:${PORT}`));
+server.listen(PORT, () => {
+    console.log(`--- MiniZap Rodando ---`);
+    console.log(`🌍 Local: http://localhost:${PORT}`);
+});
