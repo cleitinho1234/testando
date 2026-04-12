@@ -9,12 +9,14 @@ let lastTimestamp = Number(localStorage.getItem("lastTimestamp")) || 0;
 let listaOnlineGlobal = [];
 let mediaParaEnviar = null; 
 
-// --- VARIÁVEIS PARA ÁUDIO ---
+// --- VARIÁVEIS PARA ÁUDIO E LIGAÇÃO ---
 let mediaRecorder;
 let audioChunks = [];
 let audioBlob;
 let timerInterval;
 let seconds = 0;
+const ringtone = document.getElementById("ringtone");
+let chamandoAgora = null;
 
 window.addEventListener("load", async () => {
     let savedId = localStorage.getItem("userId");
@@ -57,6 +59,65 @@ window.addEventListener("load", async () => {
     renderContacts();
     setInterval(loadMessages, 1500);
 });
+
+// --- LÓGICA DE LIGAÇÃO (NOVA) ---
+
+function iniciarChamada() {
+    if (!currentChat) return;
+    
+    const dadosChamada = {
+        de: currentUser.id,
+        deNome: currentUser.username,
+        deFoto: currentUser.photo,
+        para: currentChat.id
+    };
+    
+    abrirTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
+    document.getElementById("btnAceitar").style.display = "none";
+    
+    socket.emit("ligarPara", dadosChamada);
+    ringtone.play().catch(e => console.log("Áudio bloqueado pelo navegador"));
+}
+
+socket.on("recebendoLigacao", (dados) => {
+    chamandoAgora = dados;
+    abrirTelaChamada(dados.deNome, dados.deFoto, "Recebendo chamada...");
+    document.getElementById("btnAceitar").style.display = "flex";
+    ringtone.play().catch(e => console.log("Áudio bloqueado pelo navegador"));
+});
+
+function abrirTelaChamada(nome, foto, status) {
+    document.getElementById("callerName").textContent = nome;
+    document.getElementById("callerPhoto").src = foto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    document.getElementById("callStatusText").textContent = status;
+    document.getElementById("incomingCallScreen").style.display = "flex";
+}
+
+function recusarChamada() {
+    ringtone.pause();
+    ringtone.currentTime = 0;
+    document.getElementById("incomingCallScreen").style.display = "none";
+    
+    if(chamandoAgora) {
+        socket.emit("chamadaRecusada", { para: chamandoAgora.de });
+        chamandoAgora = null;
+    } else if (currentChat) {
+        socket.emit("chamadaRecusada", { para: currentChat.id });
+    }
+}
+
+socket.on("chamadaEncerrada", () => {
+    ringtone.pause();
+    ringtone.currentTime = 0;
+    document.getElementById("incomingCallScreen").style.display = "none";
+    chamandoAgora = null;
+});
+
+function aceitarChamada() {
+    ringtone.pause();
+    document.getElementById("callStatusText").textContent = "Em chamada...";
+    // Aqui no futuro você pode adicionar a lógica de voz WebRTC
+}
 
 // --- LÓGICA DE MÍDIA (FOTOS/VÍDEOS) ---
 document.getElementById("addMediaBtn").onclick = () => {
@@ -243,7 +304,7 @@ document.getElementById("sendAudioBtn").onclick = async () => {
     }, 200);
 };
 
-// --- RESTANTE DAS FUNÇÕES (SOCKETS, CONTACTS, ETC) ---
+// --- RESTANTE DAS FUNÇÕES ---
 
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id == dados.id);
