@@ -41,9 +41,9 @@
   #momentosContainer::-webkit-scrollbar { display: none; }
 
   .momento-item { flex-shrink: 0; text-align: center; width: 65px; cursor: pointer; }
-  .momento-aro { width: 55px; height: 55px; border-radius: 50%; border: 2px solid #25D366; padding: 2px; margin: 0 auto; }
+  .momento-aro { width: 55px; height: 55px; border-radius: 50%; border: 2px solid #25D366; padding: 2px; margin: 0 auto; position: relative; }
   .momento-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-  .add-momento { border: 2px dashed #ccc !important; display: flex; align-items: center; justify-content: center; position: relative; }
+  .add-momento { border: 2px dashed #ccc !important; display: flex; align-items: center; justify-content: center; }
 
   /* 🔥 CSS DAS BARRINHAS ESTILO WHATSAPP */
   #statusProgressBar {
@@ -72,19 +72,21 @@
     width: 0%;
   }
   .status-segment.seen .status-filler { width: 100% !important; }
-  .status-segment.active .status-filler { animation: fillStatus 4s linear forwards; }
+  .status-segment.active .status-filler { animation: fillStatus 5s linear forwards; }
   @keyframes fillStatus { from { width: 0%; } to { width: 100%; } }
 
   #installBanner { display: none; position: fixed; top: 0; left: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 9999; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); box-sizing: border-box; }
   #photoPreviewContainer { display: none; position: absolute; bottom: 65px; left: 0; width: 100%; background: #f0f0f0; padding: 10px; align-items: center; gap: 10px; border-top: 1px solid #ccc; z-index: 101; box-sizing: border-box; }
-  #fullScreenViewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; align-items: center; justify-content: center; }
+  #fullScreenViewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; align-items: center; justify-content: center; flex-direction: column; }
 
   #home, #messages { flex: 1; overflow-y: auto !important; box-sizing: border-box; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior-y: contain !important; }
   #home { max-width: 500px; margin: 0 auto; padding: 15px; height: 100%; display: flex; flex-direction: column; }
   .profile-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
-  #profilePreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; }
-  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.2; }
+  #profilePreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; cursor: pointer; }
+  
+  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.2s; }
   .contact.selected { background: #d1e7dd !important; border: 1px solid #25D366; }
+  .contact-img { width: 45px; height: 45px; border-radius: 50%; margin-right: 12px; object-fit: cover; }
 
   #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; z-index: 50; }
   #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; position: relative; }
@@ -92,14 +94,13 @@
   #messages { padding: 10px; display: flex; flex-direction: column; }
   #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; flex-shrink: 0; position: relative; }
   #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 8px; outline: none; }
-  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; }
   
   .message { display: flex; margin: 5px 0; width: 100%; }
   .me { justify-content: flex-end; }
   .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; position: relative; }
   .me .bubble { background: #dcf8c6; }
-  .bubble img { max-width: 100%; border-radius: 8px; display: block; margin-top: 5px; cursor: pointer; }
-  .time { font-size: 10px; color: #888; float: right; margin: 5px 0 0 10px; }
+  .badge { background: red; color: white; border-radius: 50%; padding: 2px 8px; font-size: 12px; margin-left: auto; }
 
   .hidden { display: none; }
   #headerSelecao { display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
@@ -110,9 +111,9 @@
 <body>
 
 <div id="fullScreenViewer">
-    <button onclick="fecharFullScreen()" style="position:absolute; top:30px; left:15px; background:rgba(0,0,0,0.3); border:none; color:white; font-size:24px; border-radius:50%; width:40px; height:40px; cursor:pointer; z-index: 10002; display: flex; align-items: center; justify-content: center;">⬅</button>
+    <button onclick="fecharStatus()" style="position:absolute; top:30px; left:15px; background:rgba(0,0,0,0.3); border:none; color:white; font-size:24px; border-radius:50%; width:40px; height:40px; cursor:pointer; z-index: 10002; display: flex; align-items: center; justify-content: center;">⬅</button>
     <div id="statusProgressBar"></div>
-    <img id="fullScreenImage" style="max-width:100%; max-height:100%; object-fit:contain; cursor: pointer;">
+    <img id="statusImg" style="max-width:100%; max-height:100%; object-fit:contain; cursor: pointer;">
 </div>
 
 <div id="installBanner">
@@ -136,7 +137,7 @@
     <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
     <form id="profileForm">
       <input type="text" id="username" placeholder="Seu nome" style="width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;">
-      <input type="file" id="profilePic" accept="image/*" style="font-size: 12px; margin-bottom: 10px;">
+      <input type="file" id="profilePic" accept="image/*" style="display:none;">
       <button type="submit" style="background:#25D366; color:white; border:none; padding:12px 25px; border-radius:5px; font-weight:bold; cursor:pointer; width:100%;">SALVAR PERFIL</button>
     </form>
     <p style="font-size:12px; color:#666; margin-top:10px;">Seu ID: <span id="userIdDisplay" style="font-weight:bold;"></span></p>
@@ -144,15 +145,15 @@
 
   <h3 style="font-size: 14px; color: #075e54; margin: 0 0 8px 5px;">Momentos</h3>
   <div id="momentosContainer">
-      <div class="momento-item" onclick="document.getElementById('inputMomento').click()">
-          <div class="momento-aro add-momento">
-              <img id="minhaFotoMomento" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="momento-img">
+      <div class="momento-item">
+          <div class="momento-aro add-momento" onclick="document.getElementById('momentInput').click()">
+              <img id="myMomentPhoto" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="momento-img">
               <span style="position: absolute; bottom: -2px; right: -2px; background: #075e54; color: white; border-radius: 50%; width: 22px; height: 22px; font-weight: bold; border: 2px solid white; display: flex; align-items: center; justify-content: center;">+</span>
           </div>
           <div style="font-size: 11px; margin-top: 5px; color: #555;">Novo</div>
-          <input type="file" id="inputMomento" accept="image/*" style="display: none;" onchange="postarNovoMomento(this)">
+          <input type="file" id="momentInput" accept="image/*" style="display: none;">
       </div>
-      <div id="listaMomentos" style="display: flex; gap: 12px;"></div>
+      <div id="momentsList" style="display: flex; gap: 12px;"></div>
   </div>
   
   <div style="display:flex; gap:5px; flex-shrink: 0;">
@@ -182,7 +183,7 @@
   </div>
 
   <div id="chatInput">
-    <button id="attachmentBtn" style="font-size:24px;">+</button>
+    <button id="attachmentBtn">+</button>
     <div id="attachmentMenu" class="hidden" style="position:absolute; bottom:70px; left:10px; background:white; padding:15px; border-radius:12px; box-shadow:0 0 15px rgba(0,0,0,0.2); z-index:100;">
         <label style="cursor:pointer; display:flex; align-items:center; gap:10px;">
             📷 Enviar Foto
@@ -207,5 +208,4 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="script.js"></script>
 </body>
-  </html>
-  
+</html>s
