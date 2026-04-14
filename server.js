@@ -34,6 +34,7 @@ io.on("connection", (socket) => {
     socket.on("register", (userId) => {
         socket.userId = userId;
         onlineUsers[userId] = socket.id;
+        console.log(`Usuário ${userId} registrado no socket ${socket.id}`);
         io.emit("updateStatus", Object.keys(onlineUsers));
     });
 
@@ -42,22 +43,30 @@ io.on("connection", (socket) => {
         io.emit("userUpdated", dados); 
     });
 
-    // --- LÓGICA DE CHAMADAS DE VOZ ---
+    // --- LÓGICA DE CHAMADAS DE VOZ (SINALIZAÇÃO) ---
     socket.on("callUser", (data) => {
-        if (onlineUsers[data.toId]) {
-            io.to(onlineUsers[data.toId]).emit("incomingCall", data);
+        const targetSocket = onlineUsers[data.toId];
+        if (targetSocket) {
+            console.log(`Encaminhando chamada de ${data.fromId} para o socket ${targetSocket}`);
+            io.to(targetSocket).emit("incomingCall", data);
+        } else {
+            console.log(`Falha ao ligar: Usuário ${data.toId} não encontrado nos online.`);
         }
     });
 
     socket.on("acceptCall", (data) => {
-        if (onlineUsers[data.toId]) {
-            io.to(onlineUsers[data.toId]).emit("callAccepted", data);
+        const targetSocket = onlineUsers[data.toId];
+        if (targetSocket) {
+            console.log(`Chamada aceita. Enviando confirmação para ${data.toId}`);
+            io.to(targetSocket).emit("callAccepted", data);
         }
     });
 
     socket.on("endCall", (data) => {
-        if (onlineUsers[data.toId]) {
-            io.to(onlineUsers[data.toId]).emit("callEnded");
+        const targetSocket = onlineUsers[data.toId];
+        if (targetSocket) {
+            console.log(`Encerrando chamada para ${data.toId}`);
+            io.to(targetSocket).emit("callEnded");
         }
     });
 
@@ -70,6 +79,7 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => {
         if (socket.userId) {
+            console.log(`Usuário ${socket.userId} desconectado.`);
             delete onlineUsers[socket.userId];
             io.emit("updateStatus", Object.keys(onlineUsers));
         }
