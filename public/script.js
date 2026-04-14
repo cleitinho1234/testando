@@ -7,6 +7,8 @@ let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let listaOnlineGlobal = [];
 let statusInterval; 
+let typingTimeout;
+let receiveTypingTimeout;
 
 // --- FUNÇÃO DE PERSISTÊNCIA (DEVICE ID) ---
 function gerarDeviceID() {
@@ -99,14 +101,26 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- STATUS ONLINE EM TEMPO REAL ---
+// --- STATUS ONLINE E DIGITANDO EM TEMPO REAL ---
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
-    renderContacts(); // Atualiza bolinha na lista
-    
-    // 🔥 Atualiza o status dentro da conversa aberta
-    if (currentChat) {
-        atualizarStatusChatInterno(currentChat.id);
+    renderContacts(); 
+    if (currentChat) atualizarStatusChatInterno(currentChat.id);
+});
+
+// 🔥 OUVINTE PARA "DIGITANDO..."
+socket.on("userTyping", (data) => {
+    if (currentChat && currentChat.id === data.fromId) {
+        const statusElement = document.getElementById("chatStatus");
+        if (statusElement) {
+            statusElement.textContent = "Digitando...";
+            statusElement.style.color = "#25D366";
+
+            clearTimeout(receiveTypingTimeout);
+            receiveTypingTimeout = setTimeout(() => {
+                atualizarStatusChatInterno(data.fromId);
+            }, 2000);
+        }
     }
 });
 
@@ -151,7 +165,6 @@ function abrirChat(user) {
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     
-    // 🔥 Seta o status assim que abre o chat
     atualizarStatusChatInterno(user.id);
     loadMessages();
 }
@@ -182,6 +195,15 @@ function voltar() {
     renderContacts();
 }
 
+// 🔥 DETECTAR DIGITAÇÃO NO INPUT
+document.getElementById("messageText").oninput = () => {
+    if (!currentChat || !currentUser) return;
+    socket.emit("typing", {
+        toId: currentChat.id,
+        fromId: currentUser.id
+    });
+};
+
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
@@ -195,8 +217,7 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     loadMessages();
 };
 
-// --- RESTANTE DAS FUNÇÕES (MOMENTOS, PERFIL, ETC) ---
-
+// --- MOMENTOS E PERFIL ---
 async function loadMoments() {
     try {
         const res = await fetch("/api/moments");
