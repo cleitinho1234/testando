@@ -37,11 +37,28 @@ io.on("connection", (socket) => {
         io.emit("updateStatus", Object.keys(onlineUsers));
     });
 
-    // 🔥 CORREÇÃO AQUI: O nome do evento deve ser igual ao que o Frontend envia
     socket.on("updateProfile", (dados) => {
         console.log(`Usuário ${dados.id} atualizou perfil.`);
-        // Envia para TODOS (incluindo você para garantir sincronia)
         io.emit("userUpdated", dados); 
+    });
+
+    // --- LÓGICA DE CHAMADAS DE VOZ ---
+    socket.on("callUser", (data) => {
+        if (onlineUsers[data.toId]) {
+            io.to(onlineUsers[data.toId]).emit("incomingCall", data);
+        }
+    });
+
+    socket.on("acceptCall", (data) => {
+        if (onlineUsers[data.toId]) {
+            io.to(onlineUsers[data.toId]).emit("callAccepted", data);
+        }
+    });
+
+    socket.on("endCall", (data) => {
+        if (onlineUsers[data.toId]) {
+            io.to(onlineUsers[data.toId]).emit("callEnded");
+        }
     });
 
     // LOGICA DE DIGITANDO
