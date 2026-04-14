@@ -10,6 +10,26 @@ let statusInterval;
 let typingTimeout;
 let receiveTypingTimeout;
 
+// --- LÓGICA DE TEMA (ESCURO/CLARO) ---
+function inicializarTema() {
+    const themeToggle = document.getElementById("themeToggle");
+    const body = document.body;
+
+    if (localStorage.getItem("theme") === "dark") {
+        body.classList.add("dark-theme");
+        if (themeToggle) themeToggle.textContent = "☀️";
+    }
+
+    if (themeToggle) {
+        themeToggle.onclick = () => {
+            body.classList.toggle("dark-theme");
+            const isDark = body.classList.contains("dark-theme");
+            themeToggle.textContent = isDark ? "☀️" : "🌙";
+            localStorage.setItem("theme", isDark ? "dark" : "light");
+        };
+    }
+}
+
 // --- FUNÇÃO DE PERSISTÊNCIA (DEVICE ID) ---
 function gerarDeviceID() {
     const info = [
@@ -48,6 +68,8 @@ async function instalarMiniZap() {
 
 // --- INICIALIZAÇÃO ---
 window.addEventListener("load", async () => {
+    inicializarTema(); // Ativa o tema logo ao carregar
+    
     const deviceID = gerarDeviceID();
     if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
         localStorage.clear();
@@ -202,7 +224,6 @@ document.getElementById("addFriendBtn").onclick = async () => {
     if (!idParaAdicionar) return alert("Digite um ID!");
     if (idParaAdicionar === currentUser.id) return alert("Você não pode adicionar você mesmo!");
     
-    // Verifica se já existe para evitar lentidão com duplicatas
     if (contacts.some(c => c.id === idParaAdicionar)) {
         return alert("Contato já está na lista!");
     }
@@ -258,7 +279,7 @@ async function loadMoments() {
             div.className = "momento-item";
             div.innerHTML = `
                 <div class="momento-aro"><img src="${m.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img"></div>
-                <div style="font-size: 11px; margin-top: 5px; color: #555;">${m.username.split(' ')[0]}</div>
+                <div style="font-size: 11px; margin-top: 5px; color: var(--text-main);">${m.username.split(' ')[0]}</div>
             `;
             div.onclick = () => abrirPlayerStatus(msgs);
             container.appendChild(div);
