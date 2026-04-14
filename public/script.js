@@ -188,7 +188,7 @@ function voltar() {
     renderContacts();
 }
 
-// --- SALVAR PERFIL (OTIMIZADO) ---
+// --- LÓGICA DE PERFIL (SALVAR E SINCRONIZAR) ---
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("button");
@@ -210,7 +210,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             currentUser.photo = fotoBase64;
             localStorage.setItem("myUserObject", JSON.stringify(currentUser));
             
-            // ESSENCIAL: Avisa o servidor para mudar para todo mundo na hora
+            // EMISSOR: Avisa os outros usuários via Socket
             socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: fotoBase64 });
             
             alert("Perfil Atualizado!");
@@ -222,7 +222,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// --- COMPRESSÃO DE FOTO (PARA SER RÁPIDO) ---
+// COMPRESSÃO DE FOTO
 document.getElementById("profilePic").onchange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -232,7 +232,7 @@ document.getElementById("profilePic").onchange = (e) => {
             img.src = ev.target.result;
             img.onload = () => {
                 const canvas = document.createElement("canvas");
-                const MAX_WIDTH = 200; // Foto pequena para ser instantâneo
+                const MAX_WIDTH = 200; 
                 const scaleSize = MAX_WIDTH / img.width;
                 canvas.width = MAX_WIDTH;
                 canvas.height = img.height * scaleSize;
@@ -246,6 +246,7 @@ document.getElementById("profilePic").onchange = (e) => {
     }
 };
 
+// RECEPTOR: Atualiza a foto dos seus amigos quando ELES mudarem
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id === dados.id);
     if (index !== -1) {
@@ -253,6 +254,8 @@ socket.on("userUpdated", (dados) => {
         contacts[index].photo = dados.photo;
         localStorage.setItem("contacts", JSON.stringify(contacts));
         renderContacts();
+        
+        // Se estiver com o chat do amigo aberto, atualiza o topo
         if(currentChat && currentChat.id === dados.id) {
             document.getElementById("chatName").textContent = dados.username;
             document.getElementById("chatAvatar").src = dados.photo;
@@ -260,6 +263,7 @@ socket.on("userUpdated", (dados) => {
     }
 });
 
+// --- RECEBIMENTO DE MENSAGENS ---
 socket.on("receiveMessage", (data) => {
     const { sender } = data;
     const index = contacts.findIndex(c => c.id === sender.id);
@@ -281,7 +285,7 @@ socket.on("receiveMessage", (data) => {
     if (currentChat && currentChat.id === sender.id) loadMessages();
 });
 
-// Funções auxiliares simplificadas para manter o código limpo
-async function loadMoments() { /* sua lógica de momentos aqui */ }
-document.getElementById("addFriendBtn").onclick = async () => { /* sua lógica de adicionar aqui */ };
-document.getElementById("sendMessageBtn").onclick = async () => { /* sua lógica de envio aqui */ };
+// Outras funções
+async function loadMoments() { /* sua lógica de momentos */ }
+document.getElementById("addFriendBtn").onclick = async () => { /* sua lógica de adicionar */ };
+document.getElementById("sendMessageBtn").onclick = async () => { /* sua lógica de envio */ };
