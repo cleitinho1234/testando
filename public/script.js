@@ -96,7 +96,7 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- STATUS E DIGITAÇÃO ---
+// --- STATUS E DIGITAÇÃO (RECEBIMENTO) ---
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts(); 
@@ -124,6 +124,15 @@ function atualizarStatusChatInterno(id) {
         statusElement.textContent = isOnline ? "Online" : "Offline";
         statusElement.style.color = isOnline ? "#25D366" : "gray";
     }
+}
+
+// --- ENVIO DE DIGITAÇÃO ---
+const messageInput = document.getElementById("messageText");
+if (messageInput) {
+    messageInput.oninput = () => {
+        if (!currentChat || !currentUser) return;
+        socket.emit("typing", { fromId: currentUser.id, toId: currentChat.id });
+    };
 }
 
 // --- MENSAGENS E CONTATOS ---
@@ -181,6 +190,22 @@ async function loadMessages() {
     } catch (e) { console.error("Erro ao carregar msgs", e); }
 }
 
+// --- BOTÃO ENVIAR MENSAGEM ---
+document.getElementById("sendMessageBtn").onclick = async () => {
+    const input = document.getElementById("messageText");
+    const text = input.value.trim();
+    if(!text || !currentChat) return;
+    
+    input.value = ""; // Limpa campo
+
+    await fetch("/api/messages", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
+    });
+    loadMessages();
+};
+
 function voltar() {
     document.getElementById("chatScreen").style.display = "none";
     document.getElementById("home").style.display = "flex";
@@ -188,7 +213,7 @@ function voltar() {
     renderContacts();
 }
 
-// --- LÓGICA DE PERFIL (SALVAR E SINCRONIZAR) ---
+// --- PERFIL ---
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("button");
@@ -209,10 +234,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             currentUser.username = nome; 
             currentUser.photo = fotoBase64;
             localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-            
-            // EMISSOR: Avisa os outros usuários via Socket
             socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: fotoBase64 });
-            
             alert("Perfil Atualizado!");
         }
     } catch (err) { alert("Erro ao salvar."); }
@@ -222,7 +244,6 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     }
 };
 
-// COMPRESSÃO DE FOTO
 document.getElementById("profilePic").onchange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -238,15 +259,13 @@ document.getElementById("profilePic").onchange = (e) => {
                 canvas.height = img.height * scaleSize;
                 const ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const optimizedData = canvas.toDataURL("image/jpeg", 0.7);
-                document.getElementById("profilePreview").src = optimizedData;
+                document.getElementById("profilePreview").src = canvas.toDataURL("image/jpeg", 0.7);
             };
         };
         reader.readAsDataURL(file);
     }
 };
 
-// RECEPTOR: Atualiza a foto dos seus amigos quando ELES mudarem
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id === dados.id);
     if (index !== -1) {
@@ -254,8 +273,6 @@ socket.on("userUpdated", (dados) => {
         contacts[index].photo = dados.photo;
         localStorage.setItem("contacts", JSON.stringify(contacts));
         renderContacts();
-        
-        // Se estiver com o chat do amigo aberto, atualiza o topo
         if(currentChat && currentChat.id === dados.id) {
             document.getElementById("chatName").textContent = dados.username;
             document.getElementById("chatAvatar").src = dados.photo;
@@ -263,11 +280,9 @@ socket.on("userUpdated", (dados) => {
     }
 });
 
-// --- RECEBIMENTO DE MENSAGENS ---
 socket.on("receiveMessage", (data) => {
     const { sender } = data;
     const index = contacts.findIndex(c => c.id === sender.id);
-    
     if (index === -1) {
         contacts.unshift(sender);
     } else {
@@ -275,17 +290,14 @@ socket.on("receiveMessage", (data) => {
         contacts[index].photo = sender.photo;
     }
     localStorage.setItem("contacts", JSON.stringify(contacts));
-
     if (!currentChat || currentChat.id !== sender.id) {
         unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
         localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     }
-    
     renderContacts();
     if (currentChat && currentChat.id === sender.id) loadMessages();
 });
 
-// Outras funções
-async function loadMoments() { /* sua lógica de momentos */ }
-document.getElementById("addFriendBtn").onclick = async () => { /* sua lógica de adicionar */ };
-document.getElementById("sendMessageBtn").onclick = async () => { /* sua lógica de envio */ };
+// Funções restantes
+async function loadMoments() { /* sua lógica */ }
+document.getElementById("addFriendBtn").onclick = async () => { /* sua lógica */ };
