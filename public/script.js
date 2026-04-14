@@ -11,7 +11,6 @@ let receiveTypingTimeout;
 // --- LÓGICA DE VÍDEOS (SHORTS) ---
 let player;
 
-// Carregado pela API do YouTube
 function onYouTubeIframeAPIReady() {
     console.log("YouTube Player API Pronta");
 }
@@ -19,12 +18,11 @@ function onYouTubeIframeAPIReady() {
 function abrirPlayer() {
     document.getElementById("videoPlayerModal").style.display = "flex";
     
-    // Lista de termos para busca automática
-    const termos = ["shorts engraçados", "satisfying shorts", "curiosidades", "games shorts"];
+    const termos = ["shorts engraçados", "satisfying shorts", "curiosidades", "games shorts", "tente não rir"];
     const buscaAleatoria = termos[Math.floor(Math.random() * termos.length)];
 
     if (player) {
-        player.destroy(); // Limpa o player antigo para não dar erro
+        player.destroy(); 
     }
 
     player = new YT.Player('player', {
@@ -38,11 +36,18 @@ function abrirPlayer() {
             'modestbranding': 1,
             'rel': 0,
             'showinfo': 0,
-            'iv_load_policy': 3
+            'iv_load_policy': 3,
+            'origin': window.location.origin
         },
         events: {
             'onReady': (event) => event.target.playVideo(),
-            'onError': () => proximoVideo()
+            'onStateChange': (event) => {
+                if (event.data === YT.PlayerState.ENDED) proximoVideo();
+            },
+            'onError': () => {
+                console.log("Vídeo indisponível, pulando...");
+                proximoVideo();
+            }
         }
     });
 }
@@ -51,7 +56,7 @@ function proximoVideo() {
     if (player && player.nextVideo) {
         player.nextVideo();
     } else {
-        abrirPlayer(); // Reinicia busca se travar
+        abrirPlayer();
     }
 }
 
@@ -223,23 +228,32 @@ function voltar() {
     renderContacts();
 }
 
-// --- PERFIL ---
+// --- PERFIL (SALVAR E ATUALIZAR PARA TODOS) ---
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
     const foto = document.getElementById("profilePreview").src;
     
-    await fetch("/api/saveProfile", {
+    // 1. Salva no Banco de Dados (Backend)
+    const res = await fetch("/api/saveProfile", {
         method: "POST", 
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ id: currentUser.id, username: nome, photo: foto })
     });
-    
-    currentUser.username = nome;
-    currentUser.photo = foto;
-    localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-    socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: foto });
-    alert("Perfil salvo!");
+
+    if (res.ok) {
+        // 2. Atualiza localmente
+        currentUser.username = nome;
+        currentUser.photo = foto;
+        localStorage.setItem("myUserObject", JSON.stringify(currentUser));
+        
+        // 3. Avisa o Socket para todos os outros usuários verem a mudança
+        socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: foto });
+        
+        alert("Perfil atualizado com sucesso!");
+    } else {
+        alert("Erro ao salvar perfil.");
+    }
 };
 
 document.getElementById("profilePic").onchange = (e) => {
@@ -247,11 +261,37 @@ document.getElementById("profilePic").onchange = (e) => {
     if (file) {
         const reader = new FileReader();
         reader.onload = (ev) => {
-            document.getElementById("profilePreview").src = ev.target.result;
+            const img = new Image();
+            img.src = ev.target.result;
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const MAX_WIDTH = 200; 
+                const scaleSize = MAX_WIDTH / img.width;
+                canvas.width = MAX_WIDTH;
+                canvas.height = img.height * scaleSize;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                document.getElementById("profilePreview").src = canvas.toDataURL("image/jpeg", 0.7);
+            };
         };
         reader.readAsDataURL(file);
     }
 };
+
+// Recebe atualizações de perfil de outros usuários
+socket.on("userUpdated", (dados) => {
+    const index = contacts.findIndex(c => c.id === dados.id);
+    if (index !== -1) {
+        contacts[index].username = dados.username;
+        contacts[index].photo = dados.photo;
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+        if(currentChat && currentChat.id === dados.id) {
+            document.getElementById("chatName").textContent = dados.username;
+            document.getElementById("chatAvatar").src = dados.photo;
+        }
+    }
+});
 
 document.getElementById("addFriendBtn").onclick = async () => {
     const id = document.getElementById("addUserId").value.trim();
