@@ -1,166 +1,303 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const http = require("http");
-const { Server } = require("socket.io");
-const path = require("path");
+let currentUser = null;
+let currentChat = null;
+let contatoSelecionadoId = null; 
+const socket = io(); 
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
+let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
+let listaOnlineGlobal = [];
+let statusInterval; 
+let typingTimeout;
+let receiveTypingTimeout;
 
-// Aumentado para 50mb para garantir que fotos de perfil e momentos não deem erro
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.static("public"));
-
-// Conexão direta e segura
-mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZapV2")
-    .then(() => console.log("✅ Banco de Dados conectado!"));
-
-// Schemas Atualizados
-const User = mongoose.model("User", { 
-    id: String, 
-    username: String, 
-    photo: String,
-    deviceId: String 
-});
-
-const Message = mongoose.model("Message", { fromId: String, toId: String, text: String, timestamp: Number });
-const Moment = mongoose.model("Moment", { userId: String, username: String, userPhoto: String, media: String, timestamp: Number });
-
-let onlineUsers = {};
-
-io.on("connection", (socket) => {
-    socket.on("register", (userId) => {
-        socket.userId = userId;
-        onlineUsers[userId] = socket.id;
-        io.emit("updateStatus", Object.keys(onlineUsers));
-    });
-
-    // 🔥 CORREÇÃO AQUI: O nome do evento deve ser igual ao que o Frontend envia
-    socket.on("updateProfile", (dados) => {
-        console.log(`Usuário ${dados.id} atualizou perfil.`);
-        // Envia para TODOS (incluindo você para garantir sincronia)
-        io.emit("userUpdated", dados); 
-    });
-
-    // LOGICA DE DIGITANDO
-    socket.on("typing", (data) => {
-        if (onlineUsers[data.toId]) {
-            io.to(onlineUsers[data.toId]).emit("userTyping", { fromId: data.fromId });
-        }
-    });
-
-    socket.on("disconnect", () => {
-        if (socket.userId) {
-            delete onlineUsers[socket.userId];
-            io.emit("updateStatus", Object.keys(onlineUsers));
-        }
-    });
-});
-
-// --- ROTAS DE USUÁRIO ---
-
-app.post("/api/user", async (req, res) => {
-    try {
-        const id = Math.floor(1000 + Math.random() * 9000).toString();
-        const user = await User.create({ id, ...req.body });
-        res.json(user);
-    } catch (err) {
-        res.status(500).json({ error: "Erro ao criar usuário" });
+// --- LÓGICA DE TEMA (ESCURO/CLARO) ---
+function inicializarTema() {
+    const themeToggle = document.getElementById("themeToggle");
+    const body = document.body;
+    if (localStorage.getItem("theme") === "dark") {
+        body.classList.add("dark-theme");
+        if (themeToggle) themeToggle.textContent = "☀️";
     }
-});
-
-app.get("/api/recover-by-device/:deviceId", async (req, res) => {
-    try {
-        const user = await User.findOne({ deviceId: req.params.deviceId });
-        if (user) {
-            res.json(user);
-        } else {
-            res.status(404).json({ error: "Nenhuma conta vinculada" });
-        }
-    } catch (err) {
-        res.status(500).json({ error: "Erro na recuperação" });
+    if (themeToggle) {
+        themeToggle.onclick = () => {
+            body.classList.toggle("dark-theme");
+            const isDark = body.classList.contains("dark-theme");
+            themeToggle.textContent = isDark ? "☀️" : "🌙";
+            localStorage.setItem("theme", isDark ? "dark" : "light");
+        };
     }
-});
+}
 
-app.post("/api/saveProfile", async (req, res) => {
-    try {
-        const { id, username, photo } = req.body;
-        const user = await User.findOneAndUpdate(
-            { id: id },
-            { username, photo },
-            { new: true }
-        );
-        if (user) {
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ error: "Usuário não encontrado" });
-        }
-    } catch (e) { res.status(500).send(e); }
-});
-
-app.get("/api/user/:id", async (req, res) => {
-    const user = await User.findOne({ id: req.params.id });
-    res.json(user || { error: "Não encontrado" });
-});
-
-// --- ROTA DE MOMENTOS ---
-
-app.post("/api/moments", async (req, res) => {
-    try {
-        const novoMomento = await Moment.create({
-            ...req.body,
-            timestamp: Date.now()
-        });
-        io.emit("newMoment", novoMomento);
-        res.json(novoMomento);
-    } catch (err) {
-        res.status(500).json({ error: "Erro ao postar momento" });
+// --- FUNÇÃO DE PERSISTÊNCIA (DEVICE ID) ---
+function gerarDeviceID() {
+    const info = [navigator.userAgent, navigator.language, screen.colorDepth, screen.width + 'x' + screen.height, navigator.hardwareConcurrency].join('###');
+    let hash = 0;
+    for (let i = 0; i < info.length; i++) {
+        let char = info.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
     }
-});
+    return "DEV-" + Math.abs(hash);
+}
 
-app.get("/api/moments", async (req, res) => {
-    const umDiaAtras = Date.now() - (24 * 60 * 60 * 1000);
-    try {
-        const momentos = await Moment.find({ 
-            timestamp: { $gt: umDiaAtras } 
-        }).sort({ timestamp: -1 });
-        res.json(momentos);
-    } catch (err) {
-        res.status(500).json({ error: "Erro ao buscar momentos" });
+// --- INICIALIZAÇÃO ---
+window.addEventListener("load", async () => {
+    inicializarTema(); 
+    const deviceID = gerarDeviceID();
+    
+    if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
+        localStorage.clear();
     }
-});
 
-// --- MENSAGENS ---
+    let localUser = localStorage.getItem("myUserObject");
+    let savedId = localStorage.getItem("userId");
 
-app.post("/api/messages", async (req, res) => {
-    const { fromId, toId, text } = req.body;
-    const msg = await Message.create({ fromId, toId, text, timestamp: Date.now() });
-    const sender = await User.findOne({ id: fromId });
+    if (localUser) {
+        currentUser = JSON.parse(localUser);
+    } else if (savedId) {
+        const res = await fetch(`/api/user/${savedId}`);
+        const user = await res.json();
+        if (!user.error) currentUser = user;
+    }
 
-    if (onlineUsers[toId]) {
-        io.to(onlineUsers[toId]).emit("receiveMessage", {
-            msg,
-            sender: {
-                id: sender.id,
-                username: sender.username,
-                photo: sender.photo
+    if (!currentUser) {
+        try {
+            const resRecover = await fetch(`/api/recover-by-device/${deviceID}`);
+            const recovered = await resRecover.json();
+            if (recovered && !recovered.error) {
+                currentUser = recovered;
+                localStorage.setItem("userId", currentUser.id);
+                localStorage.setItem("myUserObject", JSON.stringify(currentUser));
             }
-        });
+        } catch (e) { console.log("Nenhuma conta para recuperar."); }
     }
-    res.json(msg);
+
+    if (!currentUser) {
+        const res = await fetch("/api/user", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ username: "Novo Usuário", photo: "", deviceId: deviceID })
+        });
+        currentUser = await res.json();
+        localStorage.setItem("userId", currentUser.id);
+        localStorage.setItem("myUserObject", JSON.stringify(currentUser));
+    }
+
+    socket.emit("register", currentUser.id);
+    document.getElementById("username").value = currentUser.username || "";
+    document.getElementById("userIdDisplay").textContent = currentUser.id;
+    
+    if(currentUser.photo) {
+        document.getElementById("profilePreview").src = currentUser.photo;
+    }
+
+    renderContacts();
+    loadMoments(); 
+    setInterval(loadMessages, 1500);
 });
 
-app.get("/api/messages/:id1/:id2", async (req, res) => {
-    const msgs = await Message.find({
-        $or: [
-            { fromId: req.params.id1, toId: req.params.id2 },
-            { fromId: req.params.id2, toId: req.params.id1 }
-        ]
-    }).sort({ timestamp: 1 });
-    res.json(msgs);
+// --- STATUS E DIGITAÇÃO (RECEBIMENTO) ---
+socket.on("updateStatus", (listaOnline) => {
+    listaOnlineGlobal = listaOnline;
+    renderContacts(); 
+    if (currentChat) atualizarStatusChatInterno(currentChat.id);
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 MiniZap V2 rodando na porta ${PORT}`));
+socket.on("userTyping", (data) => {
+    if (currentChat && currentChat.id === data.fromId) {
+        const statusElement = document.getElementById("chatStatus");
+        if (statusElement) {
+            statusElement.textContent = "Digitando...";
+            statusElement.style.color = "#25D366";
+            clearTimeout(receiveTypingTimeout);
+            receiveTypingTimeout = setTimeout(() => {
+                atualizarStatusChatInterno(data.fromId);
+            }, 2000);
+        }
+    }
+});
+
+function atualizarStatusChatInterno(id) {
+    const statusElement = document.getElementById("chatStatus");
+    if (statusElement) {
+        const isOnline = listaOnlineGlobal.includes(id);
+        statusElement.textContent = isOnline ? "Online" : "Offline";
+        statusElement.style.color = isOnline ? "#25D366" : "gray";
+    }
+}
+
+// --- ENVIO DE DIGITAÇÃO ---
+const messageInput = document.getElementById("messageText");
+if (messageInput) {
+    messageInput.oninput = () => {
+        if (!currentChat || !currentUser) return;
+        socket.emit("typing", { fromId: currentUser.id, toId: currentChat.id });
+    };
+}
+
+// --- MENSAGENS E CONTATOS ---
+function renderContacts() {
+    const div = document.getElementById("contacts");
+    if(!div) return;
+    div.innerHTML = "";
+    contacts.forEach(user => {
+        const count = unreadCounts[user.id] || 0;
+        const isOnline = listaOnlineGlobal.includes(user.id);
+        const contactEl = document.createElement("div");
+        contactEl.className = `contact ${currentChat && currentChat.id === user.id ? 'selected' : ''}`;
+        contactEl.innerHTML = `
+            <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="contact-img">
+            <div style="flex:1;">
+                <div style="font-weight:bold;">${user.username}</div>
+                <div style="font-size:11px; color:${isOnline ? '#25D366' : 'gray'}">${isOnline ? '● Online' : '● Offline'}</div>
+            </div>
+            ${count > 0 ? `<span class="badge" style="background:#25D366; color:white; border-radius:50%; padding:2px 6px; font-size:10px;">${count}</span>` : ""}
+        `;
+        contactEl.onclick = () => abrirChat(user);
+        div.appendChild(contactEl);
+    });
+}
+
+function abrirChat(user) {
+    currentChat = user;
+    unreadCounts[user.id] = 0;
+    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    document.getElementById("home").style.display = "none";
+    document.getElementById("chatScreen").style.display = "flex";
+    document.getElementById("chatName").textContent = user.username;
+    document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    atualizarStatusChatInterno(user.id);
+    loadMessages();
+    renderContacts();
+}
+
+async function loadMessages() {
+    if(!currentUser || !currentChat) return;
+    try {
+        const res = await fetch(`/api/messages/${currentUser.id}/${currentChat.id}`);
+        const msgs = await res.json();
+        const container = document.getElementById("messages");
+        if (container.childElementCount !== msgs.length) {
+            container.innerHTML = "";
+            msgs.forEach(m => {
+                const div = document.createElement("div");
+                div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+                div.innerHTML = `<div class="bubble">${m.text}</div>`;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+    } catch (e) { console.error("Erro ao carregar msgs", e); }
+}
+
+// --- BOTÃO ENVIAR MENSAGEM ---
+document.getElementById("sendMessageBtn").onclick = async () => {
+    const input = document.getElementById("messageText");
+    const text = input.value.trim();
+    if(!text || !currentChat) return;
+    
+    input.value = ""; // Limpa campo
+
+    await fetch("/api/messages", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ fromId: currentUser.id, toId: currentChat.id, text })
+    });
+    loadMessages();
+};
+
+function voltar() {
+    document.getElementById("chatScreen").style.display = "none";
+    document.getElementById("home").style.display = "flex";
+    currentChat = null;
+    renderContacts();
+}
+
+// --- PERFIL ---
+document.getElementById("profileForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+    btn.textContent = "Salvando...";
+
+    const nome = document.getElementById("username").value.trim();
+    const fotoBase64 = document.getElementById("profilePreview").src;
+
+    try {
+        const res = await fetch("/api/saveProfile", {
+            method: "POST", 
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoBase64 })
+        });
+
+        if (res.ok) {
+            currentUser.username = nome; 
+            currentUser.photo = fotoBase64;
+            localStorage.setItem("myUserObject", JSON.stringify(currentUser));
+            socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: fotoBase64 });
+            alert("Perfil Atualizado!");
+        }
+    } catch (err) { alert("Erro ao salvar."); }
+    finally {
+        btn.disabled = false;
+        btn.textContent = "SALVAR PERFIL";
+    }
+};
+
+document.getElementById("profilePic").onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.src = ev.target.result;
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const MAX_WIDTH = 200; 
+                const scaleSize = MAX_WIDTH / img.width;
+                canvas.width = MAX_WIDTH;
+                canvas.height = img.height * scaleSize;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                document.getElementById("profilePreview").src = canvas.toDataURL("image/jpeg", 0.7);
+            };
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
+socket.on("userUpdated", (dados) => {
+    const index = contacts.findIndex(c => c.id === dados.id);
+    if (index !== -1) {
+        contacts[index].username = dados.username;
+        contacts[index].photo = dados.photo;
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+        if(currentChat && currentChat.id === dados.id) {
+            document.getElementById("chatName").textContent = dados.username;
+            document.getElementById("chatAvatar").src = dados.photo;
+        }
+    }
+});
+
+socket.on("receiveMessage", (data) => {
+    const { sender } = data;
+    const index = contacts.findIndex(c => c.id === sender.id);
+    if (index === -1) {
+        contacts.unshift(sender);
+    } else {
+        contacts[index].username = sender.username;
+        contacts[index].photo = sender.photo;
+    }
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+    if (!currentChat || currentChat.id !== sender.id) {
+        unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
+        localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    }
+    renderContacts();
+    if (currentChat && currentChat.id === sender.id) loadMessages();
+});
+
+// Funções restantes
+async function loadMoments() { /* sua lógica */ }
+document.getElementById("addFriendBtn").onclick = async () => { /* sua lógica */ };
