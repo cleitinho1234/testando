@@ -108,7 +108,6 @@ socket.on("updateStatus", (listaOnline) => {
     if (currentChat) atualizarStatusChatInterno(currentChat.id);
 });
 
-// 🔥 OUVINTE PARA "DIGITANDO..."
 socket.on("userTyping", (data) => {
     if (currentChat && currentChat.id === data.fromId) {
         const statusElement = document.getElementById("chatStatus");
@@ -195,13 +194,38 @@ function voltar() {
     renderContacts();
 }
 
-// 🔥 DETECTAR DIGITAÇÃO NO INPUT
+// 🔥 LÓGICA RÁPIDA PARA ADICIONAR AMIGO
+document.getElementById("addFriendBtn").onclick = async () => {
+    const input = document.getElementById("addUserId");
+    const idParaAdicionar = input.value.trim();
+
+    if (!idParaAdicionar) return alert("Digite um ID!");
+    if (idParaAdicionar === currentUser.id) return alert("Você não pode adicionar você mesmo!");
+    
+    // Verifica se já existe para evitar lentidão com duplicatas
+    if (contacts.some(c => c.id === idParaAdicionar)) {
+        return alert("Contato já está na lista!");
+    }
+
+    try {
+        const res = await fetch(`/api/user/${idParaAdicionar}`);
+        const novoContato = await res.json();
+
+        if (novoContato.error) {
+            alert("ID não encontrado!");
+        } else {
+            contacts.unshift({ id: novoContato.id, username: novoContato.username, photo: novoContato.photo });
+            localStorage.setItem("contacts", JSON.stringify(contacts));
+            renderContacts();
+            input.value = "";
+            alert(`${novoContato.username} adicionado!`);
+        }
+    } catch (e) { alert("Erro ao buscar ID."); }
+};
+
 document.getElementById("messageText").oninput = () => {
     if (!currentChat || !currentUser) return;
-    socket.emit("typing", {
-        toId: currentChat.id,
-        fromId: currentUser.id
-    });
+    socket.emit("typing", { toId: currentChat.id, fromId: currentUser.id });
 };
 
 document.getElementById("sendMessageBtn").onclick = async () => {
