@@ -113,8 +113,9 @@
   #messages { flex: 1; overflow-y: auto !important; padding: 10px; display: flex; flex-direction: column; }
   
   #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; flex-shrink: 0; }
-  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 8px; outline: none; }
-  #sendMessageBtn, #attachmentBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  /* Ajustado o margin do input já que o botão da esquerda sumiu */
+  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 10px; outline: none; }
+  #sendMessageBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
   
   .message { display: flex; margin: 5px 0; width: 100%; }
   .me { justify-content: flex-end; }
@@ -211,7 +212,6 @@
   </div>
   <div id="messages"></div>
   <div id="chatInput">
-    <button id="attachmentBtn">+</button>
     <input type="text" id="messageText" placeholder="Mensagem">
     <button id="sendMessageBtn">➤</button>
   </div>
