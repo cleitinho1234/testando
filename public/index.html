@@ -25,8 +25,6 @@
     --bubble-me: #dcf8c6;
     --bubble-other: #ffffff;
     --contact-selected: #d1e7dd;
-    
-    /* Doodle Claro: Logo Normal */
     --bg-doodle: url('logo.png'); 
     --doodle-opacity: 0.07;
   }
@@ -42,9 +40,7 @@
     --bubble-me: #005c4b;
     --bubble-other: #202c33;
     --contact-selected: #2a3942;
-
-    /* Doodle Escuro: Personagem Relaxado */
-    --bg-doodle: url('logo-dark.png'); 
+    --bg-doodle: url('Personagem de mensagem relaxado e feliz.jpg'); 
     --doodle-opacity: 0.05;
   }
 
@@ -58,17 +54,13 @@
     overscroll-behavior-y: none !important;
   }
   
-  /* CAMADA DO PAPEL DE PAREDE REPETIDO */
   body::before {
     content: "";
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0; width: 100%; height: 100%;
     background-image: var(--bg-doodle);
     background-repeat: repeat;
-    background-size: 55px; /* Tamanho das logos no fundo */
+    background-size: 55px;
     opacity: var(--doodle-opacity);
     z-index: -1;
     pointer-events: none;
@@ -83,11 +75,10 @@
     transition: background 0.3s, color 0.3s;
   }
 
-  /* Ajuste para que o fundo apareça através dos containers */
   #home, #chatScreen, #messages { background: transparent !important; }
 
-  /* Estilos para a barra de Momentos */
-  #momentosContainer {
+  /* --- EXPLORAR VÍDEOS --- */
+  #videoShortsContainer {
     display: flex;
     gap: 12px;
     overflow-x: auto;
@@ -99,59 +90,23 @@
     flex-shrink: 0;
     scrollbar-width: none;
   }
-  #momentosContainer::-webkit-scrollbar { display: none; }
+  #videoShortsContainer::-webkit-scrollbar { display: none; }
 
-  .momento-item { flex-shrink: 0; text-align: center; width: 65px; cursor: pointer; }
-  .momento-aro { width: 55px; height: 55px; border-radius: 50%; border: 2px solid #25D366; padding: 2px; margin: 0 auto; position: relative; }
-  .momento-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-  .add-momento { border: 2px dashed #ccc !important; display: flex; align-items: center; justify-content: center; }
-
-  /* BARRINHAS DE STATUS */
-  #statusProgressBar {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    right: 10px;
-    display: flex;
-    gap: 5px;
-    z-index: 10001;
-  }
-  .status-segment {
-    flex: 1;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 2px;
-    overflow: hidden;
-    position: relative;
-  }
-  .status-filler {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    background: white;
-    width: 0%;
-  }
-  .status-segment.active .status-filler { animation: encherBarra 5s linear forwards; }
-  .status-segment.seen .status-filler { width: 100% !important; }
-
-  @keyframes encherBarra {
-    from { width: 0%; }
-    to { width: 100%; }
+  .video-item { flex-shrink: 0; text-align: center; width: 70px; cursor: pointer; }
+  .video-icon { 
+    width: 55px; height: 55px; border-radius: 15px; margin: 0 auto; 
+    display: flex; align-items: center; justify-content: center; font-size: 24px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   }
 
-  #fullScreenViewer { 
-    display: none; 
-    position: fixed; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    height: 100%; 
-    background: black; 
-    z-index: 9999; 
-    align-items: center; 
-    justify-content: center; 
-    flex-direction: column; 
+  /* PLAYER TIKTOK STYLE */
+  #videoPlayerModal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: black;
+    z-index: 10000;
+    flex-direction: column;
   }
 
   /* LAYOUT PRINCIPAL */
@@ -161,7 +116,7 @@
   
   .contact { background: var(--bg-card); padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-height: 60px; box-sizing: border-box; }
   .contact.selected { background: var(--contact-selected) !important; border: 1px solid #25D366; }
-  .contact-img { width: 45px; height: 45px; min-width: 45px; max-width: 45px; border-radius: 50%; margin-right: 12px; object-fit: cover; }
+  .contact-img { width: 45px; height: 45px; min-width: 45px; border-radius: 50%; margin-right: 12px; object-fit: cover; }
 
   #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; flex-direction: column; z-index: 50; }
   #chatHeader { background: var(--header-bg); color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; }
@@ -170,67 +125,33 @@
   
   #chatInput { display: flex; padding: 10px; background: var(--input-bg); align-items: center; flex-shrink: 0; }
   #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 10px; outline: none; background: var(--bg-card); color: var(--text-main); }
-  #sendMessageBtn { background: var(--header-bg); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  #sendMessageBtn { background: var(--header-bg); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; }
   
-  .message { display: flex; margin: 5px 0; width: 100%; }
-  .me { justify-content: flex-end; }
   .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: var(--bubble-other); box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; color: var(--text-main); }
   .me .bubble { background: var(--bubble-me); }
   .badge { background: #25D366; color: white; border-radius: 50%; padding: 2px 8px; font-size: 12px; margin-left: auto; font-weight: bold; }
 
-  #themeToggle { background: none; border: none; font-size: 24px; cursor: pointer; padding: 5px; }
-
   #btnInstalarPWA {
-    display: none;
-    width: 100%;
-    background: #075e54;
-    color: white;
-    border: none;
-    padding: 15px;
-    border-radius: 12px;
-    font-weight: bold;
-    margin-bottom: 15px;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    font-size: 14px;
-    animation: bounce 2s infinite;
+    display: none; width: 100%; background: #075e54; color: white; border: none; padding: 15px; border-radius: 12px; font-weight: bold; margin-bottom: 15px; cursor: pointer; animation: bounce 2s infinite;
   }
-
-  @keyframes bounce {
-    0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
-    40% {transform: translateY(-5px);}
-    60% {transform: translateY(-3px);}
-  }
-
-  #headerSelecao { display: none; position: fixed; top: 0; width: 100%; background: #075e54; color: white; padding: 15px; z-index: 1000; justify-content: space-between; box-sizing: border-box; align-items: center; }
-  #confirmModal { display: none; position: fixed; top:0; left: 0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; }
+  @keyframes bounce { 0%, 100% {transform: translateY(0);} 50% {transform: translateY(-5px);} }
 </style>
 </head>
 <body>
 
-<div id="fullScreenViewer">
-    <button onclick="fecharStatus()" style="position:absolute; top:30px; left:15px; background:rgba(0,0,0,0.5); border:none; color:white; font-size:24px; border-radius:50%; width:40px; height:40px; z-index: 10002; cursor: pointer;">✕</button>
-    <div id="statusProgressBar"></div>
-    <img id="statusImg" style="max-width:100%; max-height:100%; object-fit:contain; pointer-events: none;">
-</div>
-
-<div id="headerSelecao">
-  <div style="display:flex; align-items:center;">
-    <button onclick="cancelarSelecao()" style="background:none; border:none; color:white; font-size:20px; margin-right:20px;">✕</button>
-    <span>Contato Selecionado</span>
-  </div>
-  <button onclick="abrirModal()" style="background:none; border:none; color:white; font-size:20px;">🗑️</button>
+<div id="videoPlayerModal">
+    <button onclick="fecharPlayer()" style="position:absolute; top:30px; right:15px; background:rgba(255,255,255,0.3); border:none; color:white; font-size:24px; border-radius:50%; width:40px; height:40px; z-index: 10002; cursor: pointer;">✕</button>
+    <div id="player" style="width: 100%; height: 100%;"></div>
+    <button onclick="proximoVideo()" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: #25D366; color: white; border: none; padding: 15px 40px; border-radius: 30px; font-weight: bold; z-index: 10003; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">PRÓXIMO ➔</button>
 </div>
 
 <div id="home">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
     <h2 style="margin:0; font-size: 20px; color: var(--header-bg);">Mini-Zap</h2>
-    <button id="themeToggle">🌙</button>
+    <button id="themeToggle" style="background:none; border:none; font-size:24px; cursor:pointer;">🌙</button>
   </div>
 
-  <button id="btnInstalarPWA" onclick="instalarMiniZap()">
-    📥 INSTALAR MINI-ZAP NO CELULAR
-  </button>
+  <button id="btnInstalarPWA" onclick="instalarMiniZap()">📥 INSTALAR NO CELULAR</button>
 
   <div class="profile-card">
     <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('profilePic').click()">
@@ -239,20 +160,27 @@
       <input type="file" id="profilePic" accept="image/*" style="display:none;">
       <button type="submit" style="background:#25D366; color:white; border:none; padding:12px 25px; border-radius:5px; font-weight:bold; width:100%;">SALVAR PERFIL</button>
     </form>
-    <p style="font-size:12px; color:var(--text-sub); margin-top:10px;">ID: <span id="userIdDisplay"></span></p>
+    <p style="font-size:11px; color:var(--text-sub); margin-top:5px;">ID: <span id="userIdDisplay"></span></p>
   </div>
 
-  <h3 style="font-size: 14px; color: #25D366; margin: 0 0 8px 5px;">Momentos</h3>
-  <div id="momentosContainer">
-      <div class="momento-item">
-          <div class="momento-aro add-momento" onclick="document.getElementById('momentInput').click()">
-              <img id="myMomentPhoto" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="momento-img">
-              <span style="position: absolute; bottom: -2px; right: -2px; background: #075e54; color: white; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center;">+</span>
-          </div>
-          <div style="font-size: 11px; margin-top: 5px; color: var(--text-main);">Novo</div>
-          <input type="file" id="momentInput" accept="image/*" style="display: none;">
+  <h3 style="font-size: 14px; color: #25D366; margin: 0 0 8px 5px;">Explorar Vídeos 🎬</h3>
+  <div id="videoShortsContainer">
+      <div class="video-item" onclick="abrirPlayer('funny')">
+          <div class="video-icon" style="background: linear-gradient(45deg, #FF9a9e, #Fecfef);">😂</div>
+          <div style="font-size: 10px; margin-top: 5px; font-weight: bold;">Rir</div>
       </div>
-      <div id="momentsList" style="display: flex; gap: 12px;"></div>
+      <div class="video-item" onclick="abrirPlayer('games')">
+          <div class="video-icon" style="background: linear-gradient(45deg, #A1c4fd, #C2e9fb);">🎮</div>
+          <div style="font-size: 10px; margin-top: 5px; font-weight: bold;">Games</div>
+      </div>
+      <div class="video-item" onclick="abrirPlayer('music')">
+          <div class="video-icon" style="background: linear-gradient(45deg, #Cfd9df, #E2ebf0);">🎵</div>
+          <div style="font-size: 10px; margin-top: 5px; font-weight: bold;">Música</div>
+      </div>
+      <div class="video-item" onclick="abrirPlayer('tech')">
+          <div class="video-icon" style="background: linear-gradient(45deg, #667eea, #764ba2);">💻</div>
+          <div style="font-size: 10px; margin-top: 5px; font-weight: bold;">Tech</div>
+      </div>
   </div>
   
   <div style="display:flex; gap:5px;">
@@ -266,7 +194,7 @@
 <div id="chatScreen">
   <div id="chatHeader">
     <button onclick="voltar()" style="background:none; border:none; color:white; font-size:20px; margin-right:10px;">⬅</button>
-    <img id="chatAvatar" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
+    <img id="chatAvatar" src="">
     <div>
       <div id="chatName" style="font-weight:bold;"></div>
       <div id="chatStatus" style="font-size:12px; opacity:0.8;">offline</div>
@@ -279,28 +207,18 @@
   </div>
 </div>
 
-<div id="confirmModal">
-  <div style="background:var(--bg-card); padding:20px; border-radius:10px; text-align:center;">
-    <p>Excluir este contato?</p>
-    <button onclick="confirmarExclusao()" style="background:red; color:white; border:none; padding:10px; border-radius:5px; margin-right:10px;">Excluir</button>
-    <button onclick="document.getElementById('confirmModal').style.display='none'" style="background:#ccc; border:none; padding:10px; border-radius:5px;">Voltar</button>
-  </div>
-</div>
-
 <script src="/socket.io/socket.io.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
 <script src="script.js"></script>
 <script>
   const themeToggle = document.getElementById("themeToggle");
-  const body = document.body;
-
   if (localStorage.getItem("theme") === "dark") {
-    body.classList.add("dark-theme");
+    document.body.classList.add("dark-theme");
     themeToggle.textContent = "☀️";
   }
-
   themeToggle.onclick = () => {
-    body.classList.toggle("dark-theme");
-    const isDark = body.classList.contains("dark-theme");
+    document.body.classList.toggle("dark-theme");
+    const isDark = document.body.classList.contains("dark-theme");
     themeToggle.textContent = isDark ? "☀️" : "🌙";
     localStorage.setItem("theme", isDark ? "dark" : "light");
   };
