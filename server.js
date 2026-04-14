@@ -17,12 +17,12 @@ app.use(express.static("public"));
 mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZapV2")
     .then(() => console.log("✅ Banco de Dados conectado!"));
 
-// Schemas Atualizados com deviceId
+// Schemas Atualizados
 const User = mongoose.model("User", { 
     id: String, 
     username: String, 
     photo: String,
-    deviceId: String // Novo campo para persistência
+    deviceId: String 
 });
 
 const Message = mongoose.model("Message", { fromId: String, toId: String, text: String, timestamp: Number });
@@ -37,11 +37,14 @@ io.on("connection", (socket) => {
         io.emit("updateStatus", Object.keys(onlineUsers));
     });
 
-    socket.on("updateProfileVisual", (dados) => {
-        io.emit("userUpdated", dados);
+    // 🔥 CORREÇÃO AQUI: O nome do evento deve ser igual ao que o Frontend envia
+    socket.on("updateProfile", (dados) => {
+        console.log(`Usuário ${dados.id} atualizou perfil.`);
+        // Envia para TODOS (incluindo você para garantir sincronia)
+        io.emit("userUpdated", dados); 
     });
 
-    // 🔥 LOGICA DE DIGITANDO: Repassa o evento para o destinatário específico
+    // LOGICA DE DIGITANDO
     socket.on("typing", (data) => {
         if (onlineUsers[data.toId]) {
             io.to(onlineUsers[data.toId]).emit("userTyping", { fromId: data.fromId });
@@ -74,7 +77,7 @@ app.get("/api/recover-by-device/:deviceId", async (req, res) => {
         if (user) {
             res.json(user);
         } else {
-            res.status(404).json({ error: "Nenhuma conta vinculada a este dispositivo" });
+            res.status(404).json({ error: "Nenhuma conta vinculada" });
         }
     } catch (err) {
         res.status(500).json({ error: "Erro na recuperação" });
@@ -82,17 +85,19 @@ app.get("/api/recover-by-device/:deviceId", async (req, res) => {
 });
 
 app.post("/api/saveProfile", async (req, res) => {
-    const { id, username, photo } = req.body;
-    const user = await User.findOneAndUpdate(
-        { id: id },
-        { username, photo },
-        { new: true }
-    );
-    if (user) {
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: "Usuário não encontrado" });
-    }
+    try {
+        const { id, username, photo } = req.body;
+        const user = await User.findOneAndUpdate(
+            { id: id },
+            { username, photo },
+            { new: true }
+        );
+        if (user) {
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: "Usuário não encontrado" });
+        }
+    } catch (e) { res.status(500).send(e); }
 });
 
 app.get("/api/user/:id", async (req, res) => {
@@ -100,7 +105,7 @@ app.get("/api/user/:id", async (req, res) => {
     res.json(user || { error: "Não encontrado" });
 });
 
-// --- ROTA DE MOMENTOS (STATUS) ---
+// --- ROTA DE MOMENTOS ---
 
 app.post("/api/moments", async (req, res) => {
     try {
@@ -127,12 +132,11 @@ app.get("/api/moments", async (req, res) => {
     }
 });
 
-// --- LÓGICA DE MENSAGENS ---
+// --- MENSAGENS ---
 
 app.post("/api/messages", async (req, res) => {
     const { fromId, toId, text } = req.body;
     const msg = await Message.create({ fromId, toId, text, timestamp: Date.now() });
-
     const sender = await User.findOne({ id: fromId });
 
     if (onlineUsers[toId]) {
