@@ -11,11 +11,8 @@ let statusInterval;
 // --- FUNÇÃO DE PERSISTÊNCIA (DEVICE ID) ---
 function gerarDeviceID() {
     const info = [
-        navigator.userAgent,
-        navigator.language,
-        screen.colorDepth,
-        screen.width + 'x' + screen.height,
-        navigator.hardwareConcurrency
+        navigator.userAgent, navigator.language, screen.colorDepth,
+        screen.width + 'x' + screen.height, navigator.hardwareConcurrency
     ].join('###');
     
     let hash = 0;
@@ -29,14 +26,11 @@ function gerarDeviceID() {
 
 // --- LÓGICA DE INSTALAÇÃO (PWA) ---
 let deferredPrompt;
-
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
     const btnInstalar = document.getElementById('btnInstalarPWA');
-    if (btnInstalar) {
-        btnInstalar.style.display = 'block';
-    }
+    if (btnInstalar) btnInstalar.style.display = 'block';
 });
 
 async function instalarMiniZap() {
@@ -50,16 +44,9 @@ async function instalarMiniZap() {
     deferredPrompt = null;
 }
 
-window.addEventListener('appinstalled', () => {
-    deferredPrompt = null;
-    const btnInstalar = document.getElementById('btnInstalarPWA');
-    if (btnInstalar) btnInstalar.style.display = 'none';
-});
-
-// --- INICIALIZAÇÃO COM RECUPERAÇÃO AUTOMÁTICA ---
+// --- INICIALIZAÇÃO ---
 window.addEventListener("load", async () => {
     const deviceID = gerarDeviceID();
-
     if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
         localStorage.clear();
     }
@@ -91,11 +78,7 @@ window.addEventListener("load", async () => {
         const res = await fetch("/api/user", {
             method: "POST",
             headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ 
-                username: "Novo Usuário", 
-                photo: "",
-                deviceId: deviceID 
-            })
+            body: JSON.stringify({ username: "Novo Usuário", photo: "", deviceId: deviceID })
         });
         currentUser = await res.json();
         localStorage.setItem("userId", currentUser.id);
@@ -108,9 +91,7 @@ window.addEventListener("load", async () => {
     
     if(currentUser.photo) {
         document.getElementById("profilePreview").src = currentUser.photo;
-        if(document.getElementById("myMomentPhoto")) {
-            document.getElementById("myMomentPhoto").src = currentUser.photo;
-        }
+        if(document.getElementById("myMomentPhoto")) document.getElementById("myMomentPhoto").src = currentUser.photo;
     }
 
     renderContacts();
@@ -118,139 +99,27 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- LÓGICA DE MOMENTOS (STATUS) ---
-async function loadMoments() {
-    try {
-        const res = await fetch("/api/moments");
-        const todosMomentos = await res.json();
-        
-        const momentosFiltrados = todosMomentos.filter(m => 
-            contacts.some(c => c.id === m.userId) || m.userId === currentUser.id
-        );
-
-        const container = document.getElementById("momentsList");
-        if(!container) return;
-        container.innerHTML = "";
-
-        const grupos = {};
-        momentosFiltrados.forEach(m => {
-            if (!grupos[m.userId]) grupos[m.userId] = [];
-            grupos[m.userId].push(m);
-        });
-
-        Object.values(grupos).forEach(msgs => {
-            const m = msgs[0];
-            const div = document.createElement("div");
-            div.className = "momento-item";
-            div.innerHTML = `
-                <div class="momento-aro">
-                    <img src="${m.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img">
-                </div>
-                <div style="font-size: 11px; margin-top: 5px; color: #555;">${m.username.split(' ')[0]}</div>
-            `;
-            div.onclick = () => abrirPlayerStatus(msgs);
-            container.appendChild(div);
-        });
-    } catch (e) { console.error("Erro ao carregar momentos", e); }
-}
-
-function abrirPlayerStatus(lista) {
-    let index = 0;
-    const viewer = document.getElementById("fullScreenViewer");
-    const progressContainer = document.getElementById("statusProgressBar");
-    const img = document.getElementById("statusImg");
-
-    viewer.style.display = "flex";
-    progressContainer.innerHTML = "";
-
-    lista.forEach(() => {
-        const segment = document.createElement("div");
-        segment.className = "status-segment";
-        segment.innerHTML = '<div class="status-filler"></div>';
-        progressContainer.appendChild(segment);
-    });
-
-    const play = (idx) => {
-        if (idx >= lista.length) return fecharStatus();
-        if (idx < 0) idx = 0;
-        index = idx;
-        img.src = lista[idx].media;
-
-        const segments = document.querySelectorAll(".status-segment");
-        segments.forEach((seg, i) => {
-            seg.classList.remove("active", "seen");
-            if (i < idx) {
-                seg.classList.add("seen");
-            } else if (i === idx) {
-                void seg.offsetWidth; 
-                seg.classList.add("active");
-            }
-        });
-
-        clearTimeout(statusInterval);
-        statusInterval = setTimeout(() => play(index + 1), 5000);
-    };
-
-    viewer.onclick = (e) => {
-        if (e.target.tagName === 'BUTTON') return;
-        const larguraTela = window.innerWidth;
-        if (e.clientX > larguraTela / 2) play(index + 1);
-        else if (index > 0) play(index - 1);
-        else play(0);
-    };
-
-    play(0);
-}
-
-function fecharStatus() {
-    document.getElementById("fullScreenViewer").style.display = "none";
-    clearTimeout(statusInterval);
-}
-
-document.getElementById("momentInput").onchange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            await fetch("/api/moments", {
-                method: "POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify({
-                    userId: currentUser.id,
-                    username: currentUser.username,
-                    userPhoto: currentUser.photo,
-                    media: ev.target.result
-                })
-            });
-            loadMoments();
-        };
-        reader.readAsDataURL(file);
-    }
-};
-
-socket.on("newMoment", () => loadMoments());
-
-// --- MENSAGENS E CONTATOS ---
-socket.on("receiveMessage", (data) => {
-    const { msg, sender } = data;
-    const index = contacts.findIndex(c => c.id === sender.id);
-    if (index === -1) {
-        contacts.unshift(sender);
-        localStorage.setItem("contacts", JSON.stringify(contacts));
-    }
-    if (!currentChat || currentChat.id !== sender.id) {
-        unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
-        localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    }
-    renderContacts();
-    if (currentChat && currentChat.id === sender.id) loadMessages();
-});
-
+// --- STATUS ONLINE EM TEMPO REAL ---
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
-    renderContacts();
+    renderContacts(); // Atualiza bolinha na lista
+    
+    // 🔥 Atualiza o status dentro da conversa aberta
+    if (currentChat) {
+        atualizarStatusChatInterno(currentChat.id);
+    }
 });
 
+function atualizarStatusChatInterno(id) {
+    const statusElement = document.getElementById("chatStatus");
+    if (statusElement) {
+        const isOnline = listaOnlineGlobal.includes(id);
+        statusElement.textContent = isOnline ? "Online" : "Offline";
+        statusElement.style.color = isOnline ? "#25D366" : "gray";
+    }
+}
+
+// --- MENSAGENS E CONTATOS ---
 function renderContacts() {
     const div = document.getElementById("contacts");
     if(!div) return;
@@ -273,6 +142,20 @@ function renderContacts() {
     });
 }
 
+function abrirChat(user) {
+    currentChat = user;
+    unreadCounts[user.id] = 0;
+    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    document.getElementById("home").style.display = "none";
+    document.getElementById("chatScreen").style.display = "flex";
+    document.getElementById("chatName").textContent = user.username;
+    document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    
+    // 🔥 Seta o status assim que abre o chat
+    atualizarStatusChatInterno(user.id);
+    loadMessages();
+}
+
 async function loadMessages() {
     if(!currentUser || !currentChat) return;
     try {
@@ -290,17 +173,6 @@ async function loadMessages() {
             container.scrollTop = container.scrollHeight;
         }
     } catch (e) { console.error("Erro ao carregar msgs", e); }
-}
-
-function abrirChat(user) {
-    currentChat = user;
-    unreadCounts[user.id] = 0;
-    localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    document.getElementById("home").style.display = "none";
-    document.getElementById("chatScreen").style.display = "flex";
-    document.getElementById("chatName").textContent = user.username;
-    document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    loadMessages();
 }
 
 function voltar() {
@@ -323,48 +195,48 @@ document.getElementById("sendMessageBtn").onclick = async () => {
     loadMessages();
 };
 
-document.getElementById("addFriendBtn").onclick = async () => {
-    const id = document.getElementById("addUserId").value.trim();
-    if(!id || id === currentUser.id) return;
-    const res = await fetch(`/api/user/${id}`);
-    const user = await res.json();
-    if(user.error) return alert("Usuário não encontrado!");
-    
-    if(!contacts.some(c => c.id === user.id)) {
-        contacts.push(user);
-        localStorage.setItem("contacts", JSON.stringify(contacts));
-        renderContacts();
-    }
-    document.getElementById("addUserId").value = "";
-};
+// --- RESTANTE DAS FUNÇÕES (MOMENTOS, PERFIL, ETC) ---
 
-// --- SALVAR PERFIL (CORRIGIDO COM SOCKET) ---
+async function loadMoments() {
+    try {
+        const res = await fetch("/api/moments");
+        const todosMomentos = await res.json();
+        const momentosFiltrados = todosMomentos.filter(m => contacts.some(c => c.id === m.userId) || m.userId === currentUser.id);
+        const container = document.getElementById("momentsList");
+        if(!container) return;
+        container.innerHTML = "";
+        const grupos = {};
+        momentosFiltrados.forEach(m => { if (!grupos[m.userId]) grupos[m.userId] = []; grupos[m.userId].push(m); });
+        Object.values(grupos).forEach(msgs => {
+            const m = msgs[0];
+            const div = document.createElement("div");
+            div.className = "momento-item";
+            div.innerHTML = `
+                <div class="momento-aro"><img src="${m.userPhoto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="momento-img"></div>
+                <div style="font-size: 11px; margin-top: 5px; color: #555;">${m.username.split(' ')[0]}</div>
+            `;
+            div.onclick = () => abrirPlayerStatus(msgs);
+            container.appendChild(div);
+        });
+    } catch (e) { console.error("Erro ao carregar momentos", e); }
+}
+
+function fecharStatus() { document.getElementById("fullScreenViewer").style.display = "none"; clearTimeout(statusInterval); }
+
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
     const previewAtual = document.getElementById("profilePreview").src;
-    
     const res = await fetch("/api/saveProfile", {
         method: "POST", 
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ id: currentUser.id, username: nome, photo: previewAtual })
     });
-    
     if (res.ok) {
-        currentUser.username = nome; 
-        currentUser.photo = previewAtual;
+        currentUser.username = nome; currentUser.photo = previewAtual;
         localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-
-        // 🔥 AQUI: Avisa o socket para que os outros vejam sua foto nova
-        socket.emit("updateProfileVisual", {
-            id: currentUser.id,
-            username: nome,
-            photo: previewAtual
-        });
-
+        socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: previewAtual });
         alert("Perfil Atualizado!");
-    } else {
-        alert("Erro ao salvar perfil no servidor.");
     }
 };
 
@@ -380,7 +252,6 @@ document.getElementById("profilePic").onchange = (e) => {
     }
 };
 
-// 🔥 OUVINTE PARA ATUALIZAÇÃO DE PERFIL DE TERCEIROS
 socket.on("userUpdated", (dados) => {
     const index = contacts.findIndex(c => c.id === dados.id);
     if (index !== -1) {
@@ -390,4 +261,14 @@ socket.on("userUpdated", (dados) => {
         renderContacts();
     }
 });
-        
+
+socket.on("receiveMessage", (data) => {
+    const { msg, sender } = data;
+    if (!contacts.some(c => c.id === sender.id)) { contacts.unshift(sender); localStorage.setItem("contacts", JSON.stringify(contacts)); }
+    if (!currentChat || currentChat.id !== sender.id) {
+        unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
+        localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    }
+    renderContacts();
+    if (currentChat && currentChat.id === sender.id) loadMessages();
+});
