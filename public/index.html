@@ -13,6 +13,33 @@
 <meta name="mobile-web-app-capable" content="yes">
 
 <style>
+  /* --- VARIÁVEIS DE TEMA --- */
+  :root {
+    --bg-body: #e5ddd5;
+    --bg-card: #ffffff;
+    --text-main: #000000;
+    --text-sub: #666666;
+    --header-bg: #075e54;
+    --chat-bg: #efeae2;
+    --input-bg: #f0f0f0;
+    --bubble-me: #dcf8c6;
+    --bubble-other: #ffffff;
+    --contact-selected: #d1e7dd;
+  }
+
+  body.dark-theme {
+    --bg-body: #111b21;
+    --bg-card: #1e2a32;
+    --text-main: #e9edef;
+    --text-sub: #8696a0;
+    --header-bg: #202c33;
+    --chat-bg: #0b141a;
+    --input-bg: #2a3942;
+    --bubble-me: #005c4b;
+    --bubble-other: #202c33;
+    --contact-selected: #2a3942;
+  }
+
   html, body { 
     height: 100%; 
     overflow: hidden !important; 
@@ -23,7 +50,14 @@
     overscroll-behavior-y: none !important;
   }
   
-  body { font-family: Arial, sans-serif; background: #e5ddd5; user-select: none; -webkit-tap-highlight-color: transparent; }
+  body { 
+    font-family: Arial, sans-serif; 
+    background: var(--bg-body); 
+    color: var(--text-main);
+    user-select: none; 
+    -webkit-tap-highlight-color: transparent; 
+    transition: background 0.3s, color 0.3s;
+  }
 
   /* Estilos para a barra de Momentos */
   #momentosContainer {
@@ -32,7 +66,7 @@
     overflow-x: auto;
     padding: 10px 5px;
     margin-bottom: 10px;
-    background: white;
+    background: var(--bg-card);
     border-radius: 15px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     flex-shrink: 0;
@@ -71,13 +105,8 @@
     background: white;
     width: 0%;
   }
-
-  .status-segment.active .status-filler {
-    animation: encherBarra 5s linear forwards;
-  }
-  .status-segment.seen .status-filler {
-    width: 100% !important;
-  }
+  .status-segment.active .status-filler { animation: encherBarra 5s linear forwards; }
+  .status-segment.seen .status-filler { width: 100% !important; }
 
   @keyframes encherBarra {
     from { width: 0%; }
@@ -100,28 +129,29 @@
 
   /* LAYOUT PRINCIPAL */
   #home { max-width: 500px; margin: 0 auto; padding: 15px; height: 100%; display: flex; flex-direction: column; overflow-y: auto !important; }
-  .profile-card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
+  .profile-card { background: var(--bg-card); padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
   #profilePreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; cursor: pointer; }
   
-  .contact { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-height: 60px; box-sizing: border-box; }
-  .contact.selected { background: #d1e7dd !important; border: 1px solid #25D366; }
+  .contact { background: var(--bg-card); padding: 12px; margin-top: 8px; border-radius: 10px; display: flex; align-items: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-height: 60px; box-sizing: border-box; }
+  .contact.selected { background: var(--contact-selected) !important; border: 1px solid #25D366; }
   .contact-img { width: 45px; height: 45px; min-width: 45px; max-width: 45px; border-radius: 50%; margin-right: 12px; object-fit: cover; }
 
-  #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #efeae2; flex-direction: column; z-index: 50; }
-  #chatHeader { background: #075e54; color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; }
+  #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--chat-bg); flex-direction: column; z-index: 50; }
+  #chatHeader { background: var(--header-bg); color: white; padding: 10px; display: flex; align-items: center; flex-shrink: 0; }
   #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
   #messages { flex: 1; overflow-y: auto !important; padding: 10px; display: flex; flex-direction: column; }
   
-  #chatInput { display: flex; padding: 10px; background: #f0f0f0; align-items: center; flex-shrink: 0; }
-  /* Ajustado o margin do input já que o botão da esquerda sumiu */
-  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 10px; outline: none; }
-  #sendMessageBtn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  #chatInput { display: flex; padding: 10px; background: var(--input-bg); align-items: center; flex-shrink: 0; }
+  #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 10px; outline: none; background: var(--bg-card); color: var(--text-main); }
+  #sendMessageBtn { background: var(--header-bg); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
   
   .message { display: flex; margin: 5px 0; width: 100%; }
   .me { justify-content: flex-end; }
-  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; }
-  .me .bubble { background: #dcf8c6; }
+  .bubble { padding: 10px; border-radius: 10px; max-width: 75%; background: var(--bubble-other); box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; color: var(--text-main); }
+  .me .bubble { background: var(--bubble-me); }
   .badge { background: #25D366; color: white; border-radius: 50%; padding: 2px 8px; font-size: 12px; margin-left: auto; font-weight: bold; }
+
+  #themeToggle { background: none; border: none; font-size: 24px; cursor: pointer; padding: 5px; }
 
   #btnInstalarPWA {
     display: none;
@@ -166,6 +196,11 @@
 </div>
 
 <div id="home">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h2 style="margin:0; font-size: 20px; color: var(--header-bg);">Mini-Zap</h2>
+    <button id="themeToggle">🌙</button>
+  </div>
+
   <button id="btnInstalarPWA" onclick="instalarMiniZap()">
     📥 INSTALAR MINI-ZAP NO CELULAR
   </button>
@@ -173,28 +208,28 @@
   <div class="profile-card">
     <img id="profilePreview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('profilePic').click()">
     <form id="profileForm">
-      <input type="text" id="username" placeholder="Seu nome" style="width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;">
+      <input type="text" id="username" placeholder="Seu nome" style="width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; background: var(--bg-card); color: var(--text-main);">
       <input type="file" id="profilePic" accept="image/*" style="display:none;">
       <button type="submit" style="background:#25D366; color:white; border:none; padding:12px 25px; border-radius:5px; font-weight:bold; width:100%;">SALVAR PERFIL</button>
     </form>
-    <p style="font-size:12px; color:#666; margin-top:10px;">ID: <span id="userIdDisplay"></span></p>
+    <p style="font-size:12px; color:var(--text-sub); margin-top:10px;">ID: <span id="userIdDisplay"></span></p>
   </div>
 
-  <h3 style="font-size: 14px; color: #075e54; margin: 0 0 8px 5px;">Momentos</h3>
+  <h3 style="font-size: 14px; color: #25D366; margin: 0 0 8px 5px;">Momentos</h3>
   <div id="momentosContainer">
       <div class="momento-item">
           <div class="momento-aro add-momento" onclick="document.getElementById('momentInput').click()">
               <img id="myMomentPhoto" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="momento-img">
               <span style="position: absolute; bottom: -2px; right: -2px; background: #075e54; color: white; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center;">+</span>
           </div>
-          <div style="font-size: 11px; margin-top: 5px;">Novo</div>
+          <div style="font-size: 11px; margin-top: 5px; color: var(--text-main);">Novo</div>
           <input type="file" id="momentInput" accept="image/*" style="display: none;">
       </div>
       <div id="momentsList" style="display: flex; gap: 12px;"></div>
   </div>
   
   <div style="display:flex; gap:5px;">
-    <input type="text" id="addUserId" placeholder="ID do amigo" style="flex:1; padding:10px; border:1px solid #ccc; border-radius:5px;">
+    <input type="text" id="addUserId" placeholder="ID do amigo" style="flex:1; padding:10px; border:1px solid #ccc; border-radius:5px; background: var(--bg-card); color: var(--text-main);">
     <button id="addFriendBtn" style="background:#075e54; color:white; border:none; padding:10px; border-radius:5px;">ADD</button>
   </div>
   
@@ -218,7 +253,7 @@
 </div>
 
 <div id="confirmModal">
-  <div style="background:white; padding:20px; border-radius:10px; text-align:center;">
+  <div style="background:var(--bg-card); padding:20px; border-radius:10px; text-align:center;">
     <p>Excluir este contato?</p>
     <button onclick="confirmarExclusao()" style="background:red; color:white; border:none; padding:10px; border-radius:5px; margin-right:10px;">Excluir</button>
     <button onclick="document.getElementById('confirmModal').style.display='none'" style="background:#ccc; border:none; padding:10px; border-radius:5px;">Voltar</button>
@@ -227,5 +262,22 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="script.js"></script>
+<script>
+  const themeToggle = document.getElementById("themeToggle");
+  const body = document.body;
+
+  // Carrega preferência salva
+  if (localStorage.getItem("theme") === "dark") {
+    body.classList.add("dark-theme");
+    themeToggle.textContent = "☀️";
+  }
+
+  themeToggle.onclick = () => {
+    body.classList.toggle("dark-theme");
+    const isDark = body.classList.contains("dark-theme");
+    themeToggle.textContent = isDark ? "☀️" : "🌙";
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  };
+</script>
 </body>
 </html>
