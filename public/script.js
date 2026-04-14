@@ -10,6 +10,12 @@ let statusInterval;
 let typingTimeout;
 let receiveTypingTimeout;
 
+// Variáveis para Ligação
+let localStream;
+let peerConnection;
+let isVivaVoz = false;
+const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
 // --- LÓGICA DE TEMA (ESCURO/CLARO) ---
 function inicializarTema() {
     const themeToggle = document.getElementById("themeToggle");
@@ -96,7 +102,92 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 1500);
 });
 
-// --- STATUS E DIGITAÇÃO (RECEBIMENTO) ---
+// --- LÓGICA DE LIGAÇÃO (VOZ) ---
+async function iniciarChamada() {
+    if (!currentChat) return;
+    mostrarTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
+    
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        document.getElementById("localAudio").srcObject = localStream;
+
+        socket.emit("callUser", {
+            toId: currentChat.id,
+            fromName: currentUser.username,
+            fromPhoto: currentUser.photo,
+            fromId: currentUser.id
+        });
+    } catch (err) {
+        alert("Erro ao acessar microfone.");
+        document.getElementById("callScreen").style.display = "none";
+    }
+}
+
+socket.on("incomingCall", (data) => {
+    contatoSelecionadoId = data.fromId; 
+    mostrarTelaChamada(data.fromName, data.fromPhoto, "Recebendo ligação...");
+    document.getElementById("btnAtender").style.display = "block";
+});
+
+async function atenderChamada() {
+    document.getElementById("btnAtender").style.display = "none";
+    document.getElementById("callStatusText").textContent = "Em linha";
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        document.getElementById("localAudio").srcObject = localStream;
+
+        peerConnection = new RTCPeerConnection(rtcConfig);
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        peerConnection.ontrack = (event) => {
+            document.getElementById("remoteAudio").srcObject = event.streams[0];
+        };
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        socket.emit("acceptCall", { toId: contatoSelecionadoId, offer });
+    } catch (err) {
+        console.error("Erro ao atender:", err);
+    }
+}
+
+function mostrarTelaChamada(nome, foto, status) {
+    document.getElementById("callScreen").style.display = "flex";
+    document.getElementById("callName").textContent = nome;
+    document.getElementById("callPhoto").src = foto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    document.getElementById("callStatusText").textContent = status;
+}
+
+function desligarChamada() {
+    if (localStream) localStream.getTracks().forEach(track => track.stop());
+    if (peerConnection) peerConnection.close();
+    
+    socket.emit("endCall", { toId: currentChat ? currentChat.id : contatoSelecionadoId });
+    document.getElementById("callScreen").style.display = "none";
+}
+
+socket.on("callEnded", () => {
+    if (localStream) localStream.getTracks().forEach(track => track.stop());
+    document.getElementById("callScreen").style.display = "none";
+});
+
+function toggleVivaVoz() {
+    const audioRemoto = document.getElementById("remoteAudio");
+    isVivaVoz = !isVivaVoz;
+    
+    if (isVivaVoz) {
+        audioRemoto.volume = 1.0;
+        document.getElementById("btnVivaVoz").textContent = "VIVA-VOZ: ON";
+        document.getElementById("btnVivaVoz").style.background = "#25D366";
+    } else {
+        audioRemoto.volume = 0.5;
+        document.getElementById("btnVivaVoz").textContent = "VIVA-VOZ: OFF";
+        document.getElementById("btnVivaVoz").style.background = "rgba(255,255,255,0.2)";
+    }
+}
+
+// --- STATUS E DIGITAÇÃO ---
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts(); 
@@ -190,14 +281,11 @@ async function loadMessages() {
     } catch (e) { console.error("Erro ao carregar msgs", e); }
 }
 
-// --- BOTÃO ENVIAR MENSAGEM ---
 document.getElementById("sendMessageBtn").onclick = async () => {
     const input = document.getElementById("messageText");
     const text = input.value.trim();
     if(!text || !currentChat) return;
-    
-    input.value = ""; // Limpa campo
-
+    input.value = ""; 
     await fetch("/api/messages", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
@@ -219,17 +307,14 @@ document.getElementById("profileForm").onsubmit = async (e) => {
     const btn = e.target.querySelector("button");
     btn.disabled = true;
     btn.textContent = "Salvando...";
-
     const nome = document.getElementById("username").value.trim();
     const fotoBase64 = document.getElementById("profilePreview").src;
-
     try {
         const res = await fetch("/api/saveProfile", {
             method: "POST", 
             headers: {"Content-Type":"application/json"},
             body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoBase64 })
         });
-
         if (res.ok) {
             currentUser.username = nome; 
             currentUser.photo = fotoBase64;
@@ -298,6 +383,17 @@ socket.on("receiveMessage", (data) => {
     if (currentChat && currentChat.id === sender.id) loadMessages();
 });
 
-// Funções restantes
 async function loadMoments() { /* sua lógica */ }
-document.getElementById("addFriendBtn").onclick = async () => { /* sua lógica */ };
+document.getElementById("addFriendBtn").onclick = async () => {
+    const id = document.getElementById("addUserId").value.trim();
+    if (!id || id === currentUser.id) return alert("ID inválido");
+    const res = await fetch(`/api/user/${id}`);
+    const user = await res.json();
+    if (user.error) return alert("Não encontrado");
+    if (!contacts.find(c => c.id === user.id)) {
+        contacts.push(user);
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        renderContacts();
+    }
+    document.getElementById("addUserId").value = "";
+};
