@@ -41,6 +41,13 @@ io.on("connection", (socket) => {
         io.emit("userUpdated", dados);
     });
 
+    // 🔥 LOGICA DE DIGITANDO: Repassa o evento para o destinatário específico
+    socket.on("typing", (data) => {
+        if (onlineUsers[data.toId]) {
+            io.to(onlineUsers[data.toId]).emit("userTyping", { fromId: data.fromId });
+        }
+    });
+
     socket.on("disconnect", () => {
         if (socket.userId) {
             delete onlineUsers[socket.userId];
@@ -51,7 +58,6 @@ io.on("connection", (socket) => {
 
 // --- ROTAS DE USUÁRIO ---
 
-// Criar usuário (Agora salvando o deviceId)
 app.post("/api/user", async (req, res) => {
     try {
         const id = Math.floor(1000 + Math.random() * 9000).toString();
@@ -62,7 +68,6 @@ app.post("/api/user", async (req, res) => {
     }
 });
 
-// 🔥 NOVA ROTA: Recuperar conta pelo ID do Dispositivo
 app.get("/api/recover-by-device/:deviceId", async (req, res) => {
     try {
         const user = await User.findOne({ deviceId: req.params.deviceId });
