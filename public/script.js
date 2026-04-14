@@ -111,11 +111,23 @@ async function iniciarChamada() {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         document.getElementById("localAudio").srcObject = localStream;
 
+        peerConnection = new RTCPeerConnection(rtcConfig);
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        peerConnection.ontrack = (event) => {
+            document.getElementById("remoteAudio").srcObject = event.streams[0];
+            document.getElementById("callStatusText").textContent = "Em linha";
+        };
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
         socket.emit("callUser", {
             toId: currentChat.id,
             fromName: currentUser.username,
             fromPhoto: currentUser.photo,
-            fromId: currentUser.id
+            fromId: currentUser.id,
+            signal: offer
         });
     } catch (err) {
         alert("Erro ao acessar microfone.");
@@ -123,12 +135,12 @@ async function iniciarChamada() {
     }
 }
 
-// Ouvindo quando alguém te liga
 socket.on("incomingCall", (data) => {
-    console.log("Recebendo chamada de:", data.fromId);
     contatoSelecionadoId = data.fromId; 
     mostrarTelaChamada(data.fromName, data.fromPhoto, "Recebendo ligação...");
     document.getElementById("btnAtender").style.display = "block";
+    // Salva o sinal (offer) para usar no atendimento
+    window.incomingSignal = data.signal;
 });
 
 async function atenderChamada() {
@@ -146,13 +158,28 @@ async function atenderChamada() {
             document.getElementById("remoteAudio").srcObject = event.streams[0];
         };
 
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        socket.emit("acceptCall", { toId: contatoSelecionadoId, offer });
+        // Usa o sinal recebido de quem ligou
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(window.incomingSignal));
+        
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        
+        socket.emit("acceptCall", { 
+            toId: contatoSelecionadoId, 
+            signal: answer 
+        });
     } catch (err) {
         console.error("Erro ao atender:", err);
     }
 }
+
+// Para quem LIGOU: Receber a resposta de quem atendeu
+socket.on("callAccepted", async (data) => {
+    document.getElementById("callStatusText").textContent = "Em linha";
+    if (data.signal) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
+    }
+});
 
 function mostrarTelaChamada(nome, foto, status) {
     document.getElementById("callScreen").style.display = "flex";
@@ -165,18 +192,19 @@ function desligarChamada() {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     if (peerConnection) peerConnection.close();
     
-    // Avisa o outro lado que a chamada acabou
     const idDestino = currentChat ? currentChat.id : contatoSelecionadoId;
     socket.emit("endCall", { toId: idDestino });
     
     document.getElementById("callScreen").style.display = "none";
     contatoSelecionadoId = null;
+    peerConnection = null;
 }
 
 socket.on("callEnded", () => {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     if (peerConnection) peerConnection.close();
     document.getElementById("callScreen").style.display = "none";
+    peerConnection = null;
 });
 
 function toggleVivaVoz() {
