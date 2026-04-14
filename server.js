@@ -43,7 +43,7 @@ io.on("connection", (socket) => {
         io.emit("userUpdated", dados); 
     });
 
-    // --- LÓGICA DE CHAMADAS DE VOZ (SINALIZAÇÃO) ---
+    // --- LÓGICA DE CHAMADAS DE VOZ (SINALIZAÇÃO WEBRTC) ---
     socket.on("callUser", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
@@ -57,8 +57,12 @@ io.on("connection", (socket) => {
     socket.on("acceptCall", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
-            console.log(`Chamada aceita. Enviando confirmação para ${data.toId}`);
-            io.to(targetSocket).emit("callAccepted", data);
+            console.log(`Chamada aceita. Enviando sinal de áudio de volta para ${data.toId}`);
+            // Enviamos o sinal (offer/answer) para fechar o circuito de voz
+            io.to(targetSocket).emit("callAccepted", {
+                fromId: socket.userId,
+                signal: data.signal || data.offer
+            });
         }
     });
 
