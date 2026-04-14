@@ -68,7 +68,7 @@ async function instalarMiniZap() {
 
 // --- INICIALIZAÇÃO ---
 window.addEventListener("load", async () => {
-    inicializarTema(); // Ativa o tema logo ao carregar
+    inicializarTema(); 
     
     const deviceID = gerarDeviceID();
     if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
@@ -216,7 +216,7 @@ function voltar() {
     renderContacts();
 }
 
-// 🔥 LÓGICA RÁPIDA PARA ADICIONAR AMIGO
+// ADICIONAR AMIGO
 document.getElementById("addFriendBtn").onclick = async () => {
     const input = document.getElementById("addUserId");
     const idParaAdicionar = input.value.trim();
@@ -289,6 +289,7 @@ async function loadMoments() {
 
 function fecharStatus() { document.getElementById("fullScreenViewer").style.display = "none"; clearTimeout(statusInterval); }
 
+// --- CORREÇÃO DO PERFIL PARA OS OUTROS ---
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
@@ -299,9 +300,12 @@ document.getElementById("profileForm").onsubmit = async (e) => {
         body: JSON.stringify({ id: currentUser.id, username: nome, photo: previewAtual })
     });
     if (res.ok) {
-        currentUser.username = nome; currentUser.photo = previewAtual;
+        currentUser.username = nome; 
+        currentUser.photo = previewAtual;
         localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-        socket.emit("updateProfileVisual", { id: currentUser.id, username: nome, photo: previewAtual });
+        
+        // Emite o evento correto para o servidor propagar para os amigos
+        socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: previewAtual });
         alert("Perfil Atualizado!");
     }
 };
@@ -328,13 +332,28 @@ socket.on("userUpdated", (dados) => {
     }
 });
 
+// --- CORREÇÃO DO CONTADOR DE MENSAGENS ---
 socket.on("receiveMessage", (data) => {
     const { msg, sender } = data;
-    if (!contacts.some(c => c.id === sender.id)) { contacts.unshift(sender); localStorage.setItem("contacts", JSON.stringify(contacts)); }
+    
+    // Se o contato não está na lista, adiciona. Se está, atualiza dados.
+    const index = contacts.findIndex(c => c.id === sender.id);
+    if (index === -1) {
+        contacts.unshift(sender);
+    } else {
+        contacts[index].username = sender.username;
+        contacts[index].photo = sender.photo;
+    }
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+
+    // Contador de mensagens não lidas
     if (!currentChat || currentChat.id !== sender.id) {
         unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
         localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     }
+    
+    // Atualiza a lista de contatos visualmente (para aparecer o badge)
     renderContacts();
+    
     if (currentChat && currentChat.id === sender.id) loadMessages();
 });
