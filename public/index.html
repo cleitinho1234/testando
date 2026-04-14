@@ -77,26 +77,39 @@
 
   #home, #chatScreen, #messages { background: transparent !important; }
 
-  /* --- EXPLORAR VÍDEOS --- */
+  /* --- BOTÃO ÚNICO DE SHORTS --- */
   #videoShortsContainer {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
     padding: 10px 5px;
     margin-bottom: 10px;
-    background: var(--bg-card);
-    border-radius: 15px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     flex-shrink: 0;
-    scrollbar-width: none;
   }
-  #videoShortsContainer::-webkit-scrollbar { display: none; }
 
-  .video-item { flex-shrink: 0; text-align: center; width: 70px; cursor: pointer; }
-  .video-icon { 
-    width: 55px; height: 55px; border-radius: 15px; margin: 0 auto; 
-    display: flex; align-items: center; justify-content: center; font-size: 24px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  .shorts-button {
+    width: 100%;
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border-radius: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    cursor: pointer;
+    border: 1px solid rgba(37, 211, 102, 0.3);
+    transition: transform 0.2s;
+  }
+  .shorts-button:active { transform: scale(0.98); }
+
+  .shorts-icon {
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    background: linear-gradient(45deg, #ff0050, #00f2ea);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: white;
+    margin-right: 15px;
+    box-shadow: 0 2px 8px rgba(255, 0, 80, 0.3);
   }
 
   /* PLAYER TIKTOK STYLE */
@@ -163,23 +176,15 @@
     <p style="font-size:11px; color:var(--text-sub); margin-top:5px;">ID: <span id="userIdDisplay"></span></p>
   </div>
 
-  <h3 style="font-size: 14px; color: #25D366; margin: 0 0 8px 5px;">Explorar Vídeos 🎬</h3>
+  <h3 style="font-size: 14px; color: #25D366; margin: 0 0 8px 5px;">Distração 🍿</h3>
   <div id="videoShortsContainer">
-      <div class="video-item" onclick="abrirPlayer('funny')">
-          <div class="video-icon" style="background: linear-gradient(45deg, #FF9a9e, #Fecfef);">😂</div>
-          <div style="font-size: 10px; margin-top: 5px; font-weight: bold;">Rir</div>
-      </div>
-      <div class="video-item" onclick="abrirPlayer('games')">
-          <div class="video-icon" style="background: linear-gradient(45deg, #A1c4fd, #C2e9fb);">🎮</div>
-          <div style="font-size: 10px; margin-top: 5px; font-weight: bold;">Games</div>
-      </div>
-      <div class="video-item" onclick="abrirPlayer('music')">
-          <div class="video-icon" style="background: linear-gradient(45deg, #Cfd9df, #E2ebf0);">🎵</div>
-          <div style="font-size: 10px; margin-top: 5px; font-weight: bold;">Música</div>
-      </div>
-      <div class="video-item" onclick="abrirPlayer('tech')">
-          <div class="video-icon" style="background: linear-gradient(45deg, #667eea, #764ba2);">💻</div>
-          <div style="font-size: 10px; margin-top: 5px; font-weight: bold;">Tech</div>
+      <div class="shorts-button" onclick="abrirPlayer()">
+          <div class="shorts-icon">🎬</div>
+          <div style="text-align: left;">
+              <div style="font-weight: bold; font-size: 14px; color: var(--text-main);">Assistir Shorts</div>
+              <div style="font-size: 11px; color: var(--text-sub);">Vídeos aleatórios para passar o tempo</div>
+          </div>
+          <div style="margin-left: auto; color: #25D366; font-weight: bold;">➔</div>
       </div>
   </div>
   
