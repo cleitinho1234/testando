@@ -123,7 +123,9 @@ async function iniciarChamada() {
     }
 }
 
+// Ouvindo quando alguém te liga
 socket.on("incomingCall", (data) => {
+    console.log("Recebendo chamada de:", data.fromId);
     contatoSelecionadoId = data.fromId; 
     mostrarTelaChamada(data.fromName, data.fromPhoto, "Recebendo ligação...");
     document.getElementById("btnAtender").style.display = "block";
@@ -163,12 +165,17 @@ function desligarChamada() {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     if (peerConnection) peerConnection.close();
     
-    socket.emit("endCall", { toId: currentChat ? currentChat.id : contatoSelecionadoId });
+    // Avisa o outro lado que a chamada acabou
+    const idDestino = currentChat ? currentChat.id : contatoSelecionadoId;
+    socket.emit("endCall", { toId: idDestino });
+    
     document.getElementById("callScreen").style.display = "none";
+    contatoSelecionadoId = null;
 }
 
 socket.on("callEnded", () => {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
+    if (peerConnection) peerConnection.close();
     document.getElementById("callScreen").style.display = "none";
 });
 
