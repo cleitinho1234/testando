@@ -87,6 +87,22 @@
   .contact.selected { background: var(--contact-selected) !important; border: 1px solid #25D366; }
   .contact-img { width: 45px; height: 45px; border-radius: 50%; margin-right: 12px; object-fit: cover; }
 
+  /* ESTILO DO CONTADOR DE MENSAGENS (BADGE) */
+  .badge {
+    background-color: #25D366;
+    color: white !important; /* Cor do número branca */
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    padding: 2px;
+  }
+
   #chatScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; flex-direction: column; z-index: 50; }
   #chatHeader { background: var(--header-bg); color: white; padding: 10px; display: flex; align-items: center; }
   #chatAvatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
@@ -96,7 +112,6 @@
   #chatInput input { flex: 1; padding: 12px; border: none; border-radius: 25px; margin: 0 10px; background: var(--bg-card); color: var(--text-main); outline: none; }
   #sendMessageBtn { background: var(--header-bg); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; }
   
-  /* --- ESTILO DAS MENSAGENS ATUALIZADO --- */
   .message { display: flex; margin: 4px 0; width: 100%; }
   .me { justify-content: flex-end; }
   .bubble { 
@@ -113,7 +128,6 @@
   .me .bubble { background: var(--bubble-me); border-top-right-radius: 2px; }
   .other .bubble { border-top-left-radius: 2px; }
 
-  /* Info de hora e check */
   .message-info {
     font-size: 10px;
     align-self: flex-end;
@@ -125,7 +139,6 @@
     gap: 3px;
   }
 
-  /* Separador de Data (Hoje, Ontem) */
   .date-separator {
     display: flex;
     justify-content: center;
@@ -149,7 +162,6 @@
   }
   @keyframes bounce { 0%, 100% {transform: translateY(0);} 50% {transform: translateY(-5px);} }
 
-  /* --- TELA DE CHAMADA --- */
   #callScreen {
     display: none;
     position: fixed;
