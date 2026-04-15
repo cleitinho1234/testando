@@ -103,7 +103,6 @@ window.addEventListener("load", async () => {
 
 // --- LÓGICA DE LIGAÇÃO (VOZ) ---
 
-// Ouvir candidatos ICE vindos do outro usuário
 socket.on("iceCandidate", async (data) => {
     try {
         if (peerConnection) {
@@ -115,7 +114,6 @@ socket.on("iceCandidate", async (data) => {
 async function iniciarChamada() {
     if (!currentChat) return;
     
-    // Define o ID do contato antes de iniciar o processo
     contatoSelecionadoId = currentChat.id;
     mostrarTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
 
@@ -193,12 +191,13 @@ async function atenderChamada() {
     }
 }
 
+// CORREÇÃO CRUCIAL AQUI: Processar a resposta do amigo para abrir o áudio
 socket.on("callAccepted", async (data) => {
     document.getElementById("callStatusText").textContent = "Em linha";
     if (data.signal && peerConnection) {
         try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-        } catch (e) { console.error("Erro ao finalizar conexão de áudio:", e); }
+        } catch (e) { console.error("Erro ao finalizar circuito de áudio:", e); }
     }
 });
 
