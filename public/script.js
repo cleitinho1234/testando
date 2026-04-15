@@ -315,6 +315,13 @@ socket.on("receiveMessage", (data) => {
     }
 });
 
+// NOVO: Ouvir quando as mensagens que EU mandei forem lidas
+socket.on("messagesRead", (data) => {
+    if (currentChat && String(currentChat.id) === String(data.byUserId)) {
+        loadMessages(); 
+    }
+});
+
 socket.on("userUpdated", (dados) => {
     contacts = contacts.map(c => {
         if (String(c.id) === String(dados.id)) {
@@ -405,7 +412,7 @@ async function abrirChat(user) {
     
     atualizarStatusChatInterno(idStr);
     
-    // Notifica o servidor para marcar as mensagens como lidas no banco de dados
+    // Notifica o servidor e o socket que as mensagens foram lidas
     try {
         await fetch("/api/read-messages", {
             method: "POST",
@@ -441,7 +448,10 @@ async function loadMessages() {
             const hora = dataMsg.getHours().toString().padStart(2, '0') + ":" + dataMsg.getMinutes().toString().padStart(2, '0');
             const div = document.createElement("div");
             div.className = "message " + (String(m.fromId) === String(currentUser.id) ? "me" : "other");
+            
+            // Lógica do checkmark azul (visualizada)
             const check = m.visualizada ? '<span style="color: #34B7F1;">✔✔</span>' : '<span style="color: gray;">✔</span>';
+            
             div.innerHTML = `<div class="bubble">${m.text}<div class="message-info">${hora} ${String(m.fromId) === String(currentUser.id) ? check : ""}</div></div>`;
             container.appendChild(div);
         });
