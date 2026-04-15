@@ -1,6 +1,7 @@
 {
-  "short_name": "MiniZap",
-  "name": "Mini Zap Chat",
+  "short_name": "Z-Core",
+  "name": "Z-Core System",
+  "description": "Sistema de comunicação Z-Core",
   "icons": [
     {
       "src": "/logo.png",
@@ -16,8 +17,9 @@
     }
   ],
   "start_url": "/",
-  "background_color": "#ffffff",
+  "background_color": "#000000",
   "display": "standalone",
   "scope": "/",
-  "theme_color": "#075e54"
+  "theme_color": "#25D366",
+  "orientation": "portrait"
 }
