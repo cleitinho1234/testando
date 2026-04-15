@@ -14,6 +14,8 @@ let localStream;
 let peerConnection;
 let isVivaVoz = false;
 let callType = 'audio'; // 'audio' ou 'video'
+let camAtiva = true;
+let currentFacingMode = "user"; // "user" = frontal, "environment" = traseira
 const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
 // --- LÓGICA DE TEMA ---
@@ -51,7 +53,6 @@ window.addEventListener("load", async () => {
     inicializarTema(); 
     const deviceID = gerarDeviceID();
     
-    // Recuperação de conta ou criação de nova
     let localUser = localStorage.getItem("myUserObject");
     let savedId = localStorage.getItem("userId");
 
@@ -102,16 +103,17 @@ window.addEventListener("load", async () => {
 
 async function iniciarChamada(tipo) {
     if (!currentChat) return;
-    callType = tipo; // 'audio' ou 'video'
+    callType = tipo; 
     contatoSelecionadoId = currentChat.id;
+    camAtiva = true;
+    currentFacingMode = "user";
     
     mostrarTelaChamada(currentChat.username, currentChat.photo, tipo === 'video' ? "Iniciando vídeo..." : "Chamando...");
 
     try {
-        const constraints = { audio: true, video: tipo === 'video' };
+        const constraints = { audio: true, video: tipo === 'video' ? { facingMode: "user" } : false };
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         
-        // Se for vídeo, mostra o localVideo
         if (tipo === 'video') {
             document.getElementById("localVideo").srcObject = localStream;
             document.getElementById("callPhoto").style.display = "none";
@@ -129,7 +131,9 @@ async function iniciarChamada(tipo) {
 
         peerConnection.ontrack = (event) => {
             const remoteVid = document.getElementById("remoteVideo");
-            remoteVid.srcObject = event.streams[0];
+            if (event.streams && event.streams[0]) {
+                remoteVid.srcObject = event.streams[0];
+            }
             document.getElementById("callStatusText").textContent = "Em linha";
             if (tipo === 'video') document.getElementById("callPhoto").style.display = "none";
         };
@@ -163,8 +167,11 @@ socket.on("incomingCall", (data) => {
 async function atenderChamada() {
     document.getElementById("btnAtender").style.display = "none";
     document.getElementById("callStatusText").textContent = "Conectando...";
+    camAtiva = true;
+    currentFacingMode = "user";
+
     try {
-        const constraints = { audio: true, video: callType === 'video' };
+        const constraints = { audio: true, video: callType === 'video' ? { facingMode: "user" } : false };
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         
         if (callType === 'video') {
@@ -183,7 +190,9 @@ async function atenderChamada() {
 
         peerConnection.ontrack = (event) => {
             const remoteVid = document.getElementById("remoteVideo");
-            remoteVid.srcObject = event.streams[0];
+            if (event.streams && event.streams[0]) {
+                remoteVid.srcObject = event.streams[0];
+            }
             document.getElementById("callStatusText").textContent = "Em linha";
         };
 
@@ -212,6 +221,13 @@ function mostrarTelaChamada(nome, foto, status) {
     document.getElementById("callPhoto").src = foto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     document.getElementById("callPhoto").style.display = "block";
     document.getElementById("callStatusText").textContent = status;
+    
+    // Resetar botões de interface
+    const btnCam = document.getElementById("btnToggleCam");
+    if(btnCam) {
+        btnCam.textContent = "CÂMERA: ON";
+        btnCam.style.background = "#25D366";
+    }
 }
 
 function desligarChamada() {
@@ -234,11 +250,55 @@ socket.on("callEnded", () => {
     desligarChamada();
 });
 
-function toggleCamera() {
+// --- NOVAS FUNÇÕES DE CONTROLE DE CÂMERA ---
+
+function pararCamera() {
     if (localStream && callType === 'video') {
         const videoTrack = localStream.getVideoTracks()[0];
-        videoTrack.enabled = !videoTrack.enabled;
-        alert(videoTrack.enabled ? "Câmera Ativada" : "Câmera Desativada");
+        if (videoTrack) {
+            camAtiva = !camAtiva;
+            videoTrack.enabled = camAtiva;
+            
+            const btn = document.getElementById("btnToggleCam");
+            btn.textContent = camAtiva ? "CÂMERA: ON" : "CÂMERA: OFF";
+            btn.style.background = camAtiva ? "#25D366" : "#ff3b30";
+            document.getElementById("localVideo").style.opacity = camAtiva ? "1" : "0";
+        }
+    }
+}
+
+async function switchCamera() {
+    if (localStream && callType === 'video') {
+        currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+        
+        // Para a trilha de vídeo atual
+        localStream.getVideoTracks().forEach(track => track.stop());
+
+        try {
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: currentFacingMode },
+                audio: true
+            });
+
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            document.getElementById("localVideo").srcObject = newStream;
+
+            // Substitui a trilha no PeerConnection para o outro usuário ver
+            const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+            if (sender) {
+                sender.replaceTrack(newVideoTrack);
+            }
+            
+            // Atualiza o stream local global
+            localStream = newStream;
+            camAtiva = true;
+            document.getElementById("btnToggleCam").textContent = "CÂMERA: ON";
+            document.getElementById("btnToggleCam").style.background = "#25D366";
+            document.getElementById("localVideo").style.opacity = "1";
+
+        } catch (e) {
+            console.error("Erro ao inverter câmera:", e);
+        }
     }
 }
 
