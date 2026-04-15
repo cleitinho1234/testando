@@ -262,7 +262,7 @@ socket.on("callEnded", () => {
     desligarChamada();
 });
 
-// --- FUNÇÕES DE CONTROLE DE CÂMERA ---
+// --- CONTROLES DE MÍDIA ---
 
 function pararCamera() {
     if (localStream && callType === 'video') {
@@ -270,7 +270,6 @@ function pararCamera() {
         if (videoTrack) {
             camAtiva = !camAtiva;
             videoTrack.enabled = camAtiva;
-            
             const btn = document.getElementById("btnToggleCam");
             btn.textContent = camAtiva ? "CÂMERA: ON" : "CÂMERA: OFF";
             btn.style.background = camAtiva ? "#25D366" : "#ff3b30";
@@ -283,7 +282,6 @@ async function switchCamera() {
     if (localStream && callType === 'video') {
         currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
         localStream.getVideoTracks().forEach(track => track.stop());
-
         try {
             const newStream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: currentFacingMode },
@@ -293,7 +291,6 @@ async function switchCamera() {
             document.getElementById("localVideo").srcObject = newStream;
             const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
             if (sender) sender.replaceTrack(newVideoTrack);
-            
             localStream = newStream;
             camAtiva = true;
             document.getElementById("btnToggleCam").textContent = "CÂMERA: ON";
@@ -317,17 +314,22 @@ socket.on("iceCandidate", async (data) => {
     } catch (e) { console.error("Erro ICE:", e); }
 });
 
-// --- MSGS, STATUS, CONTADORES ---
+// --- MSGS, STATUS E CONTADORES ---
 
 socket.on("newMessage", (msg) => {
-    if (msg.toId === currentUser.id) {
-        if (!currentChat || currentChat.id !== msg.fromId) {
-            unreadCounts[msg.fromId] = (unreadCounts[msg.fromId] || 0) + 1;
+    const meuId = String(currentUser.id);
+    const idRemetente = String(msg.fromId);
+
+    if (String(msg.toId) === meuId) {
+        // Se o chat NÃO está aberto, incrementa contador
+        if (!currentChat || String(currentChat.id) !== idRemetente) {
+            unreadCounts[idRemetente] = (unreadCounts[idRemetente] || 0) + 1;
             localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
             renderContacts();
         } else {
+            // Se o chat está aberto, carrega e marca como lida
             loadMessages();
-            socket.emit("readMessages", { fromId: msg.fromId, toId: currentUser.id });
+            socket.emit("readMessages", { fromId: idRemetente, toId: meuId });
         }
     }
 });
@@ -339,7 +341,7 @@ socket.on("updateStatus", (listaOnline) => {
 });
 
 socket.on("userTyping", (data) => {
-    if (currentChat && currentChat.id === data.fromId) {
+    if (currentChat && String(currentChat.id) === String(data.fromId)) {
         const statusElement = document.getElementById("chatStatus");
         if (statusElement) {
             statusElement.textContent = "Digitando...";
@@ -355,18 +357,10 @@ socket.on("userTyping", (data) => {
 function atualizarStatusChatInterno(id) {
     const statusElement = document.getElementById("chatStatus");
     if (statusElement) {
-        const isOnline = listaOnlineGlobal.includes(id);
+        const isOnline = listaOnlineGlobal.includes(String(id));
         statusElement.textContent = isOnline ? "Online" : "Offline";
         statusElement.style.color = isOnline ? "#25D366" : "gray";
     }
-}
-
-const messageInput = document.getElementById("messageText");
-if (messageInput) {
-    messageInput.oninput = () => {
-        if (!currentChat || !currentUser) return;
-        socket.emit("typing", { fromId: currentUser.id, toId: currentChat.id });
-    };
 }
 
 function renderContacts() {
@@ -374,12 +368,13 @@ function renderContacts() {
     if(!div) return;
     div.innerHTML = "";
     contacts.forEach(user => {
-        const count = unreadCounts[user.id] || 0;
-        const isOnline = listaOnlineGlobal.includes(user.id);
+        const idStr = String(user.id);
+        const count = unreadCounts[idStr] || 0;
+        const isOnline = listaOnlineGlobal.includes(idStr);
+        const isSelected = currentChat && String(currentChat.id) === idStr;
+
         const contactEl = document.createElement("div");
-        contactEl.className = `contact ${currentChat && currentChat.id === user.id ? 'selected' : ''}`;
-        
-        // Estrutura HTML da badge de notificação verde
+        contactEl.className = `contact ${isSelected ? 'selected' : ''}`;
         contactEl.innerHTML = `
             <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="contact-img">
             <div style="flex:1;">
@@ -395,17 +390,22 @@ function renderContacts() {
 
 function abrirChat(user) {
     currentChat = user;
-    unreadCounts[user.id] = 0; 
+    const idStr = String(user.id);
+    unreadCounts[idStr] = 0; 
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    atualizarStatusChatInterno(user.id);
-    socket.emit("readMessages", { fromId: user.id, toId: currentUser.id });
+    
+    atualizarStatusChatInterno(idStr);
+    socket.emit("readMessages", { fromId: idStr, toId: currentUser.id });
     loadMessages();
     renderContacts();
 }
+
+// --- FUNÇÕES DE MENSAGENS E PERFIL ---
 
 async function loadMessages() {
     if(!currentUser || !currentChat) return;
@@ -428,9 +428,9 @@ async function loadMessages() {
             }
             const hora = dataMsg.getHours().toString().padStart(2, '0') + ":" + dataMsg.getMinutes().toString().padStart(2, '0');
             const div = document.createElement("div");
-            div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+            div.className = "message " + (String(m.fromId) === String(currentUser.id) ? "me" : "other");
             const check = m.visualizada ? '<span style="color: #34B7F1;">✔✔</span>' : '<span style="color: gray;">✔</span>';
-            div.innerHTML = `<div class="bubble">${m.text}<div class="message-info">${hora} ${m.fromId == currentUser.id ? check : ""}</div></div>`;
+            div.innerHTML = `<div class="bubble">${m.text}<div class="message-info">${hora} ${String(m.fromId) === String(currentUser.id) ? check : ""}</div></div>`;
             container.appendChild(div);
         });
         container.scrollTop = container.scrollHeight;
@@ -490,11 +490,11 @@ document.getElementById("profilePic").onchange = (e) => {
 
 document.getElementById("addFriendBtn").onclick = async () => {
     const id = document.getElementById("addUserId").value.trim();
-    if (!id || id === currentUser.id) return alert("ID inválido");
+    if (!id || String(id) === String(currentUser.id)) return alert("ID inválido");
     const res = await fetch(`/api/user/${id}`);
     const user = await res.json();
     if (user.error) return alert("Não encontrado");
-    if (!contacts.find(c => c.id === user.id)) {
+    if (!contacts.find(c => String(c.id) === String(user.id))) {
         contacts.push(user);
         localStorage.setItem("contacts", JSON.stringify(contacts));
         renderContacts();
