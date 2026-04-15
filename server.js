@@ -54,25 +54,27 @@ io.on("connection", (socket) => {
         io.emit("updateStatus", Object.keys(onlineUsers));
     });
 
-    // Atualização de Visualização de Mensagens
+    // Atualização de Visualização de Mensagens via Socket
     socket.on("readMessages", async (data) => {
         const { fromId, toId } = data; 
         try {
+            // Marca como lidas no Banco
             await Message.updateMany(
                 { fromId: fromId, toId: toId, visualizada: false },
                 { $set: { visualizada: true } }
             );
 
+            // Avisa o remetente (quem enviou) que as mensagens dele foram lidas
             const senderSocket = onlineUsers[fromId];
             if (senderSocket) {
                 io.to(senderSocket).emit("messagesRead", { byUserId: toId });
             }
         } catch (err) {
-            console.error("Erro ao atualizar visualização:", err);
+            console.error("Erro ao atualizar visualização via Socket:", err);
         }
     });
 
-    // WebRTC: Troca de candidatos ICE (Crucial para áudio e vídeo)
+    // WebRTC: Troca de candidatos ICE
     socket.on("iceCandidate", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
@@ -149,7 +151,7 @@ app.get("/api/recover-by-device/:deviceId", async (req, res) => {
     }
 });
 
-// Salvar Perfil e notificar rede via Socket
+// Salvar Perfil
 app.post("/api/saveProfile", async (req, res) => {
     try {
         const { id, username, photo } = req.body;
@@ -163,32 +165,24 @@ app.post("/api/saveProfile", async (req, res) => {
     } catch (e) { res.status(500).send(e); }
 });
 
+// Marcar mensagens como lidas (HTTP)
+app.post("/api/read-messages", async (req, res) => {
+    try {
+        const { fromId, toId } = req.body;
+        await Message.updateMany(
+            { fromId: fromId, toId: toId, visualizada: false },
+            { $set: { visualizada: true } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: "Erro ao marcar como lidas" });
+    }
+});
+
 // Buscar usuário por ID
 app.get("/api/user/:id", async (req, res) => {
     const user = await User.findOne({ id: req.params.id });
     res.json(user || { error: "Não encontrado" });
-});
-
-// Momentos (Postar)
-app.post("/api/moments", async (req, res) => {
-    try {
-        const novoMomento = await Moment.create({ ...req.body, timestamp: Date.now() });
-        io.emit("newMoment", novoMomento);
-        res.json(novoMomento);
-    } catch (err) {
-        res.status(500).json({ error: "Erro ao postar momento" });
-    }
-});
-
-// Momentos (Listar últimas 24h)
-app.get("/api/moments", async (req, res) => {
-    const umDiaAtras = Date.now() - (24 * 60 * 60 * 1000);
-    try {
-        const momentos = await Moment.find({ timestamp: { $gt: umDiaAtras } }).sort({ timestamp: -1 });
-        res.json(momentos);
-    } catch (err) {
-        res.status(500).json({ error: "Erro ao buscar momentos" });
-    }
 });
 
 // Enviar Mensagem
@@ -214,7 +208,7 @@ app.post("/api/messages", async (req, res) => {
     }
 });
 
-// Carregar histórico de mensagens entre dois usuários
+// Carregar histórico
 app.get("/api/messages/:id1/:id2", async (req, res) => {
     const msgs = await Message.find({
         $or: [
