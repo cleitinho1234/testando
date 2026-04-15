@@ -222,7 +222,6 @@ function mostrarTelaChamada(nome, foto, status) {
     document.getElementById("callPhoto").style.display = "block";
     document.getElementById("callStatusText").textContent = status;
 
-    // --- CORREÇÃO DO QUADRADINHO DA CÂMERA EM VOZ ---
     if (callType === 'audio') {
         document.getElementById("localVideo").style.display = "none";
         document.getElementById("remoteVideo").style.display = "none";
@@ -251,7 +250,6 @@ function desligarChamada() {
     document.getElementById("localVideo").srcObject = null;
     document.getElementById("remoteVideo").srcObject = null;
     
-    // Resetar visibilidade para a próxima chamada
     document.getElementById("localVideo").style.display = "block";
     document.getElementById("remoteVideo").style.display = "block";
     
@@ -321,17 +319,13 @@ socket.on("iceCandidate", async (data) => {
 
 // --- MSGS, STATUS, CONTADORES ---
 
-// --- CORREÇÃO DO CONTADOR DE MENSAGEM ---
 socket.on("newMessage", (msg) => {
     if (msg.toId === currentUser.id) {
-        // Se eu NÃO estou com o chat do remetente aberto
         if (!currentChat || currentChat.id !== msg.fromId) {
-            // Incrementa contador
             unreadCounts[msg.fromId] = (unreadCounts[msg.fromId] || 0) + 1;
             localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
             renderContacts();
         } else {
-            // Se o chat está aberto, carrega msg e marca como lida no servidor
             loadMessages();
             socket.emit("readMessages", { fromId: msg.fromId, toId: currentUser.id });
         }
@@ -384,6 +378,8 @@ function renderContacts() {
         const isOnline = listaOnlineGlobal.includes(user.id);
         const contactEl = document.createElement("div");
         contactEl.className = `contact ${currentChat && currentChat.id === user.id ? 'selected' : ''}`;
+        
+        // Estrutura HTML da badge de notificação verde
         contactEl.innerHTML = `
             <img src="${user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="contact-img">
             <div style="flex:1;">
@@ -399,7 +395,7 @@ function renderContacts() {
 
 function abrirChat(user) {
     currentChat = user;
-    unreadCounts[user.id] = 0; // Zera ao abrir
+    unreadCounts[user.id] = 0; 
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
