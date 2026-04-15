@@ -18,6 +18,9 @@ let camAtiva = true;
 let currentFacingMode = "user"; 
 const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
+// Variável para PWA
+let deferredPrompt;
+
 // --- LÓGICA DE TEMA ---
 function inicializarTema() {
     const themeToggle = document.getElementById("themeToggle");
@@ -112,7 +115,7 @@ async function iniciarChamada(tipo) {
     try {
         const constraints = { 
             audio: true, 
-            video: tipo === 'video' ? { facingMode: "user" } : false 
+            video: tipo === 'video' ? { facingMode: currentFacingMode } : false 
         };
         
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -480,14 +483,13 @@ document.getElementById("addFriendBtn").onclick = async () => {
     document.getElementById("addUserId").value = "";
 };
 
-/* --- FUNÇÕES ADICIONAIS DE CONTROLE DE CHAMADA --- */
+/* --- CONTROLES DE CHAMADA --- */
 
 function alternarVivaVoz() {
     isVivaVoz = !isVivaVoz;
     const btn = document.getElementById("btnVivaVoz");
     btn.style.background = isVivaVoz ? "#25D366" : "rgba(255,255,255,0.2)";
     btn.innerHTML = isVivaVoz ? "🔊 VIVA-VOZ: ON" : "🔊 VIVA-VOZ: OFF";
-    // Nota: Em navegadores mobile, o viva-voz geralmente é controlado pelo sistema.
 }
 
 function alternarCamera() {
@@ -509,12 +511,15 @@ async function virarCamera() {
     try {
         const videoTrack = localStream.getVideoTracks()[0];
         if (videoTrack) videoTrack.stop();
+        
         const novaStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: currentFacingMode },
             audio: true
         });
+        
         const novaTrilhaVideo = novaStream.getVideoTracks()[0];
         document.getElementById("localVideo").srcObject = novaStream;
+        
         if (peerConnection) {
             const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
             if (sender) sender.replaceTrack(novaTrilhaVideo);
@@ -523,4 +528,34 @@ async function virarCamera() {
     } catch (err) {
         console.error("Erro ao virar câmera:", err);
     }
+}
+
+/* --- LÓGICA DE INSTALAÇÃO PWA (Z-CORE) --- */
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const btn = document.getElementById("btnInstalarPWA");
+    if (btn) btn.style.display = 'block';
+});
+
+function instalarMiniZap() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+            const btn = document.getElementById("btnInstalarPWA");
+            if (btn) btn.style.display = 'none';
+        }
+        deferredPrompt = null;
+    });
+}
+
+window.addEventListener('appinstalled', () => {
+    const btn = document.getElementById("btnInstalarPWA");
+    if (btn) btn.style.display = 'none';
+});
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(err => console.error(err));
 }
