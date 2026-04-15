@@ -114,8 +114,10 @@ socket.on("iceCandidate", async (data) => {
 
 async function iniciarChamada() {
     if (!currentChat) return;
-    mostrarTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
+    
+    // Define o ID do contato antes de iniciar o processo
     contatoSelecionadoId = currentChat.id;
+    mostrarTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
 
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -123,7 +125,6 @@ async function iniciarChamada() {
 
         peerConnection = new RTCPeerConnection(rtcConfig);
         
-        // Enviar nossos candidatos ICE para o outro
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 socket.emit("iceCandidate", { toId: contatoSelecionadoId, candidate: event.candidate });
@@ -195,7 +196,9 @@ async function atenderChamada() {
 socket.on("callAccepted", async (data) => {
     document.getElementById("callStatusText").textContent = "Em linha";
     if (data.signal && peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
+        try {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
+        } catch (e) { console.error("Erro ao finalizar conexão de áudio:", e); }
     }
 });
 
