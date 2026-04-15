@@ -13,9 +13,9 @@ let receiveTypingTimeout;
 let localStream;
 let peerConnection;
 let isVivaVoz = false;
-let callType = 'audio'; // 'audio' ou 'video'
+let callType = 'audio'; 
 let camAtiva = true;
-let currentFacingMode = "user"; // "user" = frontal, "environment" = traseira
+let currentFacingMode = "user"; 
 const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
 // --- LÓGICA DE TEMA ---
@@ -96,7 +96,6 @@ window.addEventListener("load", async () => {
     }
 
     renderContacts();
-    setInterval(loadMessages, 2000);
 });
 
 // --- LÓGICA DE CHAMADA (WEBRTC) ---
@@ -262,76 +261,43 @@ socket.on("callEnded", () => {
     desligarChamada();
 });
 
-// --- CONTROLES DE MÍDIA ---
-
-function pararCamera() {
-    if (localStream && callType === 'video') {
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-            camAtiva = !camAtiva;
-            videoTrack.enabled = camAtiva;
-            const btn = document.getElementById("btnToggleCam");
-            btn.textContent = camAtiva ? "CÂMERA: ON" : "CÂMERA: OFF";
-            btn.style.background = camAtiva ? "#25D366" : "#ff3b30";
-            document.getElementById("localVideo").style.opacity = camAtiva ? "1" : "0";
-        }
-    }
-}
-
-async function switchCamera() {
-    if (localStream && callType === 'video') {
-        currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
-        localStream.getVideoTracks().forEach(track => track.stop());
-        try {
-            const newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: currentFacingMode },
-                audio: true
-            });
-            const newVideoTrack = newStream.getVideoTracks()[0];
-            document.getElementById("localVideo").srcObject = newStream;
-            const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-            if (sender) sender.replaceTrack(newVideoTrack);
-            localStream = newStream;
-            camAtiva = true;
-            document.getElementById("btnToggleCam").textContent = "CÂMERA: ON";
-            document.getElementById("btnToggleCam").style.background = "#25D366";
-            document.getElementById("localVideo").style.opacity = "1";
-        } catch (e) { console.error("Erro ao inverter câmera:", e); }
-    }
-}
-
-function toggleVivaVoz() {
-    const remoteVid = document.getElementById("remoteVideo");
-    isVivaVoz = !isVivaVoz;
-    remoteVid.volume = isVivaVoz ? 1.0 : 0.5;
-    document.getElementById("btnVivaVoz").textContent = isVivaVoz ? "VIVA-VOZ: ON" : "VIVA-VOZ: OFF";
-    document.getElementById("btnVivaVoz").style.background = isVivaVoz ? "#25D366" : "rgba(255,255,255,0.2)";
-}
-
-socket.on("iceCandidate", async (data) => {
-    try {
-        if (peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-    } catch (e) { console.error("Erro ICE:", e); }
-});
-
 // --- MSGS, STATUS E CONTADORES ---
 
-socket.on("newMessage", (msg) => {
-    const meuId = String(currentUser.id);
-    const idRemetente = String(msg.fromId);
-
-    if (String(msg.toId) === meuId) {
-        // Se o chat NÃO está aberto, incrementa contador
-        if (!currentChat || String(currentChat.id) !== idRemetente) {
-            unreadCounts[idRemetente] = (unreadCounts[idRemetente] || 0) + 1;
-            localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-            renderContacts();
-        } else {
-            // Se o chat está aberto, carrega e marca como lida
-            loadMessages();
-            socket.emit("readMessages", { fromId: idRemetente, toId: meuId });
-        }
+// CORREÇÃO: Escutar o evento correto do servidor para mensagens em tempo real
+socket.on("receiveMessage", (data) => {
+    const idRemetente = String(data.fromId);
+    
+    // Se o chat com essa pessoa está aberto
+    if (currentChat && String(currentChat.id) === idRemetente) {
+        loadMessages();
+        socket.emit("readMessages", { fromId: idRemetente, toId: currentUser.id });
+    } else {
+        // Se o chat está fechado, aumenta o contador
+        unreadCounts[idRemetente] = (unreadCounts[idRemetente] || 0) + 1;
+        localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+        renderContacts();
     }
+});
+
+// CORREÇÃO: Atualizar foto e nome de amigos em tempo real
+socket.on("userUpdated", (dados) => {
+    // Atualiza na lista de contatos local
+    contacts = contacts.map(c => {
+        if (String(c.id) === String(dados.id)) {
+            return { ...c, username: dados.username, photo: dados.photo };
+        }
+        return c;
+    });
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+    
+    // Se estiver no chat com essa pessoa agora, atualiza o topo
+    if (currentChat && String(currentChat.id) === String(dados.id)) {
+        document.getElementById("chatName").textContent = dados.username;
+        document.getElementById("chatAvatar").src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+        currentChat.username = dados.username;
+        currentChat.photo = dados.photo;
+    }
+    renderContacts();
 });
 
 socket.on("updateStatus", (listaOnline) => {
@@ -471,7 +437,7 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             currentUser.username = nome; 
             currentUser.photo = fotoBase64;
             localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-            socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: fotoBase64 });
+            // O servidor já vai disparar o io.emit("userUpdated") na rota de saveProfile
             alert("Perfil Atualizado!");
         }
     } catch (err) { alert("Erro ao salvar."); }
