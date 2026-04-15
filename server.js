@@ -17,7 +17,7 @@ app.use(express.static("public"));
 mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZapV2")
     .then(() => console.log("✅ Banco de Dados conectado!"));
 
-// --- SCHEMAS ATUALIZADOS ---
+// --- SCHEMAS ---
 const User = mongoose.model("User", { 
     id: String, 
     username: String, 
@@ -25,13 +25,12 @@ const User = mongoose.model("User", {
     deviceId: String 
 });
 
-// Adicionado o campo "visualizada" no Schema de mensagens
 const Message = mongoose.model("Message", { 
     fromId: String, 
     toId: String, 
     text: String, 
     timestamp: Number,
-    visualizada: { type: Boolean, default: false } // Essencial para o check azul
+    visualizada: { type: Boolean, default: false }
 });
 
 const Moment = mongoose.model("Moment", { 
@@ -52,17 +51,15 @@ io.on("connection", (socket) => {
         io.emit("updateStatus", Object.keys(onlineUsers));
     });
 
-    // --- LÓGICA DE VISUALIZAÇÃO (CHECK AZUL) ---
+    // --- LÓGICA DE VISUALIZAÇÃO ---
     socket.on("readMessages", async (data) => {
-        const { fromId, toId } = data; // fromId é quem enviou, toId é quem leu
+        const { fromId, toId } = data; 
         try {
-            // Marca todas as mensagens recebidas como lidas no banco
             await Message.updateMany(
                 { fromId: fromId, toId: toId, visualizada: false },
                 { $set: { visualizada: true } }
             );
 
-            // Avisa o remetente original que as mensagens dele foram lidas
             const senderSocket = onlineUsers[fromId];
             if (senderSocket) {
                 io.to(senderSocket).emit("messagesRead", { byUserId: toId });
@@ -73,11 +70,10 @@ io.on("connection", (socket) => {
     });
 
     socket.on("updateProfile", (dados) => {
-        console.log(`Usuário ${dados.id} atualizou perfil.`);
         io.emit("userUpdated", dados); 
     });
 
-    // --- LÓGICA DE CHAMADAS DE VOZ ---
+    // --- LÓGICA DE CHAMADAS ---
     socket.on("iceCandidate", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
@@ -112,7 +108,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // LOGICA DE DIGITANDO
     socket.on("typing", (data) => {
         if (onlineUsers[data.toId]) {
             io.to(onlineUsers[data.toId]).emit("userTyping", { fromId: data.fromId });
@@ -127,7 +122,7 @@ io.on("connection", (socket) => {
     });
 });
 
-// --- ROTAS DE USUÁRIO ---
+// --- ROTAS ---
 app.post("/api/user", async (req, res) => {
     try {
         const id = Math.floor(1000 + Math.random() * 9000).toString();
@@ -162,7 +157,6 @@ app.get("/api/user/:id", async (req, res) => {
     res.json(user || { error: "Não encontrado" });
 });
 
-// --- ROTA DE MOMENTOS ---
 app.post("/api/moments", async (req, res) => {
     try {
         const novoMomento = await Moment.create({ ...req.body, timestamp: Date.now() });
@@ -183,24 +177,28 @@ app.get("/api/moments", async (req, res) => {
     }
 });
 
-// --- MENSAGENS ---
+// --- MENSAGENS (CORRIGIDO PARA O CONTADOR FUNCIONAR) ---
 app.post("/api/messages", async (req, res) => {
-    const { fromId, toId, text } = req.body;
-    // Criamos a mensagem com visualizada: false por padrão
-    const msg = await Message.create({ fromId, toId, text, timestamp: Date.now(), visualizada: false });
-    const sender = await User.findOne({ id: fromId });
+    try {
+        const { fromId, toId, text } = req.body;
+        const msg = await Message.create({ fromId, toId, text, timestamp: Date.now(), visualizada: false });
+        const sender = await User.findOne({ id: fromId });
 
-    if (onlineUsers[toId]) {
-        io.to(onlineUsers[toId]).emit("receiveMessage", {
-            msg,
-            sender: {
-                id: sender.id,
-                username: sender.username,
-                photo: sender.photo
-            }
-        });
+        if (onlineUsers[toId]) {
+            // Enviamos os dados da mensagem nivelados para facilitar a leitura no script.js
+            io.to(onlineUsers[toId]).emit("receiveMessage", {
+                fromId: msg.fromId,
+                toId: msg.toId,
+                text: msg.text,
+                timestamp: msg.timestamp,
+                senderName: sender ? sender.username : "Amigo",
+                senderPhoto: sender ? sender.photo : ""
+            });
+        }
+        res.json(msg);
+    } catch (err) {
+        res.status(500).json({ error: "Erro ao enviar mensagem" });
     }
-    res.json(msg);
 });
 
 app.get("/api/messages/:id1/:id2", async (req, res) => {
