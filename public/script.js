@@ -1,3 +1,4 @@
+/* --- VARIÁVEIS GLOBAIS --- */
 let currentUser = null;
 let currentChat = null;
 let contatoSelecionadoId = null; 
@@ -6,17 +7,16 @@ const socket = io();
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let listaOnlineGlobal = [];
-let statusInterval; 
-let typingTimeout;
 let receiveTypingTimeout;
 
-// Variáveis para Ligação
+// Variáveis para Ligação (WebRTC)
 let localStream;
 let peerConnection;
 let isVivaVoz = false;
+let callType = 'audio'; // 'audio' ou 'video'
 const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
-// --- LÓGICA DE TEMA (ESCURO/CLARO) ---
+// --- LÓGICA DE TEMA ---
 function inicializarTema() {
     const themeToggle = document.getElementById("themeToggle");
     const body = document.body;
@@ -34,7 +34,7 @@ function inicializarTema() {
     }
 }
 
-// --- FUNÇÃO DE PERSISTÊNCIA (DEVICE ID) ---
+// --- DEVICE ID PARA PERSISTÊNCIA ---
 function gerarDeviceID() {
     const info = [navigator.userAgent, navigator.language, screen.colorDepth, screen.width + 'x' + screen.height, navigator.hardwareConcurrency].join('###');
     let hash = 0;
@@ -46,22 +46,12 @@ function gerarDeviceID() {
     return "DEV-" + Math.abs(hash);
 }
 
-// --- INICIALIZAÇÃO ---
+// --- INICIALIZAÇÃO DO APP ---
 window.addEventListener("load", async () => {
     inicializarTema(); 
     const deviceID = gerarDeviceID();
     
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-    } catch (err) {
-        console.warn("Aviso: Microfone não detectado ou permissão negada.");
-    }
-
-    if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
-        localStorage.clear();
-    }
-
+    // Recuperação de conta ou criação de nova
     let localUser = localStorage.getItem("myUserObject");
     let savedId = localStorage.getItem("userId");
 
@@ -108,60 +98,64 @@ window.addEventListener("load", async () => {
     setInterval(loadMessages, 2000);
 });
 
-// --- LÓGICA DE VISUALIZAÇÃO (SOCKET) ---
-socket.on("messagesRead", (data) => {
-    if (currentChat && currentChat.id === data.byUserId) {
-        loadMessages();
-    }
-});
+// --- LÓGICA DE CHAMADA (WEBRTC) ---
 
-// --- LÓGICA DE LIGAÇÃO (VOZ) ---
-socket.on("iceCandidate", async (data) => {
-    try {
-        if (peerConnection) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        }
-    } catch (e) { console.error("Erro ao adicionar ICE:", e); }
-});
-
-async function iniciarChamada() {
+async function iniciarChamada(tipo) {
     if (!currentChat) return;
+    callType = tipo; // 'audio' ou 'video'
     contatoSelecionadoId = currentChat.id;
-    mostrarTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
+    
+    mostrarTelaChamada(currentChat.username, currentChat.photo, tipo === 'video' ? "Iniciando vídeo..." : "Chamando...");
+
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        document.getElementById("localAudio").srcObject = localStream;
+        const constraints = { audio: true, video: tipo === 'video' };
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Se for vídeo, mostra o localVideo
+        if (tipo === 'video') {
+            document.getElementById("localVideo").srcObject = localStream;
+            document.getElementById("callPhoto").style.display = "none";
+        }
+
         peerConnection = new RTCPeerConnection(rtcConfig);
+        
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 socket.emit("iceCandidate", { toId: contatoSelecionadoId, candidate: event.candidate });
             }
         };
+
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
         peerConnection.ontrack = (event) => {
-            const remoteAudio = document.getElementById("remoteAudio");
-            remoteAudio.srcObject = event.streams[0];
-            remoteAudio.play().catch(e => console.error("Erro autoplay:", e));
+            const remoteVid = document.getElementById("remoteVideo");
+            remoteVid.srcObject = event.streams[0];
             document.getElementById("callStatusText").textContent = "Em linha";
+            if (tipo === 'video') document.getElementById("callPhoto").style.display = "none";
         };
+
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
+
         socket.emit("callUser", {
             toId: contatoSelecionadoId,
             fromName: currentUser.username,
             fromPhoto: currentUser.photo,
             fromId: currentUser.id,
-            signal: offer
+            signal: offer,
+            type: tipo
         });
+
     } catch (err) {
-        alert("Erro: Microfone não encontrado.");
-        document.getElementById("callScreen").style.display = "none";
+        alert("Erro: Permissão de câmera/microfone negada.");
+        desligarChamada();
     }
 }
 
 socket.on("incomingCall", (data) => {
     contatoSelecionadoId = data.fromId; 
-    mostrarTelaChamada(data.fromName, data.fromPhoto, "Recebendo ligação...");
+    callType = data.type || 'audio';
+    mostrarTelaChamada(data.fromName, data.fromPhoto, callType === 'video' ? "Chamada de vídeo..." : "Recebendo ligação...");
     document.getElementById("btnAtender").style.display = "block";
     window.incomingSignal = data.signal;
 });
@@ -170,24 +164,33 @@ async function atenderChamada() {
     document.getElementById("btnAtender").style.display = "none";
     document.getElementById("callStatusText").textContent = "Conectando...";
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        document.getElementById("localAudio").srcObject = localStream;
+        const constraints = { audio: true, video: callType === 'video' };
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (callType === 'video') {
+            document.getElementById("localVideo").srcObject = localStream;
+            document.getElementById("callPhoto").style.display = "none";
+        }
+
         peerConnection = new RTCPeerConnection(rtcConfig);
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 socket.emit("iceCandidate", { toId: contatoSelecionadoId, candidate: event.candidate });
             }
         };
+
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
         peerConnection.ontrack = (event) => {
-            const remoteAudio = document.getElementById("remoteAudio");
-            remoteAudio.srcObject = event.streams[0];
-            remoteAudio.play().catch(e => console.error("Erro autoplay:", e));
+            const remoteVid = document.getElementById("remoteVideo");
+            remoteVid.srcObject = event.streams[0];
             document.getElementById("callStatusText").textContent = "Em linha";
         };
+
         await peerConnection.setRemoteDescription(new RTCSessionDescription(window.incomingSignal));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
+        
         socket.emit("acceptCall", { toId: contatoSelecionadoId, signal: answer });
     } catch (err) {
         desligarChamada();
@@ -199,7 +202,7 @@ socket.on("callAccepted", async (data) => {
         try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
             document.getElementById("callStatusText").textContent = "Em linha";
-        } catch (e) { console.error("Erro ao finalizar áudio:", e); }
+        } catch (e) { console.error("Erro ao finalizar conexão:", e); }
     }
 });
 
@@ -207,44 +210,56 @@ function mostrarTelaChamada(nome, foto, status) {
     document.getElementById("callScreen").style.display = "flex";
     document.getElementById("callName").textContent = nome;
     document.getElementById("callPhoto").src = foto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    document.getElementById("callPhoto").style.display = "block";
     document.getElementById("callStatusText").textContent = status;
 }
 
 function desligarChamada() {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     if (peerConnection) peerConnection.close();
+    
     const idDestino = contatoSelecionadoId || (currentChat ? currentChat.id : null);
     if (idDestino) socket.emit("endCall", { toId: idDestino });
+    
     document.getElementById("callScreen").style.display = "none";
+    document.getElementById("localVideo").srcObject = null;
+    document.getElementById("remoteVideo").srcObject = null;
+    
     contatoSelecionadoId = null;
     peerConnection = null;
     localStream = null;
 }
 
 socket.on("callEnded", () => {
-    if (localStream) localStream.getTracks().forEach(track => track.stop());
-    if (peerConnection) peerConnection.close();
-    document.getElementById("callScreen").style.display = "none";
-    peerConnection = null;
-    contatoSelecionadoId = null;
-    localStream = null;
+    desligarChamada();
 });
 
-function toggleVivaVoz() {
-    const audioRemoto = document.getElementById("remoteAudio");
-    isVivaVoz = !isVivaVoz;
-    if (isVivaVoz) {
-        audioRemoto.volume = 1.0;
-        document.getElementById("btnVivaVoz").textContent = "VIVA-VOZ: ON";
-        document.getElementById("btnVivaVoz").style.background = "#25D366";
-    } else {
-        audioRemoto.volume = 0.5;
-        document.getElementById("btnVivaVoz").textContent = "VIVA-VOZ: OFF";
-        document.getElementById("btnVivaVoz").style.background = "rgba(255,255,255,0.2)";
+function toggleCamera() {
+    if (localStream && callType === 'video') {
+        const videoTrack = localStream.getVideoTracks()[0];
+        videoTrack.enabled = !videoTrack.enabled;
+        alert(videoTrack.enabled ? "Câmera Ativada" : "Câmera Desativada");
     }
 }
 
-// --- STATUS E DIGITAÇÃO ---
+function toggleVivaVoz() {
+    const remoteVid = document.getElementById("remoteVideo");
+    isVivaVoz = !isVivaVoz;
+    remoteVid.volume = isVivaVoz ? 1.0 : 0.5;
+    document.getElementById("btnVivaVoz").textContent = isVivaVoz ? "VIVA-VOZ: ON" : "VIVA-VOZ: OFF";
+    document.getElementById("btnVivaVoz").style.background = isVivaVoz ? "#25D366" : "rgba(255,255,255,0.2)";
+}
+
+socket.on("iceCandidate", async (data) => {
+    try {
+        if (peerConnection) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+    } catch (e) { console.error("Erro ICE:", e); }
+});
+
+// --- RESTANTE DAS FUNÇÕES (MSGS, STATUS, PERFIL) ---
+
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts(); 
@@ -282,7 +297,6 @@ if (messageInput) {
     };
 }
 
-// --- MENSAGENS E CONTATOS ---
 function renderContacts() {
     const div = document.getElementById("contacts");
     if(!div) return;
@@ -314,9 +328,7 @@ function abrirChat(user) {
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     atualizarStatusChatInterno(user.id);
-    
     socket.emit("readMessages", { fromId: user.id, toId: currentUser.id });
-    
     loadMessages();
     renderContacts();
 }
@@ -327,44 +339,24 @@ async function loadMessages() {
         const res = await fetch(`/api/messages/${currentUser.id}/${currentChat.id}`);
         const msgs = await res.json();
         const container = document.getElementById("messages");
-        
         container.innerHTML = "";
         let ultimaData = null;
 
         msgs.forEach(m => {
             const dataMsg = new Date(m.timestamp || Date.now());
             const dataFormatada = dataMsg.toLocaleDateString();
-            const hoje = new Date().toLocaleDateString();
-            const ontem = new Date(Date.now() - 86400000).toLocaleDateString();
-
             if (dataFormatada !== ultimaData) {
                 const divData = document.createElement("div");
                 divData.className = "date-separator";
-                let label = dataFormatada;
-                if (dataFormatada === hoje) label = "Hoje";
-                else if (dataFormatada === ontem) label = "Ontem";
-                divData.innerHTML = `<span>${label}</span>`;
+                divData.innerHTML = `<span>${dataFormatada}</span>`;
                 container.appendChild(divData);
                 ultimaData = dataFormatada;
             }
-
-            const hora = dataMsg.getHours().toString().padStart(2, '0') + ":" + 
-                         dataMsg.getMinutes().toString().padStart(2, '0');
-
+            const hora = dataMsg.getHours().toString().padStart(2, '0') + ":" + dataMsg.getMinutes().toString().padStart(2, '0');
             const div = document.createElement("div");
             div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-            
-            const check = m.visualizada ? 
-                '<span style="color: #34B7F1;">✔✔</span>' : 
-                '<span style="color: gray;">✔</span>';
-
-            div.innerHTML = `
-                <div class="bubble">
-                    ${m.text}
-                    <div class="message-info">
-                        ${hora} ${m.fromId == currentUser.id ? check : ""}
-                    </div>
-                </div>`;
+            const check = m.visualizada ? '<span style="color: #34B7F1;">✔✔</span>' : '<span style="color: gray;">✔</span>';
+            div.innerHTML = `<div class="bubble">${m.text}<div class="message-info">${hora} ${m.fromId == currentUser.id ? check : ""}</div></div>`;
             container.appendChild(div);
         });
         container.scrollTop = container.scrollHeight;
@@ -391,7 +383,6 @@ function voltar() {
     renderContacts();
 }
 
-// --- PERFIL E CONTATOS ---
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
@@ -406,7 +397,6 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             currentUser.username = nome; 
             currentUser.photo = fotoBase64;
             localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-            // EMITE para o servidor avisando que o perfil mudou
             socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: fotoBase64 });
             alert("Perfil Atualizado!");
         }
@@ -418,63 +408,11 @@ document.getElementById("profilePic").onchange = (e) => {
     if (file) {
         const reader = new FileReader();
         reader.onload = (ev) => {
-            const img = new Image();
-            img.src = ev.target.result;
-            img.onload = () => {
-                const canvas = document.createElement("canvas");
-                const MAX_WIDTH = 200; 
-                const scaleSize = MAX_WIDTH / img.width;
-                canvas.width = MAX_WIDTH;
-                canvas.height = img.height * scaleSize;
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                document.getElementById("profilePreview").src = canvas.toDataURL("image/jpeg", 0.7);
-            };
+            document.getElementById("profilePreview").src = ev.target.result;
         };
         reader.readAsDataURL(file);
     }
 };
-
-// ATUALIZAÇÃO EM TEMPO REAL PARA OUTROS USUÁRIOS
-socket.on("userUpdated", (dados) => {
-    // Procura na lista local de contatos
-    const index = contacts.findIndex(c => c.id === dados.id);
-    if (index !== -1) {
-        contacts[index].username = dados.username;
-        contacts[index].photo = dados.photo;
-        localStorage.setItem("contacts", JSON.stringify(contacts));
-        
-        // Se eu estiver com o chat desta pessoa aberto, atualiza o topo agora mesmo
-        if (currentChat && currentChat.id === dados.id) {
-            document.getElementById("chatName").textContent = dados.username;
-            document.getElementById("chatAvatar").src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-        }
-        
-        renderContacts();
-    }
-});
-
-socket.on("receiveMessage", (data) => {
-    const { sender } = data;
-    const index = contacts.findIndex(c => c.id === sender.id);
-    if (index === -1) {
-        contacts.unshift(sender);
-    } else {
-        // Garante que os dados do contato (foto/nome) atualizem ao receber msg nova
-        contacts[index].username = sender.username;
-        contacts[index].photo = sender.photo;
-    }
-    
-    localStorage.setItem("contacts", JSON.stringify(contacts));
-    if (!currentChat || currentChat.id !== sender.id) {
-        unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
-        localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
-    } else {
-        socket.emit("readMessages", { fromId: sender.id, toId: currentUser.id });
-    }
-    renderContacts();
-    if (currentChat && currentChat.id === sender.id) loadMessages();
-});
 
 document.getElementById("addFriendBtn").onclick = async () => {
     const id = document.getElementById("addUserId").value.trim();
