@@ -156,12 +156,13 @@ socket.on("incomingCall", (data) => {
     contatoSelecionadoId = data.fromId; 
     mostrarTelaChamada(data.fromName, data.fromPhoto, "Recebendo ligação...");
     document.getElementById("btnAtender").style.display = "block";
+    // Salva o sinal recebido para usar na função atenderChamada
     window.incomingSignal = data.signal;
 });
 
 async function atenderChamada() {
     document.getElementById("btnAtender").style.display = "none";
-    document.getElementById("callStatusText").textContent = "Em linha";
+    document.getElementById("callStatusText").textContent = "Conectando...";
 
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -179,25 +180,38 @@ async function atenderChamada() {
 
         peerConnection.ontrack = (event) => {
             document.getElementById("remoteAudio").srcObject = event.streams[0];
+            document.getElementById("callStatusText").textContent = "Em linha";
         };
 
+        // Aplica a oferta recebida
         await peerConnection.setRemoteDescription(new RTCSessionDescription(window.incomingSignal));
+        
+        // Cria a resposta (Answer)
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         
-        socket.emit("acceptCall", { toId: contatoSelecionadoId, signal: answer });
+        // Envia a resposta de volta para quem ligou
+        socket.emit("acceptCall", { 
+            toId: contatoSelecionadoId, 
+            signal: answer 
+        });
+        
     } catch (err) {
         console.error("Erro ao atender:", err);
+        desligarChamada();
     }
 }
 
-// CORREÇÃO CRUCIAL AQUI: Processar a resposta do amigo para abrir o áudio
+// Quando quem ligou recebe a confirmação de que o outro atendeu
 socket.on("callAccepted", async (data) => {
-    document.getElementById("callStatusText").textContent = "Em linha";
+    console.log("Chamada aceita! Finalizando conexão de áudio...");
     if (data.signal && peerConnection) {
         try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-        } catch (e) { console.error("Erro ao finalizar circuito de áudio:", e); }
+            document.getElementById("callStatusText").textContent = "Em linha";
+        } catch (e) { 
+            console.error("Erro ao finalizar circuito de áudio:", e); 
+        }
     }
 });
 
@@ -218,6 +232,7 @@ function desligarChamada() {
     document.getElementById("callScreen").style.display = "none";
     contatoSelecionadoId = null;
     peerConnection = null;
+    localStream = null;
 }
 
 socket.on("callEnded", () => {
@@ -226,6 +241,7 @@ socket.on("callEnded", () => {
     document.getElementById("callScreen").style.display = "none";
     peerConnection = null;
     contatoSelecionadoId = null;
+    localStream = null;
 });
 
 function toggleVivaVoz() {
