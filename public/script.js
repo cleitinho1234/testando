@@ -51,6 +51,15 @@ window.addEventListener("load", async () => {
     inicializarTema(); 
     const deviceID = gerarDeviceID();
     
+    // Solicita permissão inicial para evitar bloqueios silenciosos
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop()); // Fecha o microfone após testar
+        console.log("Hardware de áudio pronto.");
+    } catch (err) {
+        console.warn("Aviso: Microfone não detectado ou permissão negada.");
+    }
+
     if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
         localStorage.clear();
     }
@@ -118,6 +127,7 @@ async function iniciarChamada() {
     mostrarTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
 
     try {
+        // Tenta capturar o áudio (falha se não houver microfone/fone conectado)
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         document.getElementById("localAudio").srcObject = localStream;
 
@@ -132,7 +142,9 @@ async function iniciarChamada() {
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
         peerConnection.ontrack = (event) => {
-            document.getElementById("remoteAudio").srcObject = event.streams[0];
+            const remoteAudio = document.getElementById("remoteAudio");
+            remoteAudio.srcObject = event.streams[0];
+            remoteAudio.play().catch(e => console.error("Erro autoplay:", e));
             document.getElementById("callStatusText").textContent = "Em linha";
         };
 
@@ -147,7 +159,8 @@ async function iniciarChamada() {
             signal: offer
         });
     } catch (err) {
-        alert("Erro ao acessar microfone.");
+        console.error("Erro ao iniciar chamada:", err);
+        alert("Erro: Não foi possível acessar o microfone. Verifique se o fone está conectado corretamente.");
         document.getElementById("callScreen").style.display = "none";
     }
 }
@@ -156,7 +169,6 @@ socket.on("incomingCall", (data) => {
     contatoSelecionadoId = data.fromId; 
     mostrarTelaChamada(data.fromName, data.fromPhoto, "Recebendo ligação...");
     document.getElementById("btnAtender").style.display = "block";
-    // Salva o sinal recebido para usar na função atenderChamada
     window.incomingSignal = data.signal;
 });
 
@@ -179,18 +191,16 @@ async function atenderChamada() {
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
         peerConnection.ontrack = (event) => {
-            document.getElementById("remoteAudio").srcObject = event.streams[0];
+            const remoteAudio = document.getElementById("remoteAudio");
+            remoteAudio.srcObject = event.streams[0];
+            remoteAudio.play().catch(e => console.error("Erro autoplay:", e));
             document.getElementById("callStatusText").textContent = "Em linha";
         };
 
-        // Aplica a oferta recebida
         await peerConnection.setRemoteDescription(new RTCSessionDescription(window.incomingSignal));
-        
-        // Cria a resposta (Answer)
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         
-        // Envia a resposta de volta para quem ligou
         socket.emit("acceptCall", { 
             toId: contatoSelecionadoId, 
             signal: answer 
@@ -198,13 +208,12 @@ async function atenderChamada() {
         
     } catch (err) {
         console.error("Erro ao atender:", err);
+        alert("Erro: Conecte um fone ou microfone para atender.");
         desligarChamada();
     }
 }
 
-// Quando quem ligou recebe a confirmação de que o outro atendeu
 socket.on("callAccepted", async (data) => {
-    console.log("Chamada aceita! Finalizando conexão de áudio...");
     if (data.signal && peerConnection) {
         try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
@@ -259,7 +268,8 @@ function toggleVivaVoz() {
     }
 }
 
-// --- STATUS E DIGITAÇÃO ---
+// --- RESTO DO CÓDIGO (STATUS, MENSAGENS E PERFIL) MANTIDOS IGUAIS ---
+
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts(); 
@@ -289,7 +299,6 @@ function atualizarStatusChatInterno(id) {
     }
 }
 
-// --- ENVIO DE DIGITAÇÃO ---
 const messageInput = document.getElementById("messageText");
 if (messageInput) {
     messageInput.oninput = () => {
@@ -298,7 +307,6 @@ if (messageInput) {
     };
 }
 
-// --- MENSAGENS E CONTATOS ---
 function renderContacts() {
     const div = document.getElementById("contacts");
     if(!div) return;
@@ -373,7 +381,6 @@ function voltar() {
     renderContacts();
 }
 
-// --- PERFIL ---
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("button");
