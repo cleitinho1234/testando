@@ -110,7 +110,12 @@ async function iniciarChamada(tipo) {
     mostrarTelaChamada(currentChat.username, currentChat.photo, tipo === 'video' ? "Iniciando vídeo..." : "Chamando...");
 
     try {
-        const constraints = { audio: true, video: tipo === 'video' ? { facingMode: "user" } : false };
+        // Restrição: se for áudio, video é false.
+        const constraints = { 
+            audio: true, 
+            video: tipo === 'video' ? { facingMode: "user" } : false 
+        };
+        
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         
         if (tipo === 'video') {
@@ -132,9 +137,12 @@ async function iniciarChamada(tipo) {
             const remoteVid = document.getElementById("remoteVideo");
             if (event.streams && event.streams[0]) {
                 remoteVid.srcObject = event.streams[0];
+                if (callType === 'video') {
+                    remoteVid.style.display = "block";
+                    document.getElementById("callPhoto").style.display = "none";
+                }
             }
             document.getElementById("callStatusText").textContent = "Em linha";
-            if (tipo === 'video') document.getElementById("callPhoto").style.display = "none";
         };
 
         const offer = await peerConnection.createOffer();
@@ -150,6 +158,7 @@ async function iniciarChamada(tipo) {
         });
 
     } catch (err) {
+        console.error(err);
         alert("Erro: Permissão de câmera/microfone negada.");
         desligarChamada();
     }
@@ -167,10 +176,13 @@ async function atenderChamada() {
     document.getElementById("btnAtender").style.display = "none";
     document.getElementById("callStatusText").textContent = "Conectando...";
     camAtiva = true;
-    currentFacingMode = "user";
 
     try {
-        const constraints = { audio: true, video: callType === 'video' ? { facingMode: "user" } : false };
+        const constraints = { 
+            audio: true, 
+            video: callType === 'video' ? { facingMode: "user" } : false 
+        };
+        
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         
         if (callType === 'video') {
@@ -191,6 +203,10 @@ async function atenderChamada() {
             const remoteVid = document.getElementById("remoteVideo");
             if (event.streams && event.streams[0]) {
                 remoteVid.srcObject = event.streams[0];
+                if (callType === 'video') {
+                    remoteVid.style.display = "block";
+                    document.getElementById("callPhoto").style.display = "none";
+                }
             }
             document.getElementById("callStatusText").textContent = "Em linha";
         };
@@ -201,9 +217,18 @@ async function atenderChamada() {
         
         socket.emit("acceptCall", { toId: contatoSelecionadoId, signal: answer });
     } catch (err) {
+        console.error(err);
         desligarChamada();
     }
 }
+
+socket.on("iceCandidate", async (data) => {
+    if (peerConnection) {
+        try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } catch (e) { console.error("Erro ICE:", e); }
+    }
+});
 
 socket.on("callAccepted", async (data) => {
     if (data.signal && peerConnection) {
@@ -218,16 +243,21 @@ function mostrarTelaChamada(nome, foto, status) {
     document.getElementById("callScreen").style.display = "flex";
     document.getElementById("callName").textContent = nome;
     document.getElementById("callPhoto").src = foto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-    document.getElementById("callPhoto").style.display = "block";
-    document.getElementById("callStatusText").textContent = status;
+    
+    const localVid = document.getElementById("localVideo");
+    const remoteVid = document.getElementById("remoteVideo");
+    const callPhoto = document.getElementById("callPhoto");
 
     if (callType === 'audio') {
-        document.getElementById("localVideo").style.display = "none";
-        document.getElementById("remoteVideo").style.display = "none";
+        localVid.style.display = "none";
+        remoteVid.style.display = "none";
+        callPhoto.style.display = "block";
     } else {
-        document.getElementById("localVideo").style.display = "block";
-        document.getElementById("remoteVideo").style.display = "block";
+        localVid.style.display = "block";
+        remoteVid.style.display = "block";
+        callPhoto.style.display = "none";
     }
+    document.getElementById("callStatusText").textContent = status;
 }
 
 function desligarChamada() {
@@ -265,9 +295,7 @@ socket.on("receiveMessage", (data) => {
     }
 });
 
-// --- ATUALIZAÇÃO DE PERFIL (FOTO E NOME) EM TEMPO REAL ---
 socket.on("userUpdated", (dados) => {
-    // 1. Atualizar a lista de contatos localmente para persistir a mudança
     contacts = contacts.map(c => {
         if (String(c.id) === String(dados.id)) {
             return { ...c, username: dados.username, photo: dados.photo };
@@ -276,19 +304,15 @@ socket.on("userUpdated", (dados) => {
     });
     localStorage.setItem("contacts", JSON.stringify(contacts));
     
-    // 2. Se o chat estiver aberto com essa pessoa, atualizar os elementos visuais do chat agora
     if (currentChat && String(currentChat.id) === String(dados.id)) {
         const chatName = document.getElementById("chatName");
         const chatAvatar = document.getElementById("chatAvatar");
         if (chatName) chatName.textContent = dados.username;
         if (chatAvatar) chatAvatar.src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
         
-        // Atualizar o objeto em memória para manter a consistência
         currentChat.username = dados.username;
         currentChat.photo = dados.photo;
     }
-
-    // 3. Atualizar a lista lateral (onde as fotos aparecem)
     renderContacts();
 });
 
@@ -362,8 +386,6 @@ function abrirChat(user) {
     loadMessages();
     renderContacts();
 }
-
-// --- FUNÇÕES DE MENSAGENS E PERFIL ---
 
 async function loadMessages() {
     if(!currentUser || !currentChat) return;
