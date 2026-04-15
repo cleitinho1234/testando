@@ -45,7 +45,7 @@ io.on("connection", (socket) => {
 
     // --- LÓGICA DE CHAMADAS DE VOZ (SINALIZAÇÃO WEBRTC) ---
     
-    // NOVO: Repassador de Candidatos ICE (Essencial para o áudio)
+    // Repassador de Candidatos ICE (Essencial para os aparelhos se encontrarem na rede)
     socket.on("iceCandidate", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
@@ -62,7 +62,7 @@ io.on("connection", (socket) => {
             console.log(`Encaminhando chamada de ${data.fromId} para o socket ${targetSocket}`);
             io.to(targetSocket).emit("incomingCall", data);
         } else {
-            console.log(`Falha ao ligar: Usuário ${data.toId} não encontrado nos online.`);
+            console.log(`Falha ao ligar: Usuário ${data.toId} não encontrado.`);
         }
     });
 
@@ -70,9 +70,10 @@ io.on("connection", (socket) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
             console.log(`Chamada aceita. Enviando sinal de áudio de volta para ${data.toId}`);
+            // Enviamos o sinal diretamente para fechar o circuito de áudio
             io.to(targetSocket).emit("callAccepted", {
                 fromId: socket.userId,
-                signal: data.signal || data.offer
+                signal: data.signal
             });
         }
     });
