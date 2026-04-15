@@ -224,17 +224,9 @@ function mostrarTelaChamada(nome, foto, status) {
     if (callType === 'audio') {
         document.getElementById("localVideo").style.display = "none";
         document.getElementById("remoteVideo").style.display = "none";
-        if(document.getElementById("btnToggleCam")) document.getElementById("btnToggleCam").style.display = "none";
     } else {
         document.getElementById("localVideo").style.display = "block";
         document.getElementById("remoteVideo").style.display = "block";
-        if(document.getElementById("btnToggleCam")) document.getElementById("btnToggleCam").style.display = "block";
-    }
-    
-    const btnCam = document.getElementById("btnToggleCam");
-    if(btnCam) {
-        btnCam.textContent = "CÂMERA: ON";
-        btnCam.style.background = "#25D366";
     }
 }
 
@@ -249,9 +241,6 @@ function desligarChamada() {
     document.getElementById("localVideo").srcObject = null;
     document.getElementById("remoteVideo").srcObject = null;
     
-    document.getElementById("localVideo").style.display = "block";
-    document.getElementById("remoteVideo").style.display = "block";
-    
     contatoSelecionadoId = null;
     peerConnection = null;
     localStream = null;
@@ -263,25 +252,22 @@ socket.on("callEnded", () => {
 
 // --- MSGS, STATUS E CONTADORES ---
 
-// CORREÇÃO: Escutar o evento correto do servidor para mensagens em tempo real
 socket.on("receiveMessage", (data) => {
     const idRemetente = String(data.fromId);
     
-    // Se o chat com essa pessoa está aberto
     if (currentChat && String(currentChat.id) === idRemetente) {
         loadMessages();
         socket.emit("readMessages", { fromId: idRemetente, toId: currentUser.id });
     } else {
-        // Se o chat está fechado, aumenta o contador
         unreadCounts[idRemetente] = (unreadCounts[idRemetente] || 0) + 1;
         localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
         renderContacts();
     }
 });
 
-// CORREÇÃO: Atualizar foto e nome de amigos em tempo real
+// --- ATUALIZAÇÃO DE PERFIL (FOTO E NOME) EM TEMPO REAL ---
 socket.on("userUpdated", (dados) => {
-    // Atualiza na lista de contatos local
+    // 1. Atualizar a lista de contatos localmente para persistir a mudança
     contacts = contacts.map(c => {
         if (String(c.id) === String(dados.id)) {
             return { ...c, username: dados.username, photo: dados.photo };
@@ -290,13 +276,19 @@ socket.on("userUpdated", (dados) => {
     });
     localStorage.setItem("contacts", JSON.stringify(contacts));
     
-    // Se estiver no chat com essa pessoa agora, atualiza o topo
+    // 2. Se o chat estiver aberto com essa pessoa, atualizar os elementos visuais do chat agora
     if (currentChat && String(currentChat.id) === String(dados.id)) {
-        document.getElementById("chatName").textContent = dados.username;
-        document.getElementById("chatAvatar").src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+        const chatName = document.getElementById("chatName");
+        const chatAvatar = document.getElementById("chatAvatar");
+        if (chatName) chatName.textContent = dados.username;
+        if (chatAvatar) chatAvatar.src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+        
+        // Atualizar o objeto em memória para manter a consistência
         currentChat.username = dados.username;
         currentChat.photo = dados.photo;
     }
+
+    // 3. Atualizar a lista lateral (onde as fotos aparecem)
     renderContacts();
 });
 
@@ -437,7 +429,6 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             currentUser.username = nome; 
             currentUser.photo = fotoBase64;
             localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-            // O servidor já vai disparar o io.emit("userUpdated") na rota de saveProfile
             alert("Perfil Atualizado!");
         }
     } catch (err) { alert("Erro ao salvar."); }
