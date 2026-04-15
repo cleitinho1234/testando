@@ -51,10 +51,9 @@ window.addEventListener("load", async () => {
     inicializarTema(); 
     const deviceID = gerarDeviceID();
     
-    // Solicita permissão inicial para evitar bloqueios silenciosos
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop()); // Fecha o microfone após testar
+        stream.getTracks().forEach(track => track.stop());
         console.log("Hardware de áudio pronto.");
     } catch (err) {
         console.warn("Aviso: Microfone não detectado ou permissão negada.");
@@ -107,11 +106,19 @@ window.addEventListener("load", async () => {
     }
 
     renderContacts();
-    setInterval(loadMessages, 1500);
+    // Intervalo para carregar mensagens e atualizar visualizações
+    setInterval(loadMessages, 2000);
+});
+
+// --- LÓGICA DE VISUALIZAÇÃO (SOCKET) ---
+socket.on("messagesRead", (data) => {
+    // Se o outro usuário leu as mensagens que EU enviei, atualizo a tela
+    if (currentChat && currentChat.id === data.byUserId) {
+        loadMessages();
+    }
 });
 
 // --- LÓGICA DE LIGAÇÃO (VOZ) ---
-
 socket.on("iceCandidate", async (data) => {
     try {
         if (peerConnection) {
@@ -122,35 +129,26 @@ socket.on("iceCandidate", async (data) => {
 
 async function iniciarChamada() {
     if (!currentChat) return;
-    
     contatoSelecionadoId = currentChat.id;
     mostrarTelaChamada(currentChat.username, currentChat.photo, "Chamando...");
-
     try {
-        // Tenta capturar o áudio (falha se não houver microfone/fone conectado)
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         document.getElementById("localAudio").srcObject = localStream;
-
         peerConnection = new RTCPeerConnection(rtcConfig);
-        
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 socket.emit("iceCandidate", { toId: contatoSelecionadoId, candidate: event.candidate });
             }
         };
-
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
         peerConnection.ontrack = (event) => {
             const remoteAudio = document.getElementById("remoteAudio");
             remoteAudio.srcObject = event.streams[0];
             remoteAudio.play().catch(e => console.error("Erro autoplay:", e));
             document.getElementById("callStatusText").textContent = "Em linha";
         };
-
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
-
         socket.emit("callUser", {
             toId: contatoSelecionadoId,
             fromName: currentUser.username,
@@ -159,8 +157,7 @@ async function iniciarChamada() {
             signal: offer
         });
     } catch (err) {
-        console.error("Erro ao iniciar chamada:", err);
-        alert("Erro: Não foi possível acessar o microfone. Verifique se o fone está conectado corretamente.");
+        alert("Erro: Microfone não encontrado.");
         document.getElementById("callScreen").style.display = "none";
     }
 }
@@ -175,40 +172,27 @@ socket.on("incomingCall", (data) => {
 async function atenderChamada() {
     document.getElementById("btnAtender").style.display = "none";
     document.getElementById("callStatusText").textContent = "Conectando...";
-
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         document.getElementById("localAudio").srcObject = localStream;
-
         peerConnection = new RTCPeerConnection(rtcConfig);
-
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 socket.emit("iceCandidate", { toId: contatoSelecionadoId, candidate: event.candidate });
             }
         };
-
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
         peerConnection.ontrack = (event) => {
             const remoteAudio = document.getElementById("remoteAudio");
             remoteAudio.srcObject = event.streams[0];
             remoteAudio.play().catch(e => console.error("Erro autoplay:", e));
             document.getElementById("callStatusText").textContent = "Em linha";
         };
-
         await peerConnection.setRemoteDescription(new RTCSessionDescription(window.incomingSignal));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
-        
-        socket.emit("acceptCall", { 
-            toId: contatoSelecionadoId, 
-            signal: answer 
-        });
-        
+        socket.emit("acceptCall", { toId: contatoSelecionadoId, signal: answer });
     } catch (err) {
-        console.error("Erro ao atender:", err);
-        alert("Erro: Conecte um fone ou microfone para atender.");
         desligarChamada();
     }
 }
@@ -218,9 +202,7 @@ socket.on("callAccepted", async (data) => {
         try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
             document.getElementById("callStatusText").textContent = "Em linha";
-        } catch (e) { 
-            console.error("Erro ao finalizar circuito de áudio:", e); 
-        }
+        } catch (e) { console.error("Erro ao finalizar áudio:", e); }
     }
 });
 
@@ -234,10 +216,8 @@ function mostrarTelaChamada(nome, foto, status) {
 function desligarChamada() {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     if (peerConnection) peerConnection.close();
-    
     const idDestino = contatoSelecionadoId || (currentChat ? currentChat.id : null);
     if (idDestino) socket.emit("endCall", { toId: idDestino });
-    
     document.getElementById("callScreen").style.display = "none";
     contatoSelecionadoId = null;
     peerConnection = null;
@@ -256,7 +236,6 @@ socket.on("callEnded", () => {
 function toggleVivaVoz() {
     const audioRemoto = document.getElementById("remoteAudio");
     isVivaVoz = !isVivaVoz;
-    
     if (isVivaVoz) {
         audioRemoto.volume = 1.0;
         document.getElementById("btnVivaVoz").textContent = "VIVA-VOZ: ON";
@@ -268,8 +247,7 @@ function toggleVivaVoz() {
     }
 }
 
-// --- RESTO DO CÓDIGO (STATUS, MENSAGENS E PERFIL) MANTIDOS IGUAIS ---
-
+// --- STATUS E DIGITAÇÃO ---
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
     renderContacts(); 
@@ -307,6 +285,7 @@ if (messageInput) {
     };
 }
 
+// --- MENSAGENS E CONTATOS ---
 function renderContacts() {
     const div = document.getElementById("contacts");
     if(!div) return;
@@ -322,7 +301,7 @@ function renderContacts() {
                 <div style="font-weight:bold;">${user.username}</div>
                 <div style="font-size:11px; color:${isOnline ? '#25D366' : 'gray'}">${isOnline ? '● Online' : '● Offline'}</div>
             </div>
-            ${count > 0 ? `<span class="badge" style="background:#25D366; color:white; border-radius:50%; padding:2px 6px; font-size:10px;">${count}</span>` : ""}
+            ${count > 0 ? `<span class="badge">${count}</span>` : ""}
         `;
         contactEl.onclick = () => abrirChat(user);
         div.appendChild(contactEl);
@@ -338,6 +317,10 @@ function abrirChat(user) {
     document.getElementById("chatName").textContent = user.username;
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     atualizarStatusChatInterno(user.id);
+    
+    // Notifica que as mensagens deste chat foram lidas
+    socket.emit("readMessages", { fromId: user.id, toId: currentUser.id });
+    
     loadMessages();
     renderContacts();
 }
@@ -348,16 +331,49 @@ async function loadMessages() {
         const res = await fetch(`/api/messages/${currentUser.id}/${currentChat.id}`);
         const msgs = await res.json();
         const container = document.getElementById("messages");
-        if (container.childElementCount !== msgs.length) {
-            container.innerHTML = "";
-            msgs.forEach(m => {
-                const div = document.createElement("div");
-                div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
-                div.innerHTML = `<div class="bubble">${m.text}</div>`;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-        }
+        
+        container.innerHTML = "";
+        let ultimaData = null;
+
+        msgs.forEach(m => {
+            const dataMsg = new Date(m.timestamp || Date.now());
+            const dataFormatada = dataMsg.toLocaleDateString();
+            const hoje = new Date().toLocaleDateString();
+            const ontem = new Date(Date.now() - 86400000).toLocaleDateString();
+
+            // Balão de Data (Hoje, Ontem, etc)
+            if (dataFormatada !== ultimaData) {
+                const divData = document.createElement("div");
+                divData.className = "date-separator";
+                let label = dataFormatada;
+                if (dataFormatada === hoje) label = "Hoje";
+                else if (dataFormatada === ontem) label = "Ontem";
+                divData.innerHTML = `<span>${label}</span>`;
+                container.appendChild(divData);
+                ultimaData = dataFormatada;
+            }
+
+            const hora = dataMsg.getHours().toString().padStart(2, '0') + ":" + 
+                         dataMsg.getMinutes().toString().padStart(2, '0');
+
+            const div = document.createElement("div");
+            div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
+            
+            // Check Azul de Visualização
+            const check = m.visualizada ? 
+                '<span style="color: #34B7F1;">✔✔</span>' : 
+                '<span style="color: gray;">✔</span>';
+
+            div.innerHTML = `
+                <div class="bubble">
+                    ${m.text}
+                    <div class="message-info">
+                        ${hora} ${m.fromId == currentUser.id ? check : ""}
+                    </div>
+                </div>`;
+            container.appendChild(div);
+        });
+        container.scrollTop = container.scrollHeight;
     } catch (e) { console.error("Erro ao carregar msgs", e); }
 }
 
@@ -381,11 +397,9 @@ function voltar() {
     renderContacts();
 }
 
+// --- PERFIL E CONTATOS ---
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
-    const btn = e.target.querySelector("button");
-    btn.disabled = true;
-    btn.textContent = "Salvando...";
     const nome = document.getElementById("username").value.trim();
     const fotoBase64 = document.getElementById("profilePreview").src;
     try {
@@ -402,10 +416,6 @@ document.getElementById("profileForm").onsubmit = async (e) => {
             alert("Perfil Atualizado!");
         }
     } catch (err) { alert("Erro ao salvar."); }
-    finally {
-        btn.disabled = false;
-        btn.textContent = "SALVAR PERFIL";
-    }
 };
 
 document.getElementById("profilePic").onchange = (e) => {
@@ -437,10 +447,6 @@ socket.on("userUpdated", (dados) => {
         contacts[index].photo = dados.photo;
         localStorage.setItem("contacts", JSON.stringify(contacts));
         renderContacts();
-        if(currentChat && currentChat.id === dados.id) {
-            document.getElementById("chatName").textContent = dados.username;
-            document.getElementById("chatAvatar").src = dados.photo;
-        }
     }
 });
 
@@ -449,14 +455,14 @@ socket.on("receiveMessage", (data) => {
     const index = contacts.findIndex(c => c.id === sender.id);
     if (index === -1) {
         contacts.unshift(sender);
-    } else {
-        contacts[index].username = sender.username;
-        contacts[index].photo = sender.photo;
     }
     localStorage.setItem("contacts", JSON.stringify(contacts));
     if (!currentChat || currentChat.id !== sender.id) {
         unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
         localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+    } else {
+        // Se o chat está aberto, avisa que visualizou
+        socket.emit("readMessages", { fromId: sender.id, toId: currentUser.id });
     }
     renderContacts();
     if (currentChat && currentChat.id === sender.id) loadMessages();
