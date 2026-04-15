@@ -87,7 +87,6 @@
   .contact.selected { background: var(--contact-selected) !important; border: 1px solid #25D366; }
   .contact-img { width: 45px; height: 45px; border-radius: 50%; margin-right: 12px; object-fit: cover; }
 
-  /* AJUSTE DO CONTADOR (BADGE) */
   .badge {
     background-color: #25D366 !important;
     color: white !important;
@@ -99,7 +98,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-left: auto; /* Empurra para a direita */
+    margin-left: auto; 
     padding: 2px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     z-index: 10;
@@ -225,9 +224,9 @@
         </div>
         
         <div style="display: flex; gap: 10px; justify-content: center; margin-top: 25px;">
-            <button id="btnVivaVoz" onclick="toggleVivaVoz()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:12px 18px; border-radius:30px; font-weight:bold; cursor:pointer; backdrop-filter: blur(5px);">VIVA-VOZ: OFF</button>
-            <button id="btnToggleCam" onclick="pararCamera()" style="background:#25D366; border:none; color:white; padding:12px 18px; border-radius:30px; font-weight:bold; cursor:pointer; backdrop-filter: blur(5px);">CÂMERA: ON</button>
-            <button onclick="switchCamera()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:12px 18px; border-radius:30px; font-weight:bold; cursor:pointer; backdrop-filter: blur(5px);">🔄 VIRAR</button>
+            <button id="btnVivaVoz" onclick="alternarVivaVoz()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:12px 18px; border-radius:30px; font-weight:bold; cursor:pointer; backdrop-filter: blur(5px);">🔊 VIVA-VOZ</button>
+            <button id="btnToggleCam" onclick="alternarCamera()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:12px 18px; border-radius:30px; font-weight:bold; cursor:pointer; backdrop-filter: blur(5px);">📷 CÂMERA</button>
+            <button id="btnVirar" onclick="virarCamera()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:12px 18px; border-radius:30px; font-weight:bold; cursor:pointer; backdrop-filter: blur(5px);">🔄 VIRAR</button>
         </div>
     </div>
 </div>
