@@ -222,7 +222,7 @@ function mostrarTelaChamada(nome, foto, status) {
     document.getElementById("callPhoto").style.display = "block";
     document.getElementById("callStatusText").textContent = status;
 
-    // Remove o "quadradinho" se for apenas áudio
+    // --- CORREÇÃO DO QUADRADINHO DA CÂMERA EM VOZ ---
     if (callType === 'audio') {
         document.getElementById("localVideo").style.display = "none";
         document.getElementById("remoteVideo").style.display = "none";
@@ -321,16 +321,17 @@ socket.on("iceCandidate", async (data) => {
 
 // --- MSGS, STATUS, CONTADORES ---
 
-// Escuta mensagens em tempo real para o contador e atualização do chat
+// --- CORREÇÃO DO CONTADOR DE MENSAGEM ---
 socket.on("newMessage", (msg) => {
     if (msg.toId === currentUser.id) {
+        // Se eu NÃO estou com o chat do remetente aberto
         if (!currentChat || currentChat.id !== msg.fromId) {
-            // Incrementa contador se o chat não estiver aberto
+            // Incrementa contador
             unreadCounts[msg.fromId] = (unreadCounts[msg.fromId] || 0) + 1;
             localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
             renderContacts();
         } else {
-            // Atualiza a tela se o chat estiver aberto
+            // Se o chat está aberto, carrega msg e marca como lida no servidor
             loadMessages();
             socket.emit("readMessages", { fromId: msg.fromId, toId: currentUser.id });
         }
@@ -398,7 +399,7 @@ function renderContacts() {
 
 function abrirChat(user) {
     currentChat = user;
-    unreadCounts[user.id] = 0;
+    unreadCounts[user.id] = 0; // Zera ao abrir
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     document.getElementById("home").style.display = "none";
     document.getElementById("chatScreen").style.display = "flex";
