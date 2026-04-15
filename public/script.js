@@ -110,7 +110,6 @@ async function iniciarChamada(tipo) {
     mostrarTelaChamada(currentChat.username, currentChat.photo, tipo === 'video' ? "Iniciando vídeo..." : "Chamando...");
 
     try {
-        // Restrição: se for áudio, video é false.
         const constraints = { 
             audio: true, 
             video: tipo === 'video' ? { facingMode: "user" } : false 
@@ -480,3 +479,48 @@ document.getElementById("addFriendBtn").onclick = async () => {
     }
     document.getElementById("addUserId").value = "";
 };
+
+/* --- FUNÇÕES ADICIONAIS DE CONTROLE DE CHAMADA --- */
+
+function alternarVivaVoz() {
+    isVivaVoz = !isVivaVoz;
+    const btn = document.getElementById("btnVivaVoz");
+    btn.style.background = isVivaVoz ? "#25D366" : "rgba(255,255,255,0.2)";
+    btn.innerHTML = isVivaVoz ? "🔊 VIVA-VOZ: ON" : "🔊 VIVA-VOZ: OFF";
+    // Nota: Em navegadores mobile, o viva-voz geralmente é controlado pelo sistema.
+}
+
+function alternarCamera() {
+    if (localStream) {
+        camAtiva = !camAtiva;
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.enabled = camAtiva;
+            const btn = document.getElementById("btnToggleCam");
+            btn.innerHTML = camAtiva ? "📷 CÂMERA: ON" : "🚫 CÂMERA: OFF";
+            btn.style.background = camAtiva ? "#25D366" : "red";
+        }
+    }
+}
+
+async function virarCamera() {
+    if (callType !== 'video' || !localStream) return;
+    currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+    try {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) videoTrack.stop();
+        const novaStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: currentFacingMode },
+            audio: true
+        });
+        const novaTrilhaVideo = novaStream.getVideoTracks()[0];
+        document.getElementById("localVideo").srcObject = novaStream;
+        if (peerConnection) {
+            const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+            if (sender) sender.replaceTrack(novaTrilhaVideo);
+        }
+        localStream = novaStream;
+    } catch (err) {
+        console.error("Erro ao virar câmera:", err);
+    }
+}
