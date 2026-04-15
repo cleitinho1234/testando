@@ -17,7 +17,7 @@ app.use(express.static("public"));
 mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZapV2")
     .then(() => console.log("✅ Banco de Dados conectado!"));
 
-// Schemas Atualizados
+// --- SCHEMAS ATUALIZADOS ---
 const User = mongoose.model("User", { 
     id: String, 
     username: String, 
@@ -25,8 +25,22 @@ const User = mongoose.model("User", {
     deviceId: String 
 });
 
-const Message = mongoose.model("Message", { fromId: String, toId: String, text: String, timestamp: Number });
-const Moment = mongoose.model("Moment", { userId: String, username: String, userPhoto: String, media: String, timestamp: Number });
+// Adicionado o campo "visualizada" no Schema de mensagens
+const Message = mongoose.model("Message", { 
+    fromId: String, 
+    toId: String, 
+    text: String, 
+    timestamp: Number,
+    visualizada: { type: Boolean, default: false } // Essencial para o check azul
+});
+
+const Moment = mongoose.model("Moment", { 
+    userId: String, 
+    username: String, 
+    userPhoto: String, 
+    media: String, 
+    timestamp: Number 
+});
 
 let onlineUsers = {};
 
@@ -38,14 +52,32 @@ io.on("connection", (socket) => {
         io.emit("updateStatus", Object.keys(onlineUsers));
     });
 
+    // --- LÓGICA DE VISUALIZAÇÃO (CHECK AZUL) ---
+    socket.on("readMessages", async (data) => {
+        const { fromId, toId } = data; // fromId é quem enviou, toId é quem leu
+        try {
+            // Marca todas as mensagens recebidas como lidas no banco
+            await Message.updateMany(
+                { fromId: fromId, toId: toId, visualizada: false },
+                { $set: { visualizada: true } }
+            );
+
+            // Avisa o remetente original que as mensagens dele foram lidas
+            const senderSocket = onlineUsers[fromId];
+            if (senderSocket) {
+                io.to(senderSocket).emit("messagesRead", { byUserId: toId });
+            }
+        } catch (err) {
+            console.error("Erro ao atualizar visualização:", err);
+        }
+    });
+
     socket.on("updateProfile", (dados) => {
         console.log(`Usuário ${dados.id} atualizou perfil.`);
         io.emit("userUpdated", dados); 
     });
 
-    // --- LÓGICA DE CHAMADAS DE VOZ (SINALIZAÇÃO WEBRTC) ---
-    
-    // Repassador de Candidatos ICE (Essencial para os aparelhos se encontrarem na rede)
+    // --- LÓGICA DE CHAMADAS DE VOZ ---
     socket.on("iceCandidate", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
@@ -59,18 +91,13 @@ io.on("connection", (socket) => {
     socket.on("callUser", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
-            console.log(`Encaminhando chamada de ${data.fromId} para o socket ${targetSocket}`);
             io.to(targetSocket).emit("incomingCall", data);
-        } else {
-            console.log(`Falha ao ligar: Usuário ${data.toId} não encontrado.`);
         }
     });
 
     socket.on("acceptCall", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
-            console.log(`Chamada aceita. Enviando sinal de áudio de volta para ${data.toId}`);
-            // Enviamos o sinal diretamente para fechar o circuito de áudio
             io.to(targetSocket).emit("callAccepted", {
                 fromId: socket.userId,
                 signal: data.signal
@@ -81,7 +108,6 @@ io.on("connection", (socket) => {
     socket.on("endCall", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
-            console.log(`Encerrando chamada para ${data.toId}`);
             io.to(targetSocket).emit("callEnded");
         }
     });
@@ -95,7 +121,6 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => {
         if (socket.userId) {
-            console.log(`Usuário ${socket.userId} desconectado.`);
             delete onlineUsers[socket.userId];
             io.emit("updateStatus", Object.keys(onlineUsers));
         }
@@ -103,7 +128,6 @@ io.on("connection", (socket) => {
 });
 
 // --- ROTAS DE USUÁRIO ---
-
 app.post("/api/user", async (req, res) => {
     try {
         const id = Math.floor(1000 + Math.random() * 9000).toString();
@@ -117,11 +141,8 @@ app.post("/api/user", async (req, res) => {
 app.get("/api/recover-by-device/:deviceId", async (req, res) => {
     try {
         const user = await User.findOne({ deviceId: req.params.deviceId });
-        if (user) {
-            res.json(user);
-        } else {
-            res.status(404).json({ error: "Nenhuma conta vinculada" });
-        }
+        if (user) res.json(user);
+        else res.status(404).json({ error: "Nenhuma conta vinculada" });
     } catch (err) {
         res.status(500).json({ error: "Erro na recuperação" });
     }
@@ -130,16 +151,9 @@ app.get("/api/recover-by-device/:deviceId", async (req, res) => {
 app.post("/api/saveProfile", async (req, res) => {
     try {
         const { id, username, photo } = req.body;
-        const user = await User.findOneAndUpdate(
-            { id: id },
-            { username, photo },
-            { new: true }
-        );
-        if (user) {
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ error: "Usuário não encontrado" });
-        }
+        const user = await User.findOneAndUpdate({ id }, { username, photo }, { new: true });
+        if (user) res.json({ success: true });
+        else res.status(404).json({ error: "Usuário não encontrado" });
     } catch (e) { res.status(500).send(e); }
 });
 
@@ -149,13 +163,9 @@ app.get("/api/user/:id", async (req, res) => {
 });
 
 // --- ROTA DE MOMENTOS ---
-
 app.post("/api/moments", async (req, res) => {
     try {
-        const novoMomento = await Moment.create({
-            ...req.body,
-            timestamp: Date.now()
-        });
+        const novoMomento = await Moment.create({ ...req.body, timestamp: Date.now() });
         io.emit("newMoment", novoMomento);
         res.json(novoMomento);
     } catch (err) {
@@ -166,9 +176,7 @@ app.post("/api/moments", async (req, res) => {
 app.get("/api/moments", async (req, res) => {
     const umDiaAtras = Date.now() - (24 * 60 * 60 * 1000);
     try {
-        const momentos = await Moment.find({ 
-            timestamp: { $gt: umDiaAtras } 
-        }).sort({ timestamp: -1 });
+        const momentos = await Moment.find({ timestamp: { $gt: umDiaAtras } }).sort({ timestamp: -1 });
         res.json(momentos);
     } catch (err) {
         res.status(500).json({ error: "Erro ao buscar momentos" });
@@ -176,10 +184,10 @@ app.get("/api/moments", async (req, res) => {
 });
 
 // --- MENSAGENS ---
-
 app.post("/api/messages", async (req, res) => {
     const { fromId, toId, text } = req.body;
-    const msg = await Message.create({ fromId, toId, text, timestamp: Date.now() });
+    // Criamos a mensagem com visualizada: false por padrão
+    const msg = await Message.create({ fromId, toId, text, timestamp: Date.now(), visualizada: false });
     const sender = await User.findOne({ id: fromId });
 
     if (onlineUsers[toId]) {
