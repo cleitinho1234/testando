@@ -221,8 +221,18 @@ function mostrarTelaChamada(nome, foto, status) {
     document.getElementById("callPhoto").src = foto || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     document.getElementById("callPhoto").style.display = "block";
     document.getElementById("callStatusText").textContent = status;
+
+    // Remove o "quadradinho" se for apenas áudio
+    if (callType === 'audio') {
+        document.getElementById("localVideo").style.display = "none";
+        document.getElementById("remoteVideo").style.display = "none";
+        if(document.getElementById("btnToggleCam")) document.getElementById("btnToggleCam").style.display = "none";
+    } else {
+        document.getElementById("localVideo").style.display = "block";
+        document.getElementById("remoteVideo").style.display = "block";
+        if(document.getElementById("btnToggleCam")) document.getElementById("btnToggleCam").style.display = "block";
+    }
     
-    // Resetar botões de interface
     const btnCam = document.getElementById("btnToggleCam");
     if(btnCam) {
         btnCam.textContent = "CÂMERA: ON";
@@ -241,6 +251,10 @@ function desligarChamada() {
     document.getElementById("localVideo").srcObject = null;
     document.getElementById("remoteVideo").srcObject = null;
     
+    // Resetar visibilidade para a próxima chamada
+    document.getElementById("localVideo").style.display = "block";
+    document.getElementById("remoteVideo").style.display = "block";
+    
     contatoSelecionadoId = null;
     peerConnection = null;
     localStream = null;
@@ -250,7 +264,7 @@ socket.on("callEnded", () => {
     desligarChamada();
 });
 
-// --- NOVAS FUNÇÕES DE CONTROLE DE CÂMERA ---
+// --- FUNÇÕES DE CONTROLE DE CÂMERA ---
 
 function pararCamera() {
     if (localStream && callType === 'video') {
@@ -270,8 +284,6 @@ function pararCamera() {
 async function switchCamera() {
     if (localStream && callType === 'video') {
         currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
-        
-        // Para a trilha de vídeo atual
         localStream.getVideoTracks().forEach(track => track.stop());
 
         try {
@@ -279,26 +291,17 @@ async function switchCamera() {
                 video: { facingMode: currentFacingMode },
                 audio: true
             });
-
             const newVideoTrack = newStream.getVideoTracks()[0];
             document.getElementById("localVideo").srcObject = newStream;
-
-            // Substitui a trilha no PeerConnection para o outro usuário ver
             const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-            if (sender) {
-                sender.replaceTrack(newVideoTrack);
-            }
+            if (sender) sender.replaceTrack(newVideoTrack);
             
-            // Atualiza o stream local global
             localStream = newStream;
             camAtiva = true;
             document.getElementById("btnToggleCam").textContent = "CÂMERA: ON";
             document.getElementById("btnToggleCam").style.background = "#25D366";
             document.getElementById("localVideo").style.opacity = "1";
-
-        } catch (e) {
-            console.error("Erro ao inverter câmera:", e);
-        }
+        } catch (e) { console.error("Erro ao inverter câmera:", e); }
     }
 }
 
@@ -312,13 +315,27 @@ function toggleVivaVoz() {
 
 socket.on("iceCandidate", async (data) => {
     try {
-        if (peerConnection) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        }
+        if (peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
     } catch (e) { console.error("Erro ICE:", e); }
 });
 
-// --- RESTANTE DAS FUNÇÕES (MSGS, STATUS, PERFIL) ---
+// --- MSGS, STATUS, CONTADORES ---
+
+// Escuta mensagens em tempo real para o contador e atualização do chat
+socket.on("newMessage", (msg) => {
+    if (msg.toId === currentUser.id) {
+        if (!currentChat || currentChat.id !== msg.fromId) {
+            // Incrementa contador se o chat não estiver aberto
+            unreadCounts[msg.fromId] = (unreadCounts[msg.fromId] || 0) + 1;
+            localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+            renderContacts();
+        } else {
+            // Atualiza a tela se o chat estiver aberto
+            loadMessages();
+            socket.emit("readMessages", { fromId: msg.fromId, toId: currentUser.id });
+        }
+    }
+});
 
 socket.on("updateStatus", (listaOnline) => {
     listaOnlineGlobal = listaOnline;
