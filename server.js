@@ -8,14 +8,15 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Aumentado para 50mb para garantir que fotos de perfil e momentos não deem erro
+// Configuração de limite para suportar Base64 de fotos e mídias
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static("public"));
 
-// Conexão direta e segura
+// Conexão com o Banco de Dados
 mongoose.connect("mongodb+srv://admin:123456mini@cluster0.j6xbddq.mongodb.net/miniZapV2")
-    .then(() => console.log("✅ Banco de Dados conectado!"));
+    .then(() => console.log("✅ Banco de Dados conectado!"))
+    .catch(err => console.error("❌ Erro ao conectar ao MongoDB:", err));
 
 // --- SCHEMAS ---
 const User = mongoose.model("User", { 
@@ -43,7 +44,9 @@ const Moment = mongoose.model("Moment", {
 
 let onlineUsers = {};
 
+// --- LÓGICA SOCKET.IO ---
 io.on("connection", (socket) => {
+    
     socket.on("register", (userId) => {
         socket.userId = userId;
         onlineUsers[userId] = socket.id;
@@ -51,7 +54,7 @@ io.on("connection", (socket) => {
         io.emit("updateStatus", Object.keys(onlineUsers));
     });
 
-    // --- LÓGICA DE VISUALIZAÇÃO ---
+    // Atualização de Visualização de Mensagens
     socket.on("readMessages", async (data) => {
         const { fromId, toId } = data; 
         try {
@@ -69,12 +72,7 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Escuta atualizações de perfil via Socket (opcional, já que usamos a rota API)
-    socket.on("updateProfile", (dados) => {
-        io.emit("userUpdated", dados); 
-    });
-
-    // --- LÓGICA DE CHAMADAS ---
+    // WebRTC: Troca de candidatos ICE (Crucial para áudio e vídeo)
     socket.on("iceCandidate", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
@@ -85,6 +83,7 @@ io.on("connection", (socket) => {
         }
     });
 
+    // WebRTC: Iniciar Chamada
     socket.on("callUser", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
@@ -92,6 +91,7 @@ io.on("connection", (socket) => {
         }
     });
 
+    // WebRTC: Aceitar Chamada
     socket.on("acceptCall", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
@@ -102,6 +102,7 @@ io.on("connection", (socket) => {
         }
     });
 
+    // WebRTC: Encerrar Chamada
     socket.on("endCall", (data) => {
         const targetSocket = onlineUsers[data.toId];
         if (targetSocket) {
@@ -109,6 +110,7 @@ io.on("connection", (socket) => {
         }
     });
 
+    // Status de "Digitando..."
     socket.on("typing", (data) => {
         if (onlineUsers[data.toId]) {
             io.to(onlineUsers[data.toId]).emit("userTyping", { fromId: data.fromId });
@@ -123,8 +125,9 @@ io.on("connection", (socket) => {
     });
 });
 
-// --- ROTAS ---
+// --- ROTAS DA API ---
 
+// Criar novo usuário
 app.post("/api/user", async (req, res) => {
     try {
         const id = Math.floor(1000 + Math.random() * 9000).toString();
@@ -135,6 +138,7 @@ app.post("/api/user", async (req, res) => {
     }
 });
 
+// Recuperar usuário pelo DeviceID
 app.get("/api/recover-by-device/:deviceId", async (req, res) => {
     try {
         const user = await User.findOne({ deviceId: req.params.deviceId });
@@ -145,13 +149,12 @@ app.get("/api/recover-by-device/:deviceId", async (req, res) => {
     }
 });
 
-// CORREÇÃO: Enviando aviso para todos os Sockets quando o perfil é salvo
+// Salvar Perfil e notificar rede via Socket
 app.post("/api/saveProfile", async (req, res) => {
     try {
         const { id, username, photo } = req.body;
         const user = await User.findOneAndUpdate({ id }, { username, photo }, { new: true });
         if (user) {
-            // AQUI ESTÁ A MÁGICA: Avisa todos os usuários conectados sobre a mudança
             io.emit("userUpdated", { id, username, photo });
             res.json({ success: true });
         } else {
@@ -160,11 +163,13 @@ app.post("/api/saveProfile", async (req, res) => {
     } catch (e) { res.status(500).send(e); }
 });
 
+// Buscar usuário por ID
 app.get("/api/user/:id", async (req, res) => {
     const user = await User.findOne({ id: req.params.id });
     res.json(user || { error: "Não encontrado" });
 });
 
+// Momentos (Postar)
 app.post("/api/moments", async (req, res) => {
     try {
         const novoMomento = await Moment.create({ ...req.body, timestamp: Date.now() });
@@ -175,6 +180,7 @@ app.post("/api/moments", async (req, res) => {
     }
 });
 
+// Momentos (Listar últimas 24h)
 app.get("/api/moments", async (req, res) => {
     const umDiaAtras = Date.now() - (24 * 60 * 60 * 1000);
     try {
@@ -185,6 +191,7 @@ app.get("/api/moments", async (req, res) => {
     }
 });
 
+// Enviar Mensagem
 app.post("/api/messages", async (req, res) => {
     try {
         const { fromId, toId, text } = req.body;
@@ -207,6 +214,7 @@ app.post("/api/messages", async (req, res) => {
     }
 });
 
+// Carregar histórico de mensagens entre dois usuários
 app.get("/api/messages/:id1/:id2", async (req, res) => {
     const msgs = await Message.find({
         $or: [
