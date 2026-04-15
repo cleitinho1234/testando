@@ -51,6 +51,22 @@ function gerarDeviceID() {
     return "DEV-" + Math.abs(hash);
 }
 
+// --- NOVO: BUSCAR MENSAGENS NÃO LIDAS DO SERVIDOR (OFFLINE SYNC) ---
+async function carregarContadoresNaoLidos() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/unread-counts/${currentUser.id}`);
+        const data = await res.json();
+        if (data && !data.error) {
+            unreadCounts = data;
+            localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
+            renderContacts();
+        }
+    } catch (e) {
+        console.log("Erro ao sincronizar contadores offline.");
+    }
+}
+
 // --- INICIALIZAÇÃO DO APP ---
 window.addEventListener("load", async () => {
     inicializarTema(); 
@@ -98,6 +114,8 @@ window.addEventListener("load", async () => {
         document.getElementById("profilePreview").src = currentUser.photo;
     }
 
+    // Sincroniza mensagens recebidas enquanto estava fora
+    await carregarContadoresNaoLidos();
     renderContacts();
 });
 
@@ -372,9 +390,11 @@ function renderContacts() {
     });
 }
 
-function abrirChat(user) {
+async function abrirChat(user) {
     currentChat = user;
     const idStr = String(user.id);
+    
+    // Limpa localmente
     unreadCounts[idStr] = 0; 
     localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     
@@ -384,6 +404,16 @@ function abrirChat(user) {
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     
     atualizarStatusChatInterno(idStr);
+    
+    // Notifica o servidor para marcar as mensagens como lidas no banco de dados
+    try {
+        await fetch("/api/read-messages", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ fromId: idStr, toId: currentUser.id })
+        });
+    } catch(e) { console.log("Erro ao marcar mensagens como lidas."); }
+
     socket.emit("readMessages", { fromId: idStr, toId: currentUser.id });
     loadMessages();
     renderContacts();
