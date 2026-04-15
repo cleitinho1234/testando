@@ -69,6 +69,7 @@ io.on("connection", (socket) => {
         }
     });
 
+    // Escuta atualizações de perfil via Socket (opcional, já que usamos a rota API)
     socket.on("updateProfile", (dados) => {
         io.emit("userUpdated", dados); 
     });
@@ -123,6 +124,7 @@ io.on("connection", (socket) => {
 });
 
 // --- ROTAS ---
+
 app.post("/api/user", async (req, res) => {
     try {
         const id = Math.floor(1000 + Math.random() * 9000).toString();
@@ -143,12 +145,18 @@ app.get("/api/recover-by-device/:deviceId", async (req, res) => {
     }
 });
 
+// CORREÇÃO: Enviando aviso para todos os Sockets quando o perfil é salvo
 app.post("/api/saveProfile", async (req, res) => {
     try {
         const { id, username, photo } = req.body;
         const user = await User.findOneAndUpdate({ id }, { username, photo }, { new: true });
-        if (user) res.json({ success: true });
-        else res.status(404).json({ error: "Usuário não encontrado" });
+        if (user) {
+            // AQUI ESTÁ A MÁGICA: Avisa todos os usuários conectados sobre a mudança
+            io.emit("userUpdated", { id, username, photo });
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: "Usuário não encontrado" });
+        }
     } catch (e) { res.status(500).send(e); }
 });
 
@@ -177,7 +185,6 @@ app.get("/api/moments", async (req, res) => {
     }
 });
 
-// --- MENSAGENS (CORRIGIDO PARA O CONTADOR FUNCIONAR) ---
 app.post("/api/messages", async (req, res) => {
     try {
         const { fromId, toId, text } = req.body;
@@ -185,7 +192,6 @@ app.post("/api/messages", async (req, res) => {
         const sender = await User.findOne({ id: fromId });
 
         if (onlineUsers[toId]) {
-            // Enviamos os dados da mensagem nivelados para facilitar a leitura no script.js
             io.to(onlineUsers[toId]).emit("receiveMessage", {
                 fromId: msg.fromId,
                 toId: msg.toId,
