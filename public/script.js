@@ -6,6 +6,7 @@ const socket = io();
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 let unreadCounts = JSON.parse(localStorage.getItem("unreadCounts")) || {};
 let listaOnlineGlobal = [];
+let statusInterval; 
 let typingTimeout;
 let receiveTypingTimeout;
 
@@ -15,7 +16,7 @@ let peerConnection;
 let isVivaVoz = false;
 const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
-// --- LÓGICA DE TEMA ---
+// --- LÓGICA DE TEMA (ESCURO/CLARO) ---
 function inicializarTema() {
     const themeToggle = document.getElementById("themeToggle");
     const body = document.body;
@@ -33,7 +34,7 @@ function inicializarTema() {
     }
 }
 
-// --- DEVICE ID ---
+// --- FUNÇÃO DE PERSISTÊNCIA (DEVICE ID) ---
 function gerarDeviceID() {
     const info = [navigator.userAgent, navigator.language, screen.colorDepth, screen.width + 'x' + screen.height, navigator.hardwareConcurrency].join('###');
     let hash = 0;
@@ -50,11 +51,16 @@ window.addEventListener("load", async () => {
     inicializarTema(); 
     const deviceID = gerarDeviceID();
     
-    // Tenta liberar áudio
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
-    } catch (err) { console.warn("Microfone não detectado."); }
+    } catch (err) {
+        console.warn("Aviso: Microfone não detectado ou permissão negada.");
+    }
+
+    if (localStorage.getItem("userId") === "undefined" || localStorage.getItem("userId") === "null") {
+        localStorage.clear();
+    }
 
     let localUser = localStorage.getItem("myUserObject");
     let savedId = localStorage.getItem("userId");
@@ -73,8 +79,10 @@ window.addEventListener("load", async () => {
             const recovered = await resRecover.json();
             if (recovered && !recovered.error) {
                 currentUser = recovered;
+                localStorage.setItem("userId", currentUser.id);
+                localStorage.setItem("myUserObject", JSON.stringify(currentUser));
             }
-        } catch (e) {}
+        } catch (e) { console.log("Nenhuma conta para recuperar."); }
     }
 
     if (!currentUser) {
@@ -84,34 +92,36 @@ window.addEventListener("load", async () => {
             body: JSON.stringify({ username: "Novo Usuário", photo: "", deviceId: deviceID })
         });
         currentUser = await res.json();
+        localStorage.setItem("userId", currentUser.id);
+        localStorage.setItem("myUserObject", JSON.stringify(currentUser));
     }
-
-    localStorage.setItem("userId", currentUser.id);
-    localStorage.setItem("myUserObject", JSON.stringify(currentUser));
 
     socket.emit("register", currentUser.id);
     document.getElementById("username").value = currentUser.username || "";
     document.getElementById("userIdDisplay").textContent = currentUser.id;
     
-    if(currentUser.photo) document.getElementById("profilePreview").src = currentUser.photo;
+    if(currentUser.photo) {
+        document.getElementById("profilePreview").src = currentUser.photo;
+    }
 
     renderContacts();
-    // Recarga automática para manter checks e mensagens em dia
-    setInterval(loadMessages, 3000);
+    setInterval(loadMessages, 2000);
 });
 
-// --- VISUALIZAÇÃO (CHECK AZUL) ---
+// --- LÓGICA DE VISUALIZAÇÃO (SOCKET) ---
 socket.on("messagesRead", (data) => {
-    // Quando o amigo lê, se o chat dele estiver aberto, recarregamos para ver o azul
     if (currentChat && currentChat.id === data.byUserId) {
         loadMessages();
     }
 });
 
-// --- LÓGICA DE VOZ (WEBRTC) ---
+// --- LÓGICA DE LIGAÇÃO (VOZ) ---
 socket.on("iceCandidate", async (data) => {
-    try { if (peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)); } 
-    catch (e) { console.error(e); }
+    try {
+        if (peerConnection) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+    } catch (e) { console.error("Erro ao adicionar ICE:", e); }
 });
 
 async function iniciarChamada() {
@@ -123,21 +133,29 @@ async function iniciarChamada() {
         document.getElementById("localAudio").srcObject = localStream;
         peerConnection = new RTCPeerConnection(rtcConfig);
         peerConnection.onicecandidate = (event) => {
-            if (event.candidate) socket.emit("iceCandidate", { toId: contatoSelecionadoId, candidate: event.candidate });
+            if (event.candidate) {
+                socket.emit("iceCandidate", { toId: contatoSelecionadoId, candidate: event.candidate });
+            }
         };
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
         peerConnection.ontrack = (event) => {
             const remoteAudio = document.getElementById("remoteAudio");
             remoteAudio.srcObject = event.streams[0];
-            remoteAudio.play();
+            remoteAudio.play().catch(e => console.error("Erro autoplay:", e));
             document.getElementById("callStatusText").textContent = "Em linha";
         };
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
-        socket.emit("callUser", { toId: contatoSelecionadoId, fromName: currentUser.username, fromPhoto: currentUser.photo, fromId: currentUser.id, signal: offer });
+        socket.emit("callUser", {
+            toId: contatoSelecionadoId,
+            fromName: currentUser.username,
+            fromPhoto: currentUser.photo,
+            fromId: currentUser.id,
+            signal: offer
+        });
     } catch (err) {
-        alert("Erro no microfone.");
-        desligarChamada();
+        alert("Erro: Microfone não encontrado.");
+        document.getElementById("callScreen").style.display = "none";
     }
 }
 
@@ -156,26 +174,32 @@ async function atenderChamada() {
         document.getElementById("localAudio").srcObject = localStream;
         peerConnection = new RTCPeerConnection(rtcConfig);
         peerConnection.onicecandidate = (event) => {
-            if (event.candidate) socket.emit("iceCandidate", { toId: contatoSelecionadoId, candidate: event.candidate });
+            if (event.candidate) {
+                socket.emit("iceCandidate", { toId: contatoSelecionadoId, candidate: event.candidate });
+            }
         };
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
         peerConnection.ontrack = (event) => {
             const remoteAudio = document.getElementById("remoteAudio");
             remoteAudio.srcObject = event.streams[0];
-            remoteAudio.play();
+            remoteAudio.play().catch(e => console.error("Erro autoplay:", e));
             document.getElementById("callStatusText").textContent = "Em linha";
         };
         await peerConnection.setRemoteDescription(new RTCSessionDescription(window.incomingSignal));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         socket.emit("acceptCall", { toId: contatoSelecionadoId, signal: answer });
-    } catch (err) { desligarChamada(); }
+    } catch (err) {
+        desligarChamada();
+    }
 }
 
 socket.on("callAccepted", async (data) => {
     if (data.signal && peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-        document.getElementById("callStatusText").textContent = "Em linha";
+        try {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
+            document.getElementById("callStatusText").textContent = "Em linha";
+        } catch (e) { console.error("Erro ao finalizar áudio:", e); }
     }
 });
 
@@ -189,26 +213,35 @@ function mostrarTelaChamada(nome, foto, status) {
 function desligarChamada() {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     if (peerConnection) peerConnection.close();
-    const target = contatoSelecionadoId || (currentChat ? currentChat.id : null);
-    if (target) socket.emit("endCall", { toId: target });
+    const idDestino = contatoSelecionadoId || (currentChat ? currentChat.id : null);
+    if (idDestino) socket.emit("endCall", { toId: idDestino });
     document.getElementById("callScreen").style.display = "none";
-    peerConnection = null; localStream = null;
+    contatoSelecionadoId = null;
+    peerConnection = null;
+    localStream = null;
 }
 
 socket.on("callEnded", () => {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     if (peerConnection) peerConnection.close();
     document.getElementById("callScreen").style.display = "none";
-    peerConnection = null; localStream = null;
+    peerConnection = null;
+    contatoSelecionadoId = null;
+    localStream = null;
 });
 
 function toggleVivaVoz() {
     const audioRemoto = document.getElementById("remoteAudio");
     isVivaVoz = !isVivaVoz;
-    audioRemoto.volume = isVivaVoz ? 1.0 : 0.5;
-    const btn = document.getElementById("btnVivaVoz");
-    btn.textContent = isVivaVoz ? "VIVA-VOZ: ON" : "VIVA-VOZ: OFF";
-    btn.style.background = isVivaVoz ? "#25D366" : "rgba(255,255,255,0.2)";
+    if (isVivaVoz) {
+        audioRemoto.volume = 1.0;
+        document.getElementById("btnVivaVoz").textContent = "VIVA-VOZ: ON";
+        document.getElementById("btnVivaVoz").style.background = "#25D366";
+    } else {
+        audioRemoto.volume = 0.5;
+        document.getElementById("btnVivaVoz").textContent = "VIVA-VOZ: OFF";
+        document.getElementById("btnVivaVoz").style.background = "rgba(255,255,255,0.2)";
+    }
 }
 
 // --- STATUS E DIGITAÇÃO ---
@@ -221,24 +254,33 @@ socket.on("updateStatus", (listaOnline) => {
 socket.on("userTyping", (data) => {
     if (currentChat && currentChat.id === data.fromId) {
         const statusElement = document.getElementById("chatStatus");
-        statusElement.textContent = "Digitando...";
-        statusElement.style.color = "#25D366";
-        clearTimeout(receiveTypingTimeout);
-        receiveTypingTimeout = setTimeout(() => atualizarStatusChatInterno(data.fromId), 2000);
+        if (statusElement) {
+            statusElement.textContent = "Digitando...";
+            statusElement.style.color = "#25D366";
+            clearTimeout(receiveTypingTimeout);
+            receiveTypingTimeout = setTimeout(() => {
+                atualizarStatusChatInterno(data.fromId);
+            }, 2000);
+        }
     }
 });
 
 function atualizarStatusChatInterno(id) {
     const statusElement = document.getElementById("chatStatus");
-    if (!statusElement) return;
-    const isOnline = listaOnlineGlobal.includes(id);
-    statusElement.textContent = isOnline ? "Online" : "Offline";
-    statusElement.style.color = isOnline ? "#25D366" : "gray";
+    if (statusElement) {
+        const isOnline = listaOnlineGlobal.includes(id);
+        statusElement.textContent = isOnline ? "Online" : "Offline";
+        statusElement.style.color = isOnline ? "#25D366" : "gray";
+    }
 }
 
-document.getElementById("messageText").oninput = () => {
-    if (currentChat) socket.emit("typing", { fromId: currentUser.id, toId: currentChat.id });
-};
+const messageInput = document.getElementById("messageText");
+if (messageInput) {
+    messageInput.oninput = () => {
+        if (!currentChat || !currentUser) return;
+        socket.emit("typing", { fromId: currentUser.id, toId: currentChat.id });
+    };
+}
 
 // --- MENSAGENS E CONTATOS ---
 function renderContacts() {
@@ -256,7 +298,7 @@ function renderContacts() {
                 <div style="font-weight:bold;">${user.username}</div>
                 <div style="font-size:11px; color:${isOnline ? '#25D366' : 'gray'}">${isOnline ? '● Online' : '● Offline'}</div>
             </div>
-            ${count > 0 ? `<span style="background:#25D366; color:white; border-radius:50%; padding:2px 7px; font-size:12px;">${count}</span>` : ""}
+            ${count > 0 ? `<span class="badge">${count}</span>` : ""}
         `;
         contactEl.onclick = () => abrirChat(user);
         div.appendChild(contactEl);
@@ -273,7 +315,6 @@ function abrirChat(user) {
     document.getElementById("chatAvatar").src = user.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
     atualizarStatusChatInterno(user.id);
     
-    // Essencial para o check azul: Avisa que leu ao abrir
     socket.emit("readMessages", { fromId: user.id, toId: currentUser.id });
     
     loadMessages();
@@ -287,29 +328,35 @@ async function loadMessages() {
         const msgs = await res.json();
         const container = document.getElementById("messages");
         
-        // Só reconstrói se houver mudança ou se estiver vazio
         container.innerHTML = "";
         let ultimaData = null;
 
         msgs.forEach(m => {
-            const dataMsg = new Date(m.timestamp);
+            const dataMsg = new Date(m.timestamp || Date.now());
             const dataFormatada = dataMsg.toLocaleDateString();
-            
+            const hoje = new Date().toLocaleDateString();
+            const ontem = new Date(Date.now() - 86400000).toLocaleDateString();
+
             if (dataFormatada !== ultimaData) {
                 const divData = document.createElement("div");
                 divData.className = "date-separator";
-                let label = dataFormatada === new Date().toLocaleDateString() ? "Hoje" : dataFormatada;
+                let label = dataFormatada;
+                if (dataFormatada === hoje) label = "Hoje";
+                else if (dataFormatada === ontem) label = "Ontem";
                 divData.innerHTML = `<span>${label}</span>`;
                 container.appendChild(divData);
                 ultimaData = dataFormatada;
             }
 
-            const hora = dataMsg.getHours().toString().padStart(2, '0') + ":" + dataMsg.getMinutes().toString().padStart(2, '0');
+            const hora = dataMsg.getHours().toString().padStart(2, '0') + ":" + 
+                         dataMsg.getMinutes().toString().padStart(2, '0');
+
             const div = document.createElement("div");
             div.className = "message " + (m.fromId == currentUser.id ? "me" : "other");
             
-            // Lógica do Check Azul
-            const check = m.visualizada ? '<span style="color: #34B7F1;">✔✔</span>' : '<span style="color: gray;">✔</span>';
+            const check = m.visualizada ? 
+                '<span style="color: #34B7F1;">✔✔</span>' : 
+                '<span style="color: gray;">✔</span>';
 
             div.innerHTML = `
                 <div class="bubble">
@@ -321,7 +368,7 @@ async function loadMessages() {
             container.appendChild(div);
         });
         container.scrollTop = container.scrollHeight;
-    } catch (e) {}
+    } catch (e) { console.error("Erro ao carregar msgs", e); }
 }
 
 document.getElementById("sendMessageBtn").onclick = async () => {
@@ -344,22 +391,26 @@ function voltar() {
     renderContacts();
 }
 
-// --- PERFIL ---
+// --- PERFIL E CONTATOS ---
 document.getElementById("profileForm").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById("username").value.trim();
     const fotoBase64 = document.getElementById("profilePreview").src;
-    const res = await fetch("/api/saveProfile", {
-        method: "POST", 
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoBase64 })
-    });
-    if (res.ok) {
-        currentUser.username = nome; currentUser.photo = fotoBase64;
-        localStorage.setItem("myUserObject", JSON.stringify(currentUser));
-        socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: fotoBase64 });
-        alert("Perfil salvo!");
-    }
+    try {
+        const res = await fetch("/api/saveProfile", {
+            method: "POST", 
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ id: currentUser.id, username: nome, photo: fotoBase64 })
+        });
+        if (res.ok) {
+            currentUser.username = nome; 
+            currentUser.photo = fotoBase64;
+            localStorage.setItem("myUserObject", JSON.stringify(currentUser));
+            // EMITE para o servidor avisando que o perfil mudou
+            socket.emit("updateProfile", { id: currentUser.id, username: nome, photo: fotoBase64 });
+            alert("Perfil Atualizado!");
+        }
+    } catch (err) { alert("Erro ao salvar."); }
 };
 
 document.getElementById("profilePic").onchange = (e) => {
@@ -384,18 +435,41 @@ document.getElementById("profilePic").onchange = (e) => {
     }
 };
 
+// ATUALIZAÇÃO EM TEMPO REAL PARA OUTROS USUÁRIOS
+socket.on("userUpdated", (dados) => {
+    // Procura na lista local de contatos
+    const index = contacts.findIndex(c => c.id === dados.id);
+    if (index !== -1) {
+        contacts[index].username = dados.username;
+        contacts[index].photo = dados.photo;
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        
+        // Se eu estiver com o chat desta pessoa aberto, atualiza o topo agora mesmo
+        if (currentChat && currentChat.id === dados.id) {
+            document.getElementById("chatName").textContent = dados.username;
+            document.getElementById("chatAvatar").src = dados.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+        }
+        
+        renderContacts();
+    }
+});
+
 socket.on("receiveMessage", (data) => {
     const { sender } = data;
     const index = contacts.findIndex(c => c.id === sender.id);
-    if (index === -1) contacts.unshift(sender);
+    if (index === -1) {
+        contacts.unshift(sender);
+    } else {
+        // Garante que os dados do contato (foto/nome) atualizem ao receber msg nova
+        contacts[index].username = sender.username;
+        contacts[index].photo = sender.photo;
+    }
     
     localStorage.setItem("contacts", JSON.stringify(contacts));
-    
     if (!currentChat || currentChat.id !== sender.id) {
         unreadCounts[sender.id] = (unreadCounts[sender.id] || 0) + 1;
         localStorage.setItem("unreadCounts", JSON.stringify(unreadCounts));
     } else {
-        // Se eu já estou com o chat aberto, aviso o servidor que li na hora
         socket.emit("readMessages", { fromId: sender.id, toId: currentUser.id });
     }
     renderContacts();
